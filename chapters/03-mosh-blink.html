@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mosh &amp; Blink Shell — Secure Remote Dev</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body data-page="mosh-blink" data-depth="1">
+<div class="layout">
+  <aside class="sidebar"></aside>
+  <main class="main">
+    <div class="content">
+
+      <p class="eyebrow">Chapter 03 · The session plane</p>
+      <h1>Mosh &amp; Blink Shell</h1>
+      <p class="lede">
+        SSH was designed for a workstation with a cable in the wall. A phone changes IP address when
+        you leave the house, and iOS freezes applications the moment you switch away from them.
+        This chapter is about the protocol that treats those events as normal.
+      </p>
+
+      <h2>Why SSH dies on a phone</h2>
+      <p>
+        SSH runs over TCP, and a TCP connection is identified by four values: source IP, source port,
+        destination IP, destination port. Change any one of them and it is a different connection —
+        the kernel has no way to say "this is the same conversation from a new address."
+      </p>
+      <p>
+        So a phone hands SSH three unavoidable problems:
+      </p>
+      <ul>
+        <li><strong>Roaming.</strong> Wi-Fi to LTE changes your source IP. The 4-tuple is invalid. Dead.</li>
+        <li><strong>Suspension.</strong> iOS aggressively freezes backgrounded apps. A frozen app stops reading its socket; eventually the OS tears it down.</li>
+        <li><strong>Termination.</strong> Under memory pressure iOS kills the app outright. The socket dies without a clean shutdown.</li>
+      </ul>
+      <p>
+        That last case has a signature worth recognising, because it tells you the fault is not on the
+        server. A process that closes a socket properly sends a FIN and the server logs a clean
+        disconnect. A process that is <em>killed</em> leaves the kernel to send a RST, and the server logs:
+      </p>
+      <pre><code>Read error from remote host 100.126.245.94 port 50313: Connection reset by peer</code></pre>
+      <p>
+        Meanwhile the client prints the message you have probably seen far too often:
+      </p>
+      <pre><code>client_loop: send disconnect: Broken pipe</code></pre>
+      <div class="callout info">
+        <div class="ct">Read the pair together</div>
+        <p>
+          If the server log says <code>Received disconnect ... disconnected by user</code>, the session
+          ended cleanly and the cause is elsewhere. If it says <code>Connection reset by peer</code>,
+          the client was killed and no amount of server tuning will fix it. Keepalives make the server
+          <em>patient</em>; they cannot revive a socket the phone has already lost.
+        </p>
+      </div>
+
+      <h2>What Mosh does differently</h2>
+      <p>
+        Mosh (mobile shell) discards the idea that a terminal session is a byte stream over a
+        connection. Instead, both ends model the terminal as a <em>screen state</em>, and they
+        synchronise that state over UDP datagrams. The protocol is called SSP, the State
+        Synchronisation Protocol.
+      </p>
+
+      <figure class="diagram">
+        <svg viewBox="0 0 860 430" role="img" aria-label="Comparison: an SSH TCP connection breaks when the client IP changes, whereas Mosh authenticates each datagram by session key and simply continues from the new address">
+          <!-- panel A -->
+          <rect x="16" y="14" width="396" height="400" rx="12" class="svg-surface svg-stroke" stroke-width="1.5"/>
+          <text x="38" y="42" class="svg-label">SSH over TCP</text>
+          <text x="38" y="60" class="svg-sub">connection = 4-tuple</text>
+
+          <rect x="40" y="80" width="130" height="46" rx="8" class="svg-card svg-stroke" stroke-width="1.4"/>
+          <text x="105" y="100" text-anchor="middle" class="svg-sub">phone</text>
+          <text x="105" y="116" text-anchor="middle" class="svg-sub">10.0.0.4:51200</text>
+          <rect x="258" y="80" width="130" height="46" rx="8" class="svg-card svg-stroke" stroke-width="1.4"/>
+          <text x="323" y="100" text-anchor="middle" class="svg-sub">server</text>
+          <text x="323" y="116" text-anchor="middle" class="svg-sub">:36742</text>
+          <path d="M170 103 L258 103" class="svg-accent-s" stroke-width="2" fill="none"/>
+          <text x="214" y="96" text-anchor="middle" class="svg-sub">ok</text>
+
+          <text x="40" y="164" class="svg-sub">— walks outside, joins LTE —</text>
+
+          <rect x="40" y="180" width="130" height="46" rx="8" class="svg-card svg-danger-s" stroke-width="1.6"/>
+          <text x="105" y="200" text-anchor="middle" class="svg-sub">phone</text>
+          <text x="105" y="216" text-anchor="middle" class="svg-sub">100.82.7.9:44100</text>
+          <rect x="258" y="180" width="130" height="46" rx="8" class="svg-card svg-stroke" stroke-width="1.4"/>
+          <text x="323" y="203" text-anchor="middle" class="svg-sub">server</text>
+          <path d="M170 203 L226 203" class="svg-danger-s" stroke-width="1.8" stroke-dasharray="6 4" fill="none"/>
+          <g class="svg-danger-s" stroke-width="2.6">
+            <path d="M234 193 L252 211"/><path d="M252 193 L234 211"/>
+          </g>
+
+          <rect x="40" y="258" width="348" height="60" rx="9" class="svg-card svg-danger-s" stroke-width="1.6"/>
+          <text x="60" y="282" class="svg-label">connection destroyed</text>
+          <text x="60" y="300" class="svg-sub">shell killed · unsaved work gone</text>
+
+          <text x="40" y="348" class="svg-sub">Every byte must arrive, in order,</text>
+          <text x="40" y="366" class="svg-sub">so one lost packet stalls the screen.</text>
+          <text x="40" y="384" class="svg-sub">Typing lag = full round trip.</text>
+
+          <!-- panel B -->
+          <rect x="448" y="14" width="396" height="400" rx="12" class="svg-surface svg-accent-s" stroke-width="1.6"/>
+          <text x="470" y="42" class="svg-label">Mosh over UDP</text>
+          <text x="470" y="60" class="svg-sub">session = shared secret + state</text>
+
+          <rect x="472" y="80" width="130" height="46" rx="8" class="svg-card svg-stroke" stroke-width="1.4"/>
+          <text x="537" y="100" text-anchor="middle" class="svg-sub">phone</text>
+          <text x="537" y="116" text-anchor="middle" class="svg-sub">10.0.0.4</text>
+          <rect x="690" y="80" width="130" height="46" rx="8" class="svg-card svg-stroke" stroke-width="1.4"/>
+          <text x="755" y="100" text-anchor="middle" class="svg-sub">mosh-server</text>
+          <text x="755" y="116" text-anchor="middle" class="svg-sub">holds screen state</text>
+          <path d="M602 103 L690 103" class="svg-accent-s" stroke-width="2" fill="none"/>
+
+          <text x="472" y="164" class="svg-sub">— walks outside, joins LTE —</text>
+
+          <rect x="472" y="180" width="130" height="46" rx="8" class="svg-card svg-accent-s" stroke-width="1.6"/>
+          <text x="537" y="200" text-anchor="middle" class="svg-sub">phone</text>
+          <text x="537" y="216" text-anchor="middle" class="svg-sub">100.82.7.9</text>
+          <rect x="690" y="180" width="130" height="46" rx="8" class="svg-card svg-stroke" stroke-width="1.4"/>
+          <text x="755" y="203" text-anchor="middle" class="svg-sub">mosh-server</text>
+          <path d="M602 203 L690 203" class="svg-accent-s" stroke-width="2" fill="none"/>
+          <text x="646" y="196" text-anchor="middle" class="svg-sub">same key</text>
+
+          <rect x="472" y="258" width="348" height="60" rx="9" class="svg-card svg-accent-s" stroke-width="1.6"/>
+          <text x="492" y="282" class="svg-label">session continues</text>
+          <text x="492" y="300" class="svg-sub">server just notes the new address</text>
+
+          <text x="472" y="348" class="svg-sub">Only the newest screen state matters,</text>
+          <text x="472" y="366" class="svg-sub">so lost packets are skipped, not resent.</text>
+          <text x="472" y="384" class="svg-sub">Typing echoes locally, instantly.</text>
+        </svg>
+        <figcaption>
+          <b>Authentication is per-datagram, not per-connection.</b> Every Mosh packet is encrypted and
+          authenticated with AES-OCB under a session key that SSH delivered at startup. The server
+          accepts a packet because it carries the right key, not because it came from an expected
+          address — so a new IP is a non-event. There is no connection to break.
+        </figcaption>
+      </figure>
+
+      <h3>The two consequences you feel immediately</h3>
+      <p>
+        <strong>It skips instead of retransmitting.</strong> If you run <code>cat</code> on a huge file and
+        packets drop, TCP dutifully retransmits every missed byte and your terminal crawls through
+        output you no longer care about. Mosh only ever synchronises to the <em>latest</em> screen state,
+        so it jumps straight to the end. Ctrl-C is instant even mid-flood, because the interrupt does
+        not queue behind a backlog.
+      </p>
+      <p>
+        <strong>It predicts your typing.</strong> Mosh echoes keystrokes locally when it is confident about
+        the result, underlining anything it has not yet had confirmed by the server. On a 300 ms
+        satellite link this is the difference between usable and infuriating. When a prediction turns
+        out wrong, it corrects on the next update.
+      </p>
+
+      <div class="callout warn">
+        <div class="ct">What Mosh does not do</div>
+        <ul>
+          <li>No port forwarding. Keep plain SSH around for tunnels — or reach the service directly over the tailnet, which is usually better anyway.</li>
+          <li>No native scrollback. It draws a screen, so scrolling is tmux's job, not the terminal's.</li>
+          <li>It needs UDP. On the tailnet that is fine; WireGuard is UDP already.</li>
+          <li>It does not survive a server reboot. Only tmux does that.</li>
+        </ul>
+      </div>
+
+      <h2>How a Mosh session starts</h2>
+      <p>
+        Mosh is not a replacement for SSH — it uses SSH as its bootstrap, which is why all your SSH
+        hardening still applies:
+      </p>
+      <ol>
+        <li>The <code>mosh</code> client opens a normal SSH connection and authenticates exactly as usual.</li>
+        <li>Over that connection it runs <code>mosh-server</code>, which starts, picks a UDP port in the range 60000–61000, prints a one-time shared secret, and detaches.</li>
+        <li>The SSH connection closes. It has done its job.</li>
+        <li>The client begins speaking SSP over UDP using that secret.</li>
+      </ol>
+      <p>
+        So the UDP range needs to be reachable between the two machines. On a tailnet this is
+        automatic — WireGuard carries it, and the ports are exposed to your tailnet only, never to the
+        internet. This is a genuinely important detail: <strong>Mosh over Tailscale requires no public
+        UDP ports at all.</strong>
+      </p>
+
+      <h2>Blink Shell</h2>
+      <p>
+        Blink is a terminal for iOS built around Mosh rather than bolting it on. Two properties make it
+        the right choice for this setup.
+      </p>
+
+      <h3>Keys in the Secure Enclave</h3>
+      <p>
+        The Secure Enclave is a separate coprocessor with its own memory. A key generated there
+        <em>cannot be read back</em> — not by Blink, not by iOS, not by you, not by malware with full
+        device access. The key never exists as bytes anywhere the CPU can see.
+      </p>
+      <p>
+        Signing works by asking the enclave to sign on your behalf, gated by Face ID or your passcode.
+        Compare that to a passphrase-protected key file, where the decrypted key sits in process memory
+        while you use it, and where a backup of the device carries the encrypted key off with it.
+      </p>
+      <div class="callout ok">
+        <div class="ct">What this buys you concretely</div>
+        <p>
+          A stolen, unlocked phone with a file-based key is a compromised key: the attacker needs only
+          the passphrase. A stolen phone with a Secure Enclave key is a compromised <em>device</em> —
+          revoke it in the tailnet and remove one line from <code>authorized_keys</code>, and there is
+          nothing to rotate elsewhere, because the key was never extractable and never existed on
+          another machine.
+        </p>
+      </div>
+
+      <h3>Setting it up</h3>
+      <p>
+        In Blink, open <span class="kbd">Settings → Keys</span> and create a new key, choosing the
+        Secure Enclave type. Then copy the public key and add it to each server. Blink can install
+        <code>mosh-server</code> for you without root on most platforms:
+      </p>
+      <pre><code># First connection — verify plain SSH works and check the host key
+ssh macbook
+
+# Let Blink deploy mosh-server, then use Mosh from then on
+mosh --install-static macbook
+
+# The daily command
+mosh macbook -- tmux new -A -s phone</code></pre>
+      <p>
+        Saving a host under <span class="kbd">Settings → Hosts</span> lets you type <code>mosh macbook</code>
+        rather than a full user/address/key triple, and enables the Files.app integration so you can
+        open remote files in iOS editors.
+      </p>
+
+      <div class="callout tip">
+        <div class="ct">Trailing <code>-- tmux new -A -s phone</code></div>
+        <p>
+          <code>new -A</code> means "attach if the session exists, otherwise create it." One command
+          both starts your day and resumes it, whether the last disconnect was deliberate or the lift
+          doors closing. Make it the saved command on the host and you never think about it again.
+        </p>
+      </div>
+
+      <h2>Choosing a client honestly</h2>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Client</th><th>Mosh</th><th>Key storage</th><th>Verdict</th></tr></thead>
+        <tbody>
+          <tr><td><b>Blink Shell</b></td><td>Native</td><td>Secure Enclave</td>
+              <td>The recommendation. Built for this exact job.</td></tr>
+          <tr><td><b>a-Shell</b></td><td>Included</td><td>App sandbox file</td>
+              <td>Free and genuinely capable; a native shell rather than an emulator, so far more stable than iSH.</td></tr>
+          <tr><td><b>Termius</b></td><td>No</td><td>Keychain, optional cloud sync</td>
+              <td>Polished, but no Mosh means the drops continue. Cloud key sync is a deliberate trade-off — understand it before enabling.</td></tr>
+          <tr><td><b>iSH</b></td><td>Via Alpine pkg</td><td>App sandbox file</td>
+              <td>An x86 emulator. Fun, educational, and prone to being killed under memory pressure — which is exactly the RST described above.</td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <h2>Checklist</h2>
+      <ul class="checklist">
+        <li>Blink Shell installed, with a key generated <em>in the Secure Enclave</em>.</li>
+        <li>That public key added to <code>authorized_keys</code> on each machine, with a clear comment.</li>
+        <li>Plain <code>ssh</code> verified working first, and the host key fingerprint checked.</li>
+        <li><code>mosh-server</code> present on each machine (<code>mosh --install-static</code> or the package manager).</li>
+        <li>A saved Blink host whose command is <code>tmux new -A -s phone</code>.</li>
+        <li>Verified that Mosh survives switching from Wi-Fi to LTE mid-session.</li>
+      </ul>
+
+      <nav class="pager"></nav>
+    </div>
+  </main>
+  <aside class="toc"></aside>
+</div>
+<script src="../assets/nav.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

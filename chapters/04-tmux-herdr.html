@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tmux &amp; Herdr — Secure Remote Dev</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body data-page="tmux-herdr" data-depth="1">
+<div class="layout">
+  <aside class="sidebar"></aside>
+  <main class="main">
+    <div class="content">
+
+      <p class="eyebrow">Chapter 04 · Persistence</p>
+      <h1>tmux &amp; Herdr</h1>
+      <p class="lede">
+        Mosh keeps your session alive while the network misbehaves. It cannot help when the phone runs
+        out of battery. For that you need the work to be running somewhere that does not care whether
+        anyone is watching — which is precisely what a terminal multiplexer is.
+      </p>
+
+      <h2>Why detaching works at all</h2>
+      <p>
+        The insight is about process parentage. Normally your shell is a child of <code>sshd</code>: kill
+        the connection and the shell is orphaned and killed with it. tmux breaks that chain. Your shell
+        becomes a child of the long-lived <strong>tmux server</strong>, which is not attached to any
+        terminal at all. The tmux <em>client</em> is just a viewer that connects to the server over a
+        local socket, and viewers are disposable.
+      </p>
+
+      <figure class="diagram">
+        <svg viewBox="0 0 860 400" role="img" aria-label="Process tree before and after a disconnect: the sshd branch is destroyed while the tmux server branch and everything under it keeps running">
+          <!-- panel A -->
+          <rect x="14" y="14" width="404" height="372" rx="12" class="svg-surface svg-stroke" stroke-width="1.5"/>
+          <text x="34" y="40" class="svg-label">While the phone is connected</text>
+
+          <rect x="140" y="56" width="152" height="32" rx="7" class="svg-card svg-stroke" stroke-width="1.4"/>
+          <text x="216" y="77" text-anchor="middle" class="svg-sub">launchd / systemd</text>
+
+          <path d="M216 88 L216 104 M100 104 L332 104 M100 104 L100 120 M332 104 L332 120" class="svg-muted-s" stroke-width="1.3" fill="none"/>
+
+          <rect x="36" y="120" width="128" height="30" rx="7" class="svg-card svg-stroke" stroke-width="1.4"/>
+          <text x="100" y="140" text-anchor="middle" class="svg-sub">sshd</text>
+          <path d="M100 150 L100 166" class="svg-muted-s" stroke-width="1.3"/>
+          <rect x="36" y="166" width="128" height="30" rx="7" class="svg-card svg-stroke" stroke-width="1.4"/>
+          <text x="100" y="186" text-anchor="middle" class="svg-sub">login shell</text>
+          <path d="M100 196 L100 212" class="svg-muted-s" stroke-width="1.3"/>
+          <rect x="36" y="212" width="128" height="30" rx="7" class="svg-card svg-stroke" stroke-width="1.4"/>
+          <text x="100" y="232" text-anchor="middle" class="svg-sub">tmux client</text>
+
+          <rect x="268" y="120" width="128" height="30" rx="7" class="svg-card svg-accent-s" stroke-width="1.6"/>
+          <text x="332" y="140" text-anchor="middle" class="svg-sub">tmux server</text>
+          <path d="M332 150 L332 166" class="svg-muted-s" stroke-width="1.3"/>
+          <rect x="268" y="166" width="128" height="30" rx="7" class="svg-card svg-accent-s" stroke-width="1.6"/>
+          <text x="332" y="186" text-anchor="middle" class="svg-sub">shell</text>
+          <path d="M332 196 L332 212" class="svg-muted-s" stroke-width="1.3"/>
+          <rect x="268" y="212" width="128" height="30" rx="7" class="svg-card svg-accent-s" stroke-width="1.6"/>
+          <text x="332" y="232" text-anchor="middle" class="svg-sub">herdr server</text>
+          <path d="M332 242 L332 258" class="svg-muted-s" stroke-width="1.3"/>
+          <rect x="268" y="258" width="128" height="30" rx="7" class="svg-card svg-accent-s" stroke-width="1.6"/>
+          <text x="332" y="278" text-anchor="middle" class="svg-sub">coding agents</text>
+
+          <path d="M164 227 C 200 227, 232 227, 268 227" class="svg-muted-s" stroke-width="1.4" stroke-dasharray="4 3" fill="none"/>
+          <text x="216" y="308" text-anchor="middle" class="svg-sub">unix socket</text>
+          <text x="216" y="326" text-anchor="middle" class="svg-sub">— not a parent/child link —</text>
+
+          <!-- panel B -->
+          <rect x="442" y="14" width="404" height="372" rx="12" class="svg-surface svg-accent-s" stroke-width="1.6"/>
+          <text x="462" y="40" class="svg-label">After the phone dies</text>
+
+          <rect x="568" y="56" width="152" height="32" rx="7" class="svg-card svg-stroke" stroke-width="1.4"/>
+          <text x="644" y="77" text-anchor="middle" class="svg-sub">launchd / systemd</text>
+
+          <path d="M644 88 L644 104 M528 104 L760 104 M528 104 L528 120 M760 104 L760 120" class="svg-muted-s" stroke-width="1.3" fill="none"/>
+
+          <g opacity=".4">
+            <rect x="464" y="120" width="128" height="30" rx="7" class="svg-surface svg-danger-s" stroke-width="1.3" stroke-dasharray="5 3"/>
+            <text x="528" y="140" text-anchor="middle" class="svg-sub">sshd</text>
+            <rect x="464" y="166" width="128" height="30" rx="7" class="svg-surface svg-danger-s" stroke-width="1.3" stroke-dasharray="5 3"/>
+            <text x="528" y="186" text-anchor="middle" class="svg-sub">login shell</text>
+            <rect x="464" y="212" width="128" height="30" rx="7" class="svg-surface svg-danger-s" stroke-width="1.3" stroke-dasharray="5 3"/>
+            <text x="528" y="232" text-anchor="middle" class="svg-sub">tmux client</text>
+          </g>
+          <g class="svg-danger-s" stroke-width="2.4">
+            <path d="M512 165 L544 197"/><path d="M544 165 L512 197"/>
+          </g>
+
+          <rect x="696" y="120" width="128" height="30" rx="7" class="svg-card svg-accent-s" stroke-width="1.8"/>
+          <text x="760" y="140" text-anchor="middle" class="svg-sub">tmux server</text>
+          <path d="M760 150 L760 166" class="svg-muted-s" stroke-width="1.3"/>
+          <rect x="696" y="166" width="128" height="30" rx="7" class="svg-card svg-accent-s" stroke-width="1.8"/>
+          <text x="760" y="186" text-anchor="middle" class="svg-sub">shell</text>
+          <path d="M760 196 L760 212" class="svg-muted-s" stroke-width="1.3"/>
+          <rect x="696" y="212" width="128" height="30" rx="7" class="svg-card svg-accent-s" stroke-width="1.8"/>
+          <text x="760" y="232" text-anchor="middle" class="svg-sub">herdr server</text>
+          <path d="M760 242 L760 258" class="svg-muted-s" stroke-width="1.3"/>
+          <rect x="696" y="258" width="128" height="30" rx="7" class="svg-card svg-accent-s" stroke-width="1.8"/>
+          <text x="760" y="278" text-anchor="middle" class="svg-sub">still building</text>
+
+          <text x="644" y="326" text-anchor="middle" class="svg-sub">reattach later, exactly where you left off</text>
+        </svg>
+        <figcaption>
+          <b>Only the left branch dies.</b> Because your work hangs off the tmux server rather than off
+          <code>sshd</code>, losing the connection destroys a viewer and nothing else. A build started
+          on the train is still running when you reattach from your desk.
+        </figcaption>
+      </figure>
+
+      <h2>tmux, the parts you need</h2>
+      <p>
+        The hierarchy is <strong>session → window → pane</strong>. A session is the persistent unit; a
+        window is a tab; a pane is a split. You need surprisingly few commands.
+      </p>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Action</th><th>Command or keys</th></tr></thead>
+        <tbody>
+          <tr><td>Attach if exists, else create</td><td><code>tmux new -A -s phone</code></td></tr>
+          <tr><td>List sessions</td><td><code>tmux ls</code></td></tr>
+          <tr><td>Detach (leave it running)</td><td><span class="kbd">Ctrl-b</span> then <span class="kbd">d</span></td></tr>
+          <tr><td>New window</td><td><span class="kbd">Ctrl-b</span> <span class="kbd">c</span></td></tr>
+          <tr><td>Next / previous window</td><td><span class="kbd">Ctrl-b</span> <span class="kbd">n</span> / <span class="kbd">p</span></td></tr>
+          <tr><td>Split vertically / horizontally</td><td><span class="kbd">Ctrl-b</span> <span class="kbd">%</span> / <span class="kbd">"</span></td></tr>
+          <tr><td>Scrollback / copy mode</td><td><span class="kbd">Ctrl-b</span> <span class="kbd">[</span> — then arrows, <span class="kbd">q</span> to exit</td></tr>
+          <tr><td>Kill a session</td><td><code>tmux kill-session -t phone</code></td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p>
+        Copy mode matters more than usual here: since Mosh has no scrollback of its own, tmux's copy
+        mode <em>is</em> your scrollback.
+      </p>
+
+      <h3>A phone-friendly config</h3>
+      <div class="filename">~/.tmux.conf</div>
+      <pre><code># Mouse on — genuinely useful when your input device is a thumb.
+set -g mouse on
+
+# Big scrollback, since Mosh provides none.
+set -g history-limit 50000
+
+# Renumber windows when one closes, so the numbers stay small and tappable.
+set -g renumber-windows on
+
+# Colour and undercurl passthrough for modern terminals.
+set -g default-terminal "tmux-256color"
+set -ga terminal-overrides ",*256col*:Tc"
+
+# Don't wait after Escape — Vim feels broken otherwise.
+set -sg escape-time 10
+
+# Keep the status bar informative but narrow enough for a phone screen.
+set -g status-right "#{?client_prefix,PREFIX ,}#S "
+set -g status-left ""
+
+# Index from 1: reaching '0' on a phone keyboard is a nuisance.
+set -g base-index 1
+setw -g pane-base-index 1</code></pre>
+
+      <div class="callout tip">
+        <div class="ct">Make the session start automatically</div>
+        <p>
+          Set your Blink host's command to <code>tmux new -A -s phone</code>. You never type
+          <code>tmux</code> again — connecting <em>is</em> attaching, and a dropped connection followed by
+          a reconnect lands you exactly where you were.
+        </p>
+      </div>
+
+      <h2>Herdr</h2>
+      <p>
+        Herdr is a terminal multiplexer built specifically for running coding agents. It is a single
+        Rust binary with a background server, and it borrows tmux's shape — workspaces, tabs, panes,
+        detach and reattach — while adding the thing tmux has no concept of: it reads each pane and
+        knows whether the agent inside is <strong>working, blocked, or idle</strong>.
+      </p>
+      <p>
+        That distinction is the entire value proposition. With five agents running, tmux shows you five
+        identical rectangles and you cycle through them hunting for the one waiting on your approval.
+        Herdr tells you which one it is.
+      </p>
+
+      <pre><code># Install (macOS and Linux)
+brew install herdr
+# or
+curl -fsSL https://herdr.dev/install.sh | sh
+
+# Start it
+herdr
+
+# Write out the defaults as a starting point for your own config
+herdr --default-config &gt; ~/.config/herdr/config.toml</code></pre>
+
+      <div class="filename">~/.config/herdr/config.toml</div>
+      <pre><code>[keys]
+# See the collision warning below — do not leave this as ctrl+b if
+# you intend to run Herdr inside tmux.
+prefix = "ctrl+a"
+
+[session]
+# Bring agent conversations back after the Herdr server restarts.
+resume_agents_on_restore = true
+
+[terminal]
+default_shell = "zsh"
+
+[theme]
+name = "catppuccin"
+auto_switch = true</code></pre>
+
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Action</th><th>Default binding</th></tr></thead>
+        <tbody>
+          <tr><td>Help panel</td><td><code>prefix</code> + <span class="kbd">?</span></td></tr>
+          <tr><td>Go to workspace / pane</td><td><code>prefix</code> + <span class="kbd">g</span></td></tr>
+          <tr><td>New tab</td><td><code>prefix</code> + <span class="kbd">c</span></td></tr>
+          <tr><td>Next / previous tab</td><td><code>prefix</code> + <span class="kbd">n</span> / <span class="kbd">p</span></td></tr>
+          <tr><td>Split horizontally</td><td><code>prefix</code> + <span class="kbd">-</span></td></tr>
+          <tr><td>Focus pane left</td><td><code>prefix</code> + <span class="kbd">h</span></td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <h2>The nesting problem</h2>
+      <p>
+        Running Herdr inside tmux hits an immediate and confusing wall: <strong>both default to
+        <code>Ctrl-b</code></strong>. The outer multiplexer grabs the keystroke and the inner one never
+        sees it. Every Herdr binding appears dead, and it looks like Herdr is broken when it is simply
+        never being spoken to.
+      </p>
+
+      <figure class="diagram">
+        <svg viewBox="0 0 840 300" role="img" aria-label="Keystroke routing: with both prefixes set to Ctrl-b the outer tmux consumes every prefix; after remapping Herdr to Ctrl-a each multiplexer receives its own prefix">
+          <!-- before -->
+          <text x="20" y="28" class="svg-label">Before — both bound to Ctrl-b</text>
+          <rect x="20" y="42" width="112" height="46" rx="8" class="svg-card svg-stroke" stroke-width="1.4"/>
+          <text x="76" y="70" text-anchor="middle" class="svg-sub">Ctrl-b</text>
+          <path d="M132 65 L206 65" class="svg-muted-s" stroke-width="1.8" fill="none"/>
+          <rect x="206" y="42" width="150" height="46" rx="8" class="svg-card svg-accent-s" stroke-width="1.8"/>
+          <text x="281" y="63" text-anchor="middle" class="svg-sub">outer tmux</text>
+          <text x="281" y="79" text-anchor="middle" class="svg-sub">consumes it</text>
+          <path d="M356 65 L430 65" class="svg-danger-s" stroke-width="1.8" stroke-dasharray="6 4" fill="none"/>
+          <g class="svg-danger-s" stroke-width="2.6">
+            <path d="M440 55 L458 73"/><path d="M458 55 L440 73"/>
+          </g>
+          <rect x="474" y="42" width="150" height="46" rx="8" class="svg-surface svg-stroke" stroke-width="1.3" stroke-dasharray="5 3"/>
+          <text x="549" y="63" text-anchor="middle" class="svg-sub">inner herdr</text>
+          <text x="549" y="79" text-anchor="middle" class="svg-sub">never notified</text>
+          <text x="648" y="70" class="svg-sub">bindings look dead</text>
+
+          <!-- after -->
+          <text x="20" y="150" class="svg-label">After — Herdr remapped to Ctrl-a</text>
+
+          <rect x="20" y="164" width="112" height="46" rx="8" class="svg-card svg-stroke" stroke-width="1.4"/>
+          <text x="76" y="192" text-anchor="middle" class="svg-sub">Ctrl-b</text>
+          <path d="M132 187 L206 187" class="svg-muted-s" stroke-width="1.8" fill="none"/>
+          <rect x="206" y="164" width="150" height="46" rx="8" class="svg-card svg-accent-s" stroke-width="1.8"/>
+          <text x="281" y="185" text-anchor="middle" class="svg-sub">outer tmux</text>
+          <text x="281" y="201" text-anchor="middle" class="svg-sub">detach, windows</text>
+
+          <rect x="20" y="228" width="112" height="46" rx="8" class="svg-card svg-stroke" stroke-width="1.4"/>
+          <text x="76" y="256" text-anchor="middle" class="svg-sub">Ctrl-a</text>
+          <path d="M132 251 L206 251 L206 251" class="svg-muted-s" stroke-width="1.8" fill="none"/>
+          <path d="M356 251 L474 251" class="svg-accent-s" stroke-width="2" fill="none"/>
+          <rect x="206" y="228" width="150" height="46" rx="8" class="svg-surface svg-stroke" stroke-width="1.3" stroke-dasharray="5 3"/>
+          <text x="281" y="249" text-anchor="middle" class="svg-sub">outer tmux</text>
+          <text x="281" y="265" text-anchor="middle" class="svg-sub">passes through</text>
+          <rect x="474" y="228" width="150" height="46" rx="8" class="svg-card svg-accent-s" stroke-width="1.8"/>
+          <text x="549" y="249" text-anchor="middle" class="svg-sub">inner herdr</text>
+          <text x="549" y="265" text-anchor="middle" class="svg-sub">panes, agents</text>
+          <text x="648" y="256" class="svg-sub">both usable</text>
+        </svg>
+        <figcaption>
+          <b>Give each multiplexer its own prefix.</b> Change Herdr's rather than tmux's — tmux muscle
+          memory is worth preserving, and Herdr's config file makes the change trivial. Keep the
+          convention identical on every machine or you will fight it constantly.
+        </figcaption>
+      </figure>
+
+      <div class="callout warn">
+        <div class="ct">Should you nest at all?</div>
+        <p>
+          Be aware of the redundancy: Herdr already runs a background server and already survives
+          disconnection, so wrapping it in tmux duplicates that. The honest reasons to nest anyway are
+          that tmux is the older, more battle-tested reattach layer, that it gives you scrollback which
+          Mosh lacks, and that it holds your non-agent shells alongside the agent workspace. If you do
+          not need those, running Herdr directly under Mosh is simpler and one less prefix to remember.
+        </p>
+      </div>
+
+      <h3>The nested layout</h3>
+      <pre><code># From Blink
+mosh macbook -- tmux new -A -s phone
+
+# Inside tmux: window 1 for agents, window 2 for an ordinary shell
+herdr            # ctrl-b c for a second window whenever you want one</code></pre>
+      <p>
+        Detaching from the outer tmux with <span class="kbd">Ctrl-b</span> <span class="kbd">d</span>
+        leaves Herdr and every agent running underneath. Reconnecting drops you straight back in.
+      </p>
+
+      <div class="callout info">
+        <div class="ct">Herdr is young and moving fast</div>
+        <p>
+          Keybindings and config keys are still settling. Treat the tables above as a starting point and
+          check <code>herdr --default-config</code> and <code>prefix + ?</code> on the version you have
+          actually installed rather than trusting any written guide, including this one.
+        </p>
+      </div>
+
+      <h2>Checklist</h2>
+      <ul class="checklist">
+        <li>tmux installed on every machine you connect to.</li>
+        <li><code>~/.tmux.conf</code> in place with mouse mode and a large history limit.</li>
+        <li>Blink host command set to <code>tmux new -A -s phone</code>.</li>
+        <li>Verified that a long-running process survives killing the client.</li>
+        <li>Herdr installed and started once interactively.</li>
+        <li>Herdr's prefix remapped away from <code>ctrl+b</code> if nesting under tmux.</li>
+        <li><code>resume_agents_on_restore</code> enabled if you want agents back after a restart.</li>
+      </ul>
+
+      <nav class="pager"></nav>
+    </div>
+  </main>
+  <aside class="toc"></aside>
+</div>
+<script src="../assets/nav.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

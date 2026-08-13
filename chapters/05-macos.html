@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Securing the MacBook Pro — Secure Remote Dev</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body data-page="macos" data-depth="1">
+<div class="layout">
+  <aside class="sidebar"></aside>
+  <main class="main">
+    <div class="content">
+
+      <p class="eyebrow">Chapter 05 · Build <span class="badge mac">macOS</span></p>
+      <h1>Securing the MacBook Pro</h1>
+      <p class="lede">
+        The Mac is the interesting case, because macOS ships an SSH server that is deliberately
+        awkward to customise, and because a development machine accumulates listening services far
+        faster than anyone expects. Both problems are solved here.
+      </p>
+
+      <h2>Baseline, before anything network-facing</h2>
+      <p>
+        Full-disk encryption is the control that matters most, and it is the one people postpone. Without
+        it, every key and credential on the machine is readable by anyone who removes the drive or boots
+        from external media.
+      </p>
+      <pre><code># FileVault — must say "FileVault is On."
+sudo fdesetup status
+
+# System Integrity Protection — must say "enabled"
+csrutil status
+
+# Gatekeeper — must say "assessments enabled"
+spctl --status
+
+# Require the password immediately when the screen locks
+defaults write com.apple.screensaver askForPassword -int 1
+defaults write com.apple.screensaver askForPasswordDelay -int 0</code></pre>
+      <div class="callout danger">
+        <div class="ct">Store the FileVault recovery key somewhere off the machine</div>
+        <p>
+          A password manager on your phone, or paper in a drawer. A recovery key saved only on the
+          encrypted disk it unlocks is not a recovery key.
+        </p>
+      </div>
+
+      <h2>Audit what is already listening</h2>
+      <p>
+        Do this before adding SSH, because it usually produces a surprise. A development Mac tends to
+        accumulate databases, caches and dev servers, many of which bind to every interface by default:
+      </p>
+      <pre><code># Everything listening on ALL interfaces — the ones that matter
+netstat -an -p tcp | awk '$NF=="LISTEN" && $4 ~ /^\*\./ {print $4}' | sort -u
+
+# Map those ports to actual processes
+sudo lsof -nP -iTCP -sTCP:LISTEN</code></pre>
+      <p>
+        A real result from a working developer machine:
+      </p>
+      <pre><code>*.443   *.445   *.53    *.5432   *.5433
+*.6379  *.80    *.8000  *.88     *.5003</code></pre>
+      <p>
+        That is SMB, DNS, two PostgreSQL instances, <strong>Redis</strong>, and several web servers — all
+        reachable from any café Wi-Fi the laptop joins. Redis is the urgent one: default builds have no
+        authentication, and an attacker who can reach it can use <code>CONFIG SET dir</code> and
+        <code>dbfilename</code> to write files as your user, including into <code>~/.ssh/</code>.
+      </p>
+
+      <figure class="diagram">
+        <svg viewBox="0 0 840 300" role="img" aria-label="Three binding scopes: 0.0.0.0 reachable by internet LAN and tailnet, 127.0.0.1 reachable only locally, and the tailnet address reachable only by your own devices">
+          <text x="20" y="26" class="svg-sub">BIND ADDRESS</text>
+          <text x="250" y="26" class="svg-sub">WHO CAN CONNECT</text>
+
+          <!-- 0.0.0.0 -->
+          <rect x="20" y="40" width="200" height="64" rx="9" class="svg-card svg-danger-s" stroke-width="1.8"/>
+          <text x="40" y="66" class="svg-label">0.0.0.0 / *</text>
+          <text x="40" y="86" class="svg-sub">every interface</text>
+          <rect x="250" y="40" width="130" height="64" rx="8" class="svg-surface svg-danger-s" stroke-width="1.4"/>
+          <text x="315" y="70" text-anchor="middle" class="svg-sub">café Wi-Fi</text>
+          <text x="315" y="87" text-anchor="middle" class="svg-sub">strangers</text>
+          <rect x="392" y="40" width="130" height="64" rx="8" class="svg-surface svg-danger-s" stroke-width="1.4"/>
+          <text x="457" y="70" text-anchor="middle" class="svg-sub">your LAN</text>
+          <text x="457" y="87" text-anchor="middle" class="svg-sub">any device</text>
+          <rect x="534" y="40" width="130" height="64" rx="8" class="svg-surface svg-stroke" stroke-width="1.4"/>
+          <text x="599" y="78" text-anchor="middle" class="svg-sub">tailnet</text>
+          <text x="686" y="78" class="svg-sub">← too much</text>
+
+          <!-- 127.0.0.1 -->
+          <rect x="20" y="118" width="200" height="64" rx="9" class="svg-card svg-stroke" stroke-width="1.6"/>
+          <text x="40" y="144" class="svg-label">127.0.0.1</text>
+          <text x="40" y="164" class="svg-sub">loopback only</text>
+          <rect x="250" y="118" width="414" height="64" rx="8" class="svg-surface svg-stroke" stroke-width="1.3" stroke-dasharray="5 3"/>
+          <text x="457" y="156" text-anchor="middle" class="svg-sub">nobody but this machine</text>
+          <text x="686" y="156" class="svg-sub">← databases</text>
+
+          <!-- tailnet -->
+          <rect x="20" y="196" width="200" height="64" rx="9" class="svg-card svg-accent-s" stroke-width="1.8"/>
+          <text x="40" y="222" class="svg-label">100.117.202.65</text>
+          <text x="40" y="242" class="svg-sub">tailnet address</text>
+          <rect x="250" y="196" width="272" height="64" rx="8" class="svg-surface svg-stroke" stroke-width="1.3" stroke-dasharray="5 3"/>
+          <text x="386" y="234" text-anchor="middle" class="svg-sub">not reachable</text>
+          <rect x="534" y="196" width="130" height="64" rx="8" class="svg-card svg-accent-s" stroke-width="1.8"/>
+          <text x="599" y="234" text-anchor="middle" class="svg-sub">tailnet only</text>
+          <text x="686" y="234" class="svg-sub">← sshd</text>
+        </svg>
+        <figcaption>
+          <b>Every listening service belongs in row two or three.</b> Databases and caches bind to
+          loopback. SSH binds to the tailnet address. Nothing a developer runs needs row one, and the
+          fact that it is the default for so many tools is precisely why this audit is worth doing.
+        </figcaption>
+      </figure>
+
+      <p>Fix the ones that matter, then turn on the firewall as a backstop:</p>
+      <pre><code># Redis:      bind 127.0.0.1        in redis.conf
+# PostgreSQL: listen_addresses = 'localhost'  in postgresql.conf
+
+sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate on
+sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setstealthmode on</code></pre>
+      <div class="callout warn">
+        <div class="ct">Stealth mode and local development</div>
+        <p>
+          Stealth mode drops ICMP, so the Mac stops answering pings — including from your own devices.
+          That is usually fine, but remember it before spending an afternoon debugging "the Mac is
+          down." The application firewall may also prompt about, or block, dev servers you actually
+          want reachable from your phone on the LAN; reaching them over the tailnet instead avoids
+          the whole question.
+        </p>
+      </div>
+
+      <h2>Choosing how to run sshd</h2>
+      <p>
+        macOS gives you Remote Login in System Settings, which loads Apple's socket-activated
+        <code>com.openssh.sshd</code> job on port 22. It works, but it offers no control over the bind
+        address, so the port is exposed on every network the laptop joins. Since our whole design is
+        "reachable on the tailnet and nowhere else", we run our own launchd daemon instead.
+      </p>
+      <div class="callout danger">
+        <div class="ct">Pick one — never both</div>
+        <p>
+          If you run a custom daemon, leave Remote Login <strong>off</strong>. Two sshd instances with
+          different configurations on the same machine is a genuinely confusing state to debug, and the
+          Apple one will happily listen on 0.0.0.0 while you believe you are tailnet-only.
+        </p>
+      </div>
+      <pre><code># Confirm Apple's job is not loaded
+sudo systemsetup -getremotelogin
+launchctl print system/com.openssh.sshd 2&gt;&amp;1 | head -3
+# "Could not find service" is the answer you want</code></pre>
+
+      <h3>The configuration</h3>
+      <p>
+        macOS keeps <code>/etc/ssh/sshd_config</code> with <code>Include /etc/ssh/sshd_config.d/*</code> at
+        the <em>top</em>, and sshd takes the first value it sees for each keyword — so a drop-in file
+        overrides the main config. That is what we want.
+      </p>
+      <div class="filename">/etc/ssh/sshd_config.d/tailscale.conf</div>
+      <pre><code># --- exposure: tailnet only ---
+Port 22
+ListenAddress 100.117.202.65        # your Tailscale IPv4
+
+# --- authentication ---
+# UsePAM yes is required on macOS: it runs /etc/pam.d/sshd, which contains
+#   account required pam_sacl.so sacl_service=ssh
+# With UsePAM no that SSH access control list is skipped entirely.
+UsePAM yes
+PubkeyAuthentication yes
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitEmptyPasswords no
+PermitRootLogin no
+AllowUsers yourname
+MaxAuthTries 4
+
+# --- reduce session capability ---
+AllowAgentForwarding no
+X11Forwarding no
+PermitTunnel no
+GatewayPorts no
+AllowTcpForwarding yes
+
+# --- survive flaky mobile networks ---
+ClientAliveInterval 30
+ClientAliveCountMax 6
+TCPKeepAlive yes
+
+LogLevel VERBOSE
+AuthorizedKeysFile .ssh/authorized_keys</code></pre>
+      <p>
+        Before relying on <code>UsePAM yes</code>, confirm you are actually permitted by that access list
+        — otherwise you will turn on enforcement and lock yourself out:
+      </p>
+      <pre><code>dseditgroup -o checkmember -m "$(whoami)" com.apple.access_ssh
+# "yes ... is a member of com.apple.access_ssh"</code></pre>
+
+      <h3>The launchd daemon</h3>
+      <p>
+        Two flags here are not optional, and both are easy to omit.
+      </p>
+      <div class="filename">/Library/LaunchDaemons/com.local.sshd.plist</div>
+      <pre><code>&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+ "http://www.apple.com/DTDs/PropertyList-1.0.dtd"&gt;
+&lt;plist version="1.0"&gt;
+&lt;dict&gt;
+    &lt;key&gt;Label&lt;/key&gt;
+    &lt;string&gt;com.local.sshd&lt;/string&gt;
+
+    &lt;key&gt;ProgramArguments&lt;/key&gt;
+    &lt;array&gt;
+        &lt;string&gt;/usr/sbin/sshd&lt;/string&gt;
+        &lt;string&gt;-D&lt;/string&gt;
+        &lt;string&gt;-e&lt;/string&gt;
+        &lt;string&gt;-f&lt;/string&gt;
+        &lt;string&gt;/etc/ssh/sshd_config&lt;/string&gt;
+    &lt;/array&gt;
+
+    &lt;key&gt;RunAtLoad&lt;/key&gt;    &lt;true/&gt;
+    &lt;key&gt;KeepAlive&lt;/key&gt;    &lt;true/&gt;
+    &lt;key&gt;ThrottleInterval&lt;/key&gt; &lt;integer&gt;10&lt;/integer&gt;
+
+    &lt;key&gt;StandardErrorPath&lt;/key&gt;
+    &lt;string&gt;/var/log/com.local.sshd.err&lt;/string&gt;
+    &lt;key&gt;UserName&lt;/key&gt;     &lt;string&gt;root&lt;/string&gt;
+&lt;/dict&gt;
+&lt;/plist&gt;</code></pre>
+
+      <div class="callout info">
+        <div class="ct">Why <code>-D</code> and <code>-e</code> matter</div>
+        <p>
+          <strong><code>-D</code></strong> stops sshd from detaching. Without it, sshd forks and the
+          process launchd is tracking exits immediately. launchd concludes the job died, and
+          <code>KeepAlive</code> restarts it — but the orphaned original still holds the port, so the
+          replacement exits with <em>"address already in use."</em> The symptom is a restart counter in
+          the hundreds and <code>last exit code = 255</code>. Check yours with
+          <code>launchctl print system/com.local.sshd</code>; a healthy job shows <code>runs = 1</code>.
+        </p>
+        <p>
+          <strong><code>-e</code></strong> sends logs to stderr so <code>StandardErrorPath</code> captures
+          them. Without it sshd logs to syslog, macOS unified logging swallows it, and your log file
+          stays zero bytes exactly when you need it.
+        </p>
+      </div>
+
+      <h3>The boot-time race, and why it is fine</h3>
+      <p>
+        <code>ListenAddress 100.117.202.65</code> refers to an address on <code>utun</code> that does not
+        exist until Tailscale starts — which, with the GUI app, means after you log in. At boot, sshd
+        cannot bind and exits. <code>KeepAlive</code> plus <code>ThrottleInterval 10</code> retries every
+        ten seconds and succeeds on its own moments after Tailscale comes up.
+      </p>
+      <p>
+        This is a deliberate trade. The alternative — binding every interface and filtering in software —
+        would let sshd start at boot, but it puts the port on every network you join. Binding to the
+        tailnet address means the port genuinely does not exist elsewhere, which is worth a few seconds
+        of self-healing retry after a reboot.
+      </p>
+
+      <h3>Load and verify</h3>
+      <pre><code>sudo sshd -t -f /etc/ssh/sshd_config          # validate FIRST, always
+sudo launchctl bootstrap system /Library/LaunchDaemons/com.local.sshd.plist
+
+# Must be the tailnet IP, NOT *.22
+netstat -an -p tcp | grep '\.22 ' | grep LISTEN
+
+# Healthy job: runs = 1, "never exited"
+sudo launchctl print system/com.local.sshd | grep -E 'state|runs|last exit'
+
+# The port must be REFUSED on your LAN address
+nc -z -G 3 "$(ipconfig getifaddr en0)" 22 &amp;&amp; echo "EXPOSED" || echo "correctly refused"</code></pre>
+
+      <div class="callout tip">
+        <div class="ct">Prove a session actually holds</div>
+        <p>
+          A successful handshake is not the same as a working session. Connect and hold for a while
+          before declaring victory: <code>ssh macbook 'sleep 15; echo ok'</code>. And remember that
+          <code>last</code> reports durations as HH:MM — any session under a minute displays as
+          <code>(00:00)</code>, which is <em>not</em> evidence that it died instantly.
+        </p>
+      </div>
+
+      <h2>Full Disk Access — a deliberate omission</h2>
+      <p>
+        A hand-rolled sshd does not inherit the Full Disk Access grant that Apple's Remote Login gets.
+        Remote sessions will hit <code>Operation not permitted</code> on Desktop, Documents and
+        Downloads.
+      </p>
+      <p>
+        Granting it (System Settings → Privacy &amp; Security → Full Disk Access → add
+        <code>/usr/sbin/sshd</code>) fixes that, but it also means any SSH session has unrestricted
+        access to your protected data. Leave it off unless you genuinely need those directories
+        remotely; keeping your work in <code>~/Developer</code> or similar avoids the question entirely.
+      </p>
+
+      <h2>Dev environment</h2>
+      <pre><code>brew install tmux herdr mosh
+
+# Homebrew's PATH is set in ~/.zprofile, which only LOGIN shells read.
+# So `ssh mac 'tmux ls'` fails with "command not found" while an
+# interactive `ssh mac` then `tmux ls` works. Use the full path in
+# non-interactive commands:
+ssh macbook -t '/opt/homebrew/bin/tmux new -A -s phone'</code></pre>
+      <p>
+        That PATH asymmetry catches everyone once. Non-interactive SSH commands read only
+        <code>~/.zshenv</code>; login shells read <code>~/.zprofile</code> and <code>~/.zshrc</code>.
+      </p>
+
+      <h2>Checklist</h2>
+      <ul class="checklist">
+        <li>FileVault on, recovery key stored off the machine.</li>
+        <li>SIP enabled and Gatekeeper assessments enabled.</li>
+        <li>Screen lock requires the password immediately.</li>
+        <li>Every listening service audited; databases and caches moved to <code>127.0.0.1</code>.</li>
+        <li>Application firewall on.</li>
+        <li>Remote Login <em>off</em>; exactly one sshd daemon running.</li>
+        <li><code>ListenAddress</code> set to the Tailscale IP, verified refused on the LAN address.</li>
+        <li><code>UsePAM yes</code>, and membership of <code>com.apple.access_ssh</code> confirmed.</li>
+        <li>Plist includes <code>-D</code> and <code>-e</code>; <code>runs</code> stays at 1.</li>
+        <li><code>sshd -t</code> passes and a held session was proven to survive.</li>
+        <li>tmux, Herdr and mosh installed.</li>
+      </ul>
+
+      <nav class="pager"></nav>
+    </div>
+  </main>
+  <aside class="toc"></aside>
+</div>
+<script src="../assets/nav.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Runbooks &amp; checklists — Secure Remote Dev</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body data-page="runbooks" data-depth="1">
+<div class="layout">
+  <aside class="sidebar"></aside>
+  <main class="main">
+    <div class="content">
+
+      <p class="eyebrow">Chapter 10 · Operate</p>
+      <h1>Runbooks &amp; checklists</h1>
+      <p class="lede">
+        Procedures for the things you do rarely enough to forget. The build order in particular is not
+        arbitrary — doing it in a different sequence is how people lock themselves out of a VPS.
+      </p>
+
+      <h2>Build order</h2>
+      <p>
+        Each step depends on the one before it working. The rule underneath all of them:
+        <strong>establish the new path before removing the old one.</strong>
+      </p>
+
+      <figure class="diagram">
+        <svg viewBox="0 0 800 470" role="img" aria-label="Build order: tailnet settings, then install Tailscale everywhere, then ACLs, then per-host hardening in parallel, then keys, Mosh and tmux, then verification">
+          <defs>
+            <marker id="f1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" class="svg-accent"/>
+            </marker>
+          </defs>
+
+          <rect x="250" y="16" width="300" height="46" rx="9" class="svg-card svg-accent-s" stroke-width="1.7"/>
+          <text x="400" y="38" text-anchor="middle" class="svg-label">1 · Tailnet foundations</text>
+          <text x="400" y="55" text-anchor="middle" class="svg-sub">account · device approval · key expiry · tailnet lock</text>
+          <path d="M400 62 L400 84" class="svg-accent-s" stroke-width="1.7" marker-end="url(#f1)"/>
+
+          <rect x="250" y="88" width="300" height="46" rx="9" class="svg-card svg-stroke" stroke-width="1.5"/>
+          <text x="400" y="110" text-anchor="middle" class="svg-label">2 · Install Tailscale everywhere</text>
+          <text x="400" y="127" text-anchor="middle" class="svg-sub">Mac · VPS · Ubuntu · iPhone — verify each is online</text>
+          <path d="M400 134 L400 156" class="svg-accent-s" stroke-width="1.7" marker-end="url(#f1)"/>
+
+          <rect x="250" y="160" width="300" height="46" rx="9" class="svg-card svg-stroke" stroke-width="1.5"/>
+          <text x="400" y="182" text-anchor="middle" class="svg-label">3 · Write the ACL policy</text>
+          <text x="400" y="199" text-anchor="middle" class="svg-sub">default deny, then grant SSH only</text>
+
+          <!-- fan out -->
+          <path d="M400 206 L400 224 M140 224 L660 224 M140 224 L140 244 M400 224 L400 244 M660 224 L660 244"
+                class="svg-accent-s" stroke-width="1.6" fill="none"/>
+
+          <rect x="40" y="248" width="200" height="72" rx="9" class="svg-card svg-stroke" stroke-width="1.5"/>
+          <text x="140" y="272" text-anchor="middle" class="svg-label">4a · MacBook</text>
+          <text x="140" y="290" text-anchor="middle" class="svg-sub">FileVault · audit ports</text>
+          <text x="140" y="306" text-anchor="middle" class="svg-sub">sshd on tailnet IP</text>
+
+          <rect x="300" y="248" width="200" height="72" rx="9" class="svg-card svg-stroke" stroke-width="1.5"/>
+          <text x="400" y="272" text-anchor="middle" class="svg-label">4b · VPS</text>
+          <text x="400" y="290" text-anchor="middle" class="svg-sub">user · keys · UFW</text>
+          <text x="400" y="306" text-anchor="middle" class="svg-sub">then close public :22</text>
+
+          <rect x="560" y="248" width="200" height="72" rx="9" class="svg-card svg-stroke" stroke-width="1.5"/>
+          <text x="660" y="272" text-anchor="middle" class="svg-label">4c · Ubuntu</text>
+          <text x="660" y="290" text-anchor="middle" class="svg-sub">LUKS · UFW</text>
+          <text x="660" y="306" text-anchor="middle" class="svg-sub">tailscale up --ssh</text>
+
+          <path d="M140 320 L140 340 M660 320 L660 340 M140 340 L660 340 M400 320 L400 340 M400 340 L400 360"
+                class="svg-accent-s" stroke-width="1.6" fill="none" marker-end="url(#f1)"/>
+
+          <rect x="250" y="364" width="300" height="46" rx="9" class="svg-card svg-stroke" stroke-width="1.5"/>
+          <text x="400" y="386" text-anchor="middle" class="svg-label">5 · Phone: keys, Mosh, tmux</text>
+          <text x="400" y="403" text-anchor="middle" class="svg-sub">Secure Enclave key → each host → mosh --install-static</text>
+          <path d="M400 410 L400 430" class="svg-accent-s" stroke-width="1.7" marker-end="url(#f1)"/>
+
+          <rect x="250" y="434" width="300" height="34" rx="9" class="svg-card svg-accent-s" stroke-width="1.8"/>
+          <text x="400" y="456" text-anchor="middle" class="svg-label">6 · Verify, then remove old access</text>
+        </svg>
+        <figcaption>
+          <b>Step 6 is last for a reason.</b> Deleting the public SSH rule, disabling password auth, or
+          switching off Remote Login before confirming the replacement path works is the most common
+          way to lose a machine. Confirm, then remove.
+        </figcaption>
+      </figure>
+
+      <h2>Onboarding a new device</h2>
+      <p>A tablet, a new laptop, a replacement phone:</p>
+      <ol>
+        <li>Install Tailscale, sign in, and <strong>approve the device</strong> in the admin console if approval is on.</li>
+        <li>Generate a key <em>on the device</em>. Never copy one in. Prefer hardware-backed if available.</li>
+        <li>Add the public key to each host's <code>authorized_keys</code>, with a comment naming the device and year.</li>
+        <li>Update the ACL policy if the device needs a group or tag it does not yet have.</li>
+        <li>Test plain SSH first and verify host key fingerprints.</li>
+        <li>Then add Mosh, then the saved host entry with <code>tmux new -A -s phone</code>.</li>
+      </ol>
+
+      <h2>Offboarding a device</h2>
+      <p>Order matters — cut network access first, because it is instant and global:</p>
+      <ol>
+        <li>Tailscale admin console → remove the device.</li>
+        <li>Remove its line from <code>authorized_keys</code> on every host.</li>
+        <li>If the key was file-based rather than hardware-backed, treat it as compromised and rotate anywhere else it was used.</li>
+        <li>Wipe remotely if the device is lost rather than retired.</li>
+        <li>Confirm: the device no longer appears in <code>tailscale status</code> anywhere.</li>
+      </ol>
+      <pre><code># Find every host still trusting a key, by comment
+grep -n "old-laptop" ~/.ssh/authorized_keys
+
+# Remove it in place, keeping a backup
+cp ~/.ssh/authorized_keys ~/.ssh/authorized_keys.bak
+grep -v "old-laptop" ~/.ssh/authorized_keys.bak &gt; ~/.ssh/authorized_keys</code></pre>
+
+      <h2>Rotating a key</h2>
+      <p>
+        The safe sequence adds before it removes, so you are never without a working key:
+      </p>
+      <pre><code># 1. New key on the device
+ssh-keygen -t ed25519 -C "macbook-2026-q3"
+
+# 2. ADD it everywhere — do not remove anything yet
+ssh-copy-id -i ~/.ssh/id_ed25519_new.pub yourname@host
+
+# 3. Prove the new key works, on its own
+ssh -i ~/.ssh/id_ed25519_new -o IdentitiesOnly=yes yourname@host 'echo ok'
+
+# 4. Only now remove the old line, and delete the old private key</code></pre>
+
+      <h2>Periodic maintenance</h2>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Cadence</th><th>Task</th></tr></thead>
+        <tbody>
+          <tr><td><b>Weekly</b></td><td>Check <code>/var/run/reboot-required</code> on Linux; reboot for kernel and OpenSSL updates. Confirm unattended-upgrades is still running.</td></tr>
+          <tr><td><b>Monthly</b></td><td>Review the tailnet device list. Skim auth logs for unfamiliar key fingerprints. Re-run the listening-port audit on each machine — new tools add new listeners.</td></tr>
+          <tr><td><b>Quarterly</b></td><td>Review every <code>authorized_keys</code> line. Confirm backups restore. Re-read your ACL policy against what you actually use now.</td></tr>
+          <tr><td><b>Yearly</b></td><td>Rotate file-based SSH keys. Verify recovery keys — FileVault, LUKS, tailnet lock — are still where you think and still correct.</td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <pre><code># The monthly audit, on any machine
+sudo ss -tulpn | grep LISTEN                 # Linux
+netstat -an -p tcp | grep LISTEN             # macOS
+ssh-keygen -lf ~/.ssh/authorized_keys        # who can log in
+sudo grep 'Accepted publickey' /var/log/auth.log | tail -30</code></pre>
+
+      <h2>The daily workflow</h2>
+      <pre><code># From the phone — one command, everything else is automatic
+mosh macbook -- tmux new -A -s phone
+
+# Inside, if you use Herdr for agents
+herdr
+
+# Detach and put the phone away; work continues
+# tmux:  ctrl-b d</code></pre>
+      <div class="callout tip">
+        <div class="ct">Long jobs belong in their own window</div>
+        <p>
+          Give a long build or migration its own tmux window rather than running it in the pane you are
+          also typing in. Then <span class="kbd">Ctrl-b</span> <span class="kbd">d</span> is always safe,
+          and you can check on it from a different device entirely without disturbing anything.
+        </p>
+      </div>
+
+      <h2>Backups worth having</h2>
+      <p>
+        Everything above assumes you can rebuild a machine. That assumption is worth testing rather than
+        holding.
+      </p>
+      <ul>
+        <li><strong>Dotfiles in git</strong> — <code>.tmux.conf</code>, <code>.ssh/config</code>, <code>herdr/config.toml</code>. Never private keys.</li>
+        <li><strong>Recovery keys in a password manager</strong> reachable from a device that is not the one they unlock.</li>
+        <li><strong>The ACL policy file</strong> kept in version control; the admin console is not a backup.</li>
+        <li><strong>A restore test</strong>, at least once. An untested backup is a hypothesis.</li>
+      </ul>
+      <div class="callout danger">
+        <div class="ct">Never put private keys in a dotfiles repo</div>
+        <p>
+          Even a private one. Repositories get cloned to machines you did not anticipate, shared with
+          collaborators, and occasionally made public by accident. Keys are generated per device and
+          stay there — that is the entire model, and a dotfiles repo is the most common way people
+          break it without noticing.
+        </p>
+      </div>
+
+      <h2>Full deployment checklist</h2>
+      <p>Everything, in one place. This state persists in your browser.</p>
+      <div class="progress-bar"><span></span></div>
+      <p class="progress-label"></p>
+      <ul class="checklist">
+        <li>Tailnet: device approval on, key expiry considered per device, tailnet lock enabled.</li>
+        <li>Tailnet: ACL policy is default-deny and version controlled.</li>
+        <li>All four devices online in <code>tailscale status</code>; MagicDNS working.</li>
+        <li>MacBook: FileVault, SIP, Gatekeeper, firewall on.</li>
+        <li>MacBook: listeners audited; databases on loopback.</li>
+        <li>MacBook: one sshd only, bound to the tailnet IP, refused on LAN, <code>runs = 1</code>.</li>
+        <li>VPS: non-root sudo user, key-only auth, UFW default-deny.</li>
+        <li>VPS: public SSH closed <em>after</em> tailnet access confirmed; console recovery tested.</li>
+        <li>VPS: unattended-upgrades verified; Docker ports bound to loopback.</li>
+        <li>Ubuntu: LUKS confirmed, Secure Boot on, firmware password set.</li>
+        <li>Ubuntu: UFW default-deny, MAC randomisation, AppArmor enforcing.</li>
+        <li>iPhone: passcode, short auto-lock, encrypted backups.</li>
+        <li>iPhone: Blink with a Secure Enclave key; public key on every host.</li>
+        <li>Mosh installed everywhere; Wi-Fi→LTE roaming tested.</li>
+        <li>tmux everywhere with matching configs; Herdr prefix remapped if nesting.</li>
+        <li>Host key fingerprints verified from each client.</li>
+        <li>Recovery keys stored off-device and tested.</li>
+      </ul>
+      <p><button class="copy-btn" style="position:static;opacity:1" data-reset-checks type="button">Reset this checklist</button></p>
+
+      <nav class="pager"></nav>
+    </div>
+  </main>
+  <aside class="toc"></aside>
+</div>
+<script src="../assets/nav.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

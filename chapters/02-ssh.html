@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SSH, keys &amp; hardening — Secure Remote Dev</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body data-page="ssh" data-depth="1">
+<div class="layout">
+  <aside class="sidebar"></aside>
+  <main class="main">
+    <div class="content">
+
+      <p class="eyebrow">Chapter 02 · The identity plane</p>
+      <h1>SSH, keys &amp; hardening</h1>
+      <p class="lede">
+        Tailscale decides who can reach the port. SSH decides who gets a shell. These are separate
+        questions and it is worth keeping them separate in your head — a great many bad setups come
+        from assuming the VPN makes the SSH configuration unimportant.
+      </p>
+
+      <h2>What actually happens when you log in</h2>
+      <p>
+        Public-key authentication is often described as "the server has your public key and lets you
+        in." That skips the part that matters. Your private key is never sent, and the proof cannot be
+        replayed against a different session.
+      </p>
+
+      <figure class="diagram">
+        <svg viewBox="0 0 820 500" role="img" aria-label="SSH public key authentication sequence: key exchange derives a session ID, the client signs a challenge including that session ID, and the server verifies with the stored public key">
+          <defs>
+            <marker id="s1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" class="svg-accent"/>
+            </marker>
+          </defs>
+
+          <rect x="76" y="16" width="200" height="40" rx="8" class="svg-card svg-stroke" stroke-width="1.6"/>
+          <text x="176" y="41" text-anchor="middle" class="svg-label">Client (your phone)</text>
+          <rect x="546" y="16" width="200" height="40" rx="8" class="svg-card svg-stroke" stroke-width="1.6"/>
+          <text x="646" y="41" text-anchor="middle" class="svg-label">Server (sshd)</text>
+
+          <path d="M176 56 L176 476" class="svg-muted-s" stroke-width="1.3" stroke-dasharray="4 4"/>
+          <path d="M646 56 L646 476" class="svg-muted-s" stroke-width="1.3" stroke-dasharray="4 4"/>
+
+          <!-- 1 -->
+          <path d="M176 96 L640 96" class="svg-muted-s" stroke-width="1.7" fill="none" marker-end="url(#s1)"/>
+          <text x="186" y="88" class="svg-sub">1 · version + algorithm exchange</text>
+
+          <!-- 2 -->
+          <path d="M640 136 L182 136" class="svg-muted-s" stroke-width="1.7" fill="none" marker-end="url(#s1)"/>
+          <text x="186" y="128" class="svg-sub">2 · host key + Diffie-Hellman share</text>
+          <text x="186" y="156" class="svg-sub">client checks host key against known_hosts</text>
+
+          <!-- session id band -->
+          <rect x="120" y="176" width="580" height="46" rx="9" class="svg-surface svg-accent-s" stroke-width="1.6"/>
+          <text x="410" y="198" text-anchor="middle" class="svg-label">shared secret established → session ID</text>
+          <text x="410" y="215" text-anchor="middle" class="svg-sub">everything from here is encrypted; the ID is unique to this connection</text>
+
+          <!-- 3 -->
+          <path d="M176 262 L640 262" class="svg-muted-s" stroke-width="1.7" fill="none" marker-end="url(#s1)"/>
+          <text x="186" y="254" class="svg-sub">3 · &ldquo;I intend to use this public key&rdquo;</text>
+
+          <!-- 4 -->
+          <rect x="546" y="286" width="200" height="52" rx="8" class="svg-card svg-stroke" stroke-width="1.4"/>
+          <text x="646" y="308" text-anchor="middle" class="svg-sub">look up the key in</text>
+          <text x="646" y="325" text-anchor="middle" class="svg-sub">~/.ssh/authorized_keys</text>
+
+          <!-- 5 -->
+          <path d="M640 362 L182 362" class="svg-muted-s" stroke-width="1.7" fill="none" marker-end="url(#s1)"/>
+          <text x="186" y="354" class="svg-sub">4 · &ldquo;prove you hold the private half&rdquo;</text>
+
+          <!-- 6 -->
+          <rect x="76" y="386" width="200" height="52" rx="8" class="svg-card svg-accent-s" stroke-width="1.6"/>
+          <text x="176" y="408" text-anchor="middle" class="svg-sub">sign(session ID + context)</text>
+          <text x="176" y="425" text-anchor="middle" class="svg-sub">private key never leaves</text>
+
+          <!-- 7 -->
+          <path d="M176 462 L640 462" class="svg-accent-s" stroke-width="2.2" fill="none" marker-end="url(#s1)"/>
+          <text x="186" y="454" class="svg-sub">5 · signature → verified → shell</text>
+        </svg>
+        <figcaption>
+          <b>The signature covers the session ID.</b> That is the whole trick. A signature captured from
+          one connection is worthless on another, because the session ID differs. A malicious server
+          you connect to cannot take your proof and replay it elsewhere — which is exactly what makes
+          agent forwarding (later) so much more dangerous than it looks.
+        </figcaption>
+      </figure>
+
+      <h3>Step 2 is the one people skip</h3>
+      <p>
+        Notice that the client verifies the <em>server's</em> host key before authenticating. The first
+        time you connect, SSH has nothing to compare against and asks you to accept it — trust on first
+        use. Almost everyone types "yes" without looking.
+      </p>
+      <p>
+        If someone is positioned between you and the server on that first connection, they can present
+        their own host key, and you will have pinned an attacker. Verify once, out of band:
+      </p>
+      <pre><code># On the server, print its fingerprints
+for f in /etc/ssh/ssh_host_*_key.pub; do ssh-keygen -lf "$f"; done
+
+# Compare against what the client stored
+ssh-keygen -lf ~/.ssh/known_hosts</code></pre>
+      <p>
+        On a tailnet the exposure is small, since an attacker would already need to be inside your
+        WireGuard mesh. Do it anyway for the VPS, which you will first reach over the open internet.
+      </p>
+
+      <h2>Choosing a key</h2>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Type</th><th>Verdict</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td><code>ed25519</code></td><td><b>Use this</b></td>
+              <td>Fast, 68-byte keys, no parameter choices to get wrong, immune to the bad-randomness failures that have bitten ECDSA. Supported everywhere that matters.</td></tr>
+          <tr><td><code>ecdsa-sk</code> / <code>ed25519-sk</code></td><td>Excellent if you have hardware</td>
+              <td>Backed by a security key; requires a physical touch. The <code>-sk</code> suffix means the private key cannot be exfiltrated by malware.</td></tr>
+          <tr><td><code>rsa</code> (4096)</td><td>Acceptable, legacy</td>
+              <td>Only for hosts too old for ed25519. Ensure <code>rsa-sha2-512</code>; SHA-1 signatures are disabled in modern OpenSSH.</td></tr>
+          <tr><td><code>ecdsa</code></td><td>Avoid</td>
+              <td>NIST curves, fiddly, no advantage over ed25519.</td></tr>
+          <tr><td><code>dsa</code></td><td>Never</td>
+              <td>Removed from OpenSSH. If you find one, it is a finding.</td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <pre><code>ssh-keygen -t ed25519 -C "iphone-blink-2026"</code></pre>
+      <p>
+        Always set a passphrase. A private key file without one is a plaintext credential — anything
+        that can read the file owns your servers. The comment field is not decoration: it is how you
+        identify a line in <code>authorized_keys</code> two years from now when deciding what to revoke.
+      </p>
+
+      <div class="callout tip">
+        <div class="ct">One key per device, never per server</div>
+        <p>
+          Generate a key <em>on</em> each device and copy the public half to every server. Never copy a
+          private key between devices. The point is that losing a phone means revoking one line on each
+          server, with no effect on your other machines — and it means a private key never travels.
+        </p>
+      </div>
+
+      <h2>authorized_keys can do more than list keys</h2>
+      <p>
+        Each line accepts options that constrain what the key may do. A key used only for a backup
+        script has no business opening an interactive shell:
+      </p>
+      <div class="filename">~/.ssh/authorized_keys</div>
+      <pre><code># Full interactive access from the tailnet only
+from="100.64.0.0/10" ssh-ed25519 AAAAC3Nza...  iphone-blink
+
+# A key that can ONLY run one command, with no PTY, no forwarding
+restrict,command="/usr/local/bin/backup-report" ssh-ed25519 AAAAC3Nza...  backup-runner</code></pre>
+      <p>
+        <code>restrict</code> is the modern shorthand: it disables port forwarding, agent forwarding,
+        X11, PTY allocation and <code>~/.ssh/rc</code> in one word, and — importantly — automatically
+        includes any future restrictions added by later OpenSSH versions.
+      </p>
+
+      <h2>Server configuration</h2>
+      <p>
+        A hardened <code>sshd_config</code>. Every line earns its place:
+      </p>
+      <div class="filename">/etc/ssh/sshd_config.d/hardening.conf</div>
+      <pre><code># --- authentication ---
+PubkeyAuthentication yes
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitEmptyPasswords no
+PermitRootLogin no
+AllowUsers yourname
+MaxAuthTries 4
+
+# --- reduce what a session can do ---
+AllowAgentForwarding no
+X11Forwarding no
+PermitTunnel no
+GatewayPorts no
+
+# --- keep sessions alive across bad networks ---
+ClientAliveInterval 30
+ClientAliveCountMax 6
+TCPKeepAlive yes
+
+# --- see what happened ---
+LogLevel VERBOSE</code></pre>
+
+      <div class="callout info">
+        <div class="ct">Why <code>LogLevel VERBOSE</code> is not optional</div>
+        <p>
+          At the default <code>INFO</code>, you learn that a session ended. At <code>VERBOSE</code> you
+          learn <em>which key fingerprint</em> authenticated and <em>how</em> the session ended. The
+          difference between <code>Received disconnect ... disconnected by user</code> and
+          <code>Read error ... Connection reset by peer</code> is the difference between "the server
+          closed it cleanly" and "the client was killed" — and that single distinction resolves most
+          mystery disconnects.
+        </p>
+      </div>
+
+      <h3>Two configuration traps</h3>
+      <p>
+        <strong>First value wins.</strong> Unlike most config formats, <code>sshd_config</code> uses the
+        <em>first</em> occurrence of a keyword, not the last. If <code>Include</code> sits at the top of
+        the file — as it does on macOS — then settings in the included drop-in override the main file,
+        which is usually what you want. If the <code>Include</code> is at the bottom, your drop-in is
+        silently ignored. Check where it sits before debugging anything else.
+      </p>
+      <p>
+        <strong>Match blocks swallow what follows.</strong> A <code>Match</code> block extends until the
+        next <code>Match</code> or the end of file. Put one at the end of an included drop-in and the
+        directives after the <code>Include</code> in the parent file can be captured by it. Either place
+        <code>Match</code> blocks last and terminate with <code>Match all</code>, or avoid them in
+        drop-ins entirely.
+      </p>
+      <pre><code># Always validate before restarting. This catches both traps.
+sudo sshd -t -f /etc/ssh/sshd_config
+
+# Print the fully resolved configuration, after all includes and overrides
+sudo sshd -T -f /etc/ssh/sshd_config | sort</code></pre>
+      <div class="callout danger">
+        <div class="ct">Keep a second session open</div>
+        <p>
+          Before restarting sshd on a remote machine, open a second SSH session and leave it connected.
+          If the new configuration locks you out, that existing session is your way back in. On a VPS
+          without console access, skipping this is how a machine becomes unreachable permanently.
+        </p>
+      </div>
+
+      <h2>The SSH agent, and why forwarding is off above</h2>
+      <p>
+        The agent holds decrypted keys in memory so you type a passphrase once per session. Agent
+        <em>forwarding</em> (<code>-A</code>) extends that agent to the remote host — which means root on
+        that host can use your agent socket to authenticate as you, to anywhere your key is trusted, for
+        as long as you stay connected. You will not see it happen.
+      </p>
+      <p>
+        Use <code>ProxyJump</code> instead. It authenticates each hop from your local machine, and the
+        intermediate host never gets access to your keys:
+      </p>
+      <div class="filename">~/.ssh/config</div>
+      <pre><code>Host vps
+  HostName vps.tailnet-name.ts.net
+  User yourname
+  IdentityFile ~/.ssh/id_ed25519
+  IdentitiesOnly yes
+
+# Reach a private box by hopping through the VPS — keys stay local
+Host internal
+  HostName 10.0.0.5
+  User yourname
+  ProxyJump vps</code></pre>
+      <p>
+        On macOS, <code>UseKeychain yes</code> plus <code>AddKeysToAgent yes</code> stores the passphrase
+        in the login keychain so you unlock once per boot rather than once per session.
+      </p>
+
+      <h2>macOS has an extra gate</h2>
+      <p>
+        This surprises people, and it is specific to macOS. Apple's SSH runs its PAM stack, and that
+        stack contains a service access control list:
+      </p>
+      <pre><code>$ cat /etc/pam.d/sshd
+account  required  pam_sacl.so  sacl_service=ssh
+session  required  pam_launchd.so
+...</code></pre>
+      <p>
+        <code>pam_sacl</code> enforces membership of the <code>com.apple.access_ssh</code> group — the
+        list behind "allow access for these users" in the Remote Login settings. Setting
+        <code>UsePAM no</code> skips the entire stack, which means that access control is
+        <em>not enforced at all</em>. If you run a custom sshd on macOS, keep <code>UsePAM yes</code> and
+        confirm your account is a member first:
+      </p>
+      <pre><code>dseditgroup -o checkmember -m "$(whoami)" com.apple.access_ssh</code></pre>
+
+      <h2>Checklist</h2>
+      <ul class="checklist">
+        <li>An ed25519 key exists on each client device, each with its own passphrase.</li>
+        <li>No private key has ever been copied between devices.</li>
+        <li>Every <code>authorized_keys</code> entry has a comment identifying the device.</li>
+        <li><code>PasswordAuthentication no</code> and <code>PermitRootLogin no</code> on every server.</li>
+        <li><code>AllowUsers</code> names only the accounts that should ever log in.</li>
+        <li>Agent forwarding is disabled; <code>ProxyJump</code> is used for multi-hop.</li>
+        <li><code>LogLevel VERBOSE</code> is set and you know where the log lands.</li>
+        <li><code>sshd -t</code> passes, and you verified with <code>sshd -T</code> that overrides landed.</li>
+        <li>Host key fingerprints verified out of band on first connection.</li>
+      </ul>
+
+      <nav class="pager"></nav>
+    </div>
+  </main>
+  <aside class="toc"></aside>
+</div>
+<script src="../assets/nav.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

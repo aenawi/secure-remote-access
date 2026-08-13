@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hardening a Linux VPS — Secure Remote Dev</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body data-page="vps" data-depth="1">
+<div class="layout">
+  <aside class="sidebar"></aside>
+  <main class="main">
+    <div class="content">
+
+      <p class="eyebrow">Chapter 07 · Build <span class="badge linux">Linux</span></p>
+      <h1>Hardening a Linux VPS</h1>
+      <p class="lede">
+        A VPS differs from your laptops in one decisive way: it has a public IP address and it never
+        sleeps. Automated scanners will find it within minutes of creation. The goal of this chapter is
+        to make the SSH port stop existing from the internet's point of view, without ever locking
+        yourself out.
+      </p>
+
+      <div class="callout danger">
+        <div class="ct">Before you change anything about SSH</div>
+        <p>
+          Open a second SSH session and leave it connected for the whole chapter. Every lockout story
+          starts with someone restarting sshd on their only connection. Also confirm your provider's
+          web console or recovery mode works <em>now</em>, while you still have access to check.
+        </p>
+      </div>
+
+      <h2>The first ten minutes</h2>
+      <p>
+        A brand-new VPS, still on root with a password. Fix that immediately.
+      </p>
+      <pre><code># 1. Patch everything
+sudo apt update &amp;&amp; sudo apt full-upgrade -y
+
+# 2. A non-root user with sudo
+sudo adduser yourname
+sudo usermod -aG sudo yourname
+
+# 3. Give it your key (run this FROM your laptop, not on the VPS)
+ssh-copy-id -i ~/.ssh/id_ed25519.pub yourname@your.vps.ip
+
+# 4. Prove key login works BEFORE disabling passwords
+ssh yourname@your.vps.ip 'sudo -v &amp;&amp; echo "sudo ok"'</code></pre>
+      <p>
+        Only once step 4 succeeds should you proceed. That ordering is the entire safety mechanism.
+      </p>
+
+      <h3>Lock down sshd</h3>
+      <div class="filename">/etc/ssh/sshd_config.d/99-hardening.conf</div>
+      <pre><code>PermitRootLogin no
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PubkeyAuthentication yes
+PermitEmptyPasswords no
+AllowUsers yourname
+MaxAuthTries 3
+LoginGraceTime 30
+
+AllowAgentForwarding no
+X11Forwarding no
+
+ClientAliveInterval 30
+ClientAliveCountMax 6
+
+LogLevel VERBOSE</code></pre>
+      <pre><code>sudo sshd -t                       # validate — never skip
+sudo systemctl reload ssh          # 'ssh' on Ubuntu 24.04+, 'sshd' elsewhere</code></pre>
+      <p>
+        Then, in your <em>second</em> terminal, open a fresh connection and confirm it still works before
+        closing anything.
+      </p>
+
+      <h2>Firewall</h2>
+      <p>
+        Default deny inbound, allow outbound, then open only what the world genuinely needs:
+      </p>
+      <pre><code>sudo apt install -y ufw
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow OpenSSH                 # temporarily — removed shortly
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw enable
+sudo ufw status verbose</code></pre>
+
+      <div class="callout danger">
+        <div class="ct">Docker bypasses UFW entirely</div>
+        <p>
+          This catches people constantly. Docker writes its own iptables rules in a chain that is
+          evaluated <em>before</em> UFW's, so <code>docker run -p 5432:5432</code> exposes that port to the
+          internet no matter what <code>ufw status</code> claims. Publish to loopback explicitly:
+        </p>
+        <pre><code>docker run -p 127.0.0.1:5432:5432 postgres</code></pre>
+        <p>
+          Then reach it over the tailnet, or through an SSH tunnel. Verify from <em>outside</em> the box
+          with <code>nmap</code> rather than trusting the firewall's own summary.
+        </p>
+      </div>
+
+      <h2>Close the front door</h2>
+      <p>
+        This is the step that changes the security posture qualitatively. Once Tailscale is on the VPS,
+        SSH no longer needs to be reachable from the internet at all.
+      </p>
+
+      <figure class="diagram">
+        <svg viewBox="0 0 840 350" role="img" aria-label="Before: port 22 open to the internet and constantly probed. After: port 22 removed from the public firewall and reachable only through the tailnet.">
+          <!-- before -->
+          <text x="20" y="26" class="svg-label">Before</text>
+          <rect x="20" y="40" width="150" height="112" rx="9" class="svg-surface svg-danger-s" stroke-width="1.6"/>
+          <text x="95" y="72" text-anchor="middle" class="svg-sub">the internet</text>
+          <text x="95" y="92" text-anchor="middle" class="svg-sub">scanners</text>
+          <text x="95" y="110" text-anchor="middle" class="svg-sub">botnets</text>
+          <text x="95" y="132" text-anchor="middle" class="svg-sub">credential stuffing</text>
+
+          <path d="M170 78 L318 78" class="svg-danger-s" stroke-width="2" fill="none"/>
+          <path d="M170 100 L318 100" class="svg-danger-s" stroke-width="2" fill="none"/>
+          <path d="M170 122 L318 122" class="svg-danger-s" stroke-width="2" fill="none"/>
+          <text x="244" y="70" text-anchor="middle" class="svg-sub">thousands/day</text>
+
+          <rect x="318" y="40" width="170" height="112" rx="9" class="svg-card svg-stroke" stroke-width="1.6"/>
+          <text x="403" y="66" text-anchor="middle" class="svg-label">VPS</text>
+          <rect x="334" y="78" width="138" height="26" rx="6" class="svg-surface svg-danger-s" stroke-width="1.4"/>
+          <text x="403" y="96" text-anchor="middle" class="svg-sub">:22 open</text>
+          <rect x="334" y="112" width="138" height="26" rx="6" class="svg-surface svg-stroke" stroke-width="1.2"/>
+          <text x="403" y="130" text-anchor="middle" class="svg-sub">:80 :443</text>
+
+          <text x="520" y="86" class="svg-sub">one weak credential</text>
+          <text x="520" y="106" class="svg-sub">away from compromise</text>
+
+          <!-- after -->
+          <text x="20" y="208" class="svg-label">After</text>
+          <rect x="20" y="222" width="150" height="112" rx="9" class="svg-surface svg-stroke" stroke-width="1.4"/>
+          <text x="95" y="264" text-anchor="middle" class="svg-sub">the internet</text>
+          <text x="95" y="286" text-anchor="middle" class="svg-sub">sees only a</text>
+          <text x="95" y="304" text-anchor="middle" class="svg-sub">web server</text>
+
+          <path d="M170 300 L318 300" class="svg-muted-s" stroke-width="1.6" fill="none"/>
+          <path d="M170 262 L300 262" class="svg-danger-s" stroke-width="1.8" stroke-dasharray="6 4" fill="none"/>
+          <g class="svg-danger-s" stroke-width="2.6">
+            <path d="M302 252 L318 268"/><path d="M318 252 L302 268"/>
+          </g>
+
+          <rect x="318" y="222" width="170" height="112" rx="9" class="svg-card svg-accent-s" stroke-width="1.8"/>
+          <text x="403" y="248" text-anchor="middle" class="svg-label">VPS</text>
+          <rect x="334" y="258" width="138" height="26" rx="6" class="svg-surface svg-stroke" stroke-width="1.2" stroke-dasharray="4 3"/>
+          <text x="403" y="276" text-anchor="middle" class="svg-sub">:22 not exposed</text>
+          <rect x="334" y="292" width="138" height="26" rx="6" class="svg-surface svg-stroke" stroke-width="1.2"/>
+          <text x="403" y="310" text-anchor="middle" class="svg-sub">:80 :443</text>
+
+          <path d="M488 278 L604 278" class="svg-accent-s" stroke-width="2.2" fill="none"/>
+          <rect x="604" y="252" width="150" height="52" rx="9" class="svg-card svg-accent-s" stroke-width="1.8"/>
+          <text x="679" y="274" text-anchor="middle" class="svg-sub">tailnet only</text>
+          <text x="679" y="291" text-anchor="middle" class="svg-sub">your devices</text>
+          <text x="546" y="270" text-anchor="middle" class="svg-sub">wg</text>
+        </svg>
+        <figcaption>
+          <b>The log noise stops completely.</b> Not reduced — stopped. Brute-force attempts, weak-key
+          scans, and every future OpenSSH pre-auth vulnerability all require reaching the port first.
+          This is worth more than any amount of password policy.
+        </figcaption>
+      </figure>
+
+      <pre><code># Install Tailscale
+curl -fsSL https://tailscale.com/install.sh | sh
+
+# Tailscale SSH IS supported as a server on Linux — use it
+sudo tailscale up --ssh
+
+# Verify from your laptop, over the tailnet, in a NEW terminal
+ssh yourname@vps-hostname
+
+# Only once that works: remove SSH from the public firewall
+sudo ufw delete allow OpenSSH
+sudo ufw status verbose</code></pre>
+      <p>
+        If you prefer OpenSSH to Tailscale SSH, bind it to the tailnet interface instead:
+      </p>
+      <pre><code>ListenAddress 100.x.y.z        # the VPS's Tailscale address</code></pre>
+      <div class="callout warn">
+        <div class="ct">Do not disable key expiry casually</div>
+        <p>
+          For an unattended server it is tempting to turn key expiry off so it never drops off the
+          tailnet. That is defensible — but if it is now your <em>only</em> path in, a Tailscale outage
+          or an expired key means a trip to the provider's web console. Keep that console access tested,
+          or leave a firewalled emergency SSH rule limited to a static IP you control.
+        </p>
+      </div>
+
+      <h2>Keep it patched by itself</h2>
+      <p>
+        Unattended security updates are the highest-value ongoing control on a server you do not log
+        into daily:
+      </p>
+      <pre><code>sudo apt install -y unattended-upgrades
+sudo dpkg-reconfigure -plow unattended-upgrades
+
+# Confirm it will actually act
+sudo unattended-upgrade --dry-run --debug | tail -20</code></pre>
+      <div class="filename">/etc/apt/apt.conf.d/50unattended-upgrades</div>
+      <pre><code>Unattended-Upgrade::Automatic-Reboot "true";
+Unattended-Upgrade::Automatic-Reboot-Time "04:00";
+Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";</code></pre>
+      <p>
+        Automatic reboots are appropriate for a dev VPS and inappropriate for anything serving traffic
+        without redundancy — decide deliberately rather than by default.
+      </p>
+
+      <h2>fail2ban — still worth it, for less</h2>
+      <p>
+        With SSH off the public internet, fail2ban has almost nothing left to defend on port 22. It
+        remains useful for services that <em>are</em> public — your web server, a mail service — so
+        install it and point it at those:
+      </p>
+      <pre><code>sudo apt install -y fail2ban
+sudo systemctl enable --now fail2ban
+sudo fail2ban-client status</code></pre>
+      <div class="callout info">
+        <div class="ct">Order of operations</div>
+        <p>
+          fail2ban is a rate limiter, not an access control. It reduces noise from attackers who can
+          already reach a service. Removing reachability, as above, is strictly stronger — do that
+          first and treat fail2ban as defence in depth for what is left.
+        </p>
+      </div>
+
+      <h2>Kernel and network hardening</h2>
+      <div class="filename">/etc/sysctl.d/99-hardening.conf</div>
+      <pre><code># Ignore ICMP redirects and source routing — classic MITM primitives
+net.ipv4.conf.all.accept_redirects = 0
+net.ipv6.conf.all.accept_redirects = 0
+net.ipv4.conf.all.send_redirects = 0
+net.ipv4.conf.all.accept_source_route = 0
+
+# Log packets with impossible source addresses
+net.ipv4.conf.all.log_martians = 1
+
+# SYN flood resistance
+net.ipv4.tcp_syncookies = 1
+
+# Do not expose kernel pointers or dmesg to unprivileged users
+kernel.kptr_restrict = 2
+kernel.dmesg_restrict = 1
+
+# Restrict ptrace to direct children only
+kernel.yama.ptrace_scope = 1</code></pre>
+      <pre><code>sudo sysctl --system</code></pre>
+      <div class="callout warn">
+        <div class="ct">Leave IP forwarding alone if Tailscale needs it</div>
+        <p>
+          Guides often suggest <code>net.ipv4.ip_forward = 0</code>. If this VPS is a subnet router or
+          exit node, that setting breaks it. Know which role the machine plays before copying hardening
+          snippets.
+        </p>
+      </div>
+
+      <h2>Know what is listening</h2>
+      <p>
+        The same audit as the Mac, and the same conclusion — application services belong on loopback:
+      </p>
+      <pre><code>sudo ss -tulpn | grep LISTEN
+
+# From ANOTHER machine, check what the world actually sees
+nmap -Pn -p- your.vps.ip</code></pre>
+      <p>
+        Scanning from outside is the only trustworthy check. A host firewall's own status output tells
+        you what it intends, not what is true — the Docker case above is exactly this gap.
+      </p>
+
+      <h2>Logs and time</h2>
+      <pre><code># Accurate clocks — log correlation and TLS both depend on it
+timedatectl status
+
+# Watch authentication in real time
+sudo journalctl -u ssh -f
+sudo journalctl -u tailscaled -f
+
+# Persist logs across reboots
+sudo mkdir -p /var/log/journal &amp;&amp; sudo systemd-tmpfiles --create --prefix /var/log/journal</code></pre>
+
+      <h2>Dev environment</h2>
+      <pre><code>sudo apt install -y tmux mosh git build-essential
+curl -fsSL https://herdr.dev/install.sh | sh</code></pre>
+      <p>
+        Mosh needs UDP 60000–61000 between you and the server. Over the tailnet that is carried inside
+        WireGuard and needs no public firewall rule — another reason not to reopen the front door.
+      </p>
+
+      <h2>Checklist</h2>
+      <ul class="checklist">
+        <li>System fully patched.</li>
+        <li>Non-root user with sudo; key-based login proven working <em>before</em> passwords disabled.</li>
+        <li><code>PermitRootLogin no</code> and <code>PasswordAuthentication no</code>, validated with <code>sshd -t</code>.</li>
+        <li>UFW default-deny inbound, with only genuinely public ports open.</li>
+        <li>Docker published ports bound to <code>127.0.0.1</code>, verified from outside with nmap.</li>
+        <li>Tailscale installed; <code>tailscale up --ssh</code> working.</li>
+        <li>Public SSH rule removed only after tailnet access was confirmed.</li>
+        <li>Provider console access tested as a recovery path.</li>
+        <li>unattended-upgrades installed and dry-run verified.</li>
+        <li>sysctl hardening applied, with forwarding left correct for the machine's role.</li>
+        <li>External nmap scan shows only the ports you intend.</li>
+        <li>tmux, mosh and Herdr installed.</li>
+      </ul>
+
+      <nav class="pager"></nav>
+    </div>
+  </main>
+  <aside class="toc"></aside>
+</div>
+<script src="../assets/nav.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

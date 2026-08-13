@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Troubleshooting — Secure Remote Dev</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body data-page="troubleshooting" data-depth="1">
+<div class="layout">
+  <aside class="sidebar"></aside>
+  <main class="main">
+    <div class="content">
+
+      <p class="eyebrow">Chapter 11 · Operate</p>
+      <h1>Troubleshooting</h1>
+      <p class="lede">
+        Almost every failure here is one of five things, and they stack. Test them in order and you
+        will find the real cause in about ninety seconds instead of changing sshd settings at random
+        for an hour.
+      </p>
+
+      <h2>The ladder</h2>
+      <p>
+        Work upward. Each rung assumes the ones below it pass — there is no point debugging
+        authentication if the packet never arrives.
+      </p>
+
+      <figure class="diagram">
+        <svg viewBox="0 0 820 480" role="img" aria-label="Diagnostic ladder with five rungs: tailnet membership, path, port reachability, authentication, and session stability, each with its failure symptom">
+          <text x="20" y="24" class="svg-sub">TEST</text>
+          <text x="470" y="24" class="svg-sub">IF IT FAILS, THE CAUSE IS</text>
+
+          <!-- 5 -->
+          <rect x="20" y="36" width="420" height="70" rx="9" class="svg-card svg-accent-s" stroke-width="1.7"/>
+          <text x="42" y="62" class="svg-label">5 · Does the session hold?</text>
+          <text x="42" y="82" class="svg-sub">ssh host 'sleep 15; echo ok'</text>
+          <text x="42" y="98" class="svg-sub">read /var/log or journalctl for the reason</text>
+          <path d="M440 71 L466 71" class="svg-muted-s" stroke-width="1.5"/>
+          <rect x="466" y="36" width="334" height="70" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
+          <text x="486" y="60" class="svg-sub">client killed (iOS suspend), or a</text>
+          <text x="486" y="78" class="svg-sub">restarting daemon killing its children.</text>
+          <text x="486" y="96" class="svg-sub">Fix with Mosh + tmux, not server tuning.</text>
+
+          <!-- 4 -->
+          <rect x="20" y="118" width="420" height="70" rx="9" class="svg-card svg-stroke" stroke-width="1.5"/>
+          <text x="42" y="144" class="svg-label">4 · Does authentication succeed?</text>
+          <text x="42" y="164" class="svg-sub">ssh -v host</text>
+          <text x="42" y="180" class="svg-sub">look for "Offering public key" / "Accepted"</text>
+          <path d="M440 153 L466 153" class="svg-muted-s" stroke-width="1.5"/>
+          <rect x="466" y="118" width="334" height="70" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
+          <text x="486" y="142" class="svg-sub">wrong key, bad file permissions,</text>
+          <text x="486" y="160" class="svg-sub">AllowUsers excluding you, or macOS</text>
+          <text x="486" y="178" class="svg-sub">SACL membership missing.</text>
+
+          <!-- 3 -->
+          <rect x="20" y="200" width="420" height="70" rx="9" class="svg-card svg-stroke" stroke-width="1.5"/>
+          <text x="42" y="226" class="svg-label">3 · Is the port open?</text>
+          <text x="42" y="246" class="svg-sub">nc -z -G 3 &lt;tailnet-ip&gt; 22</text>
+          <text x="42" y="262" class="svg-sub">test from the tailnet address, not localhost</text>
+          <path d="M440 235 L466 235" class="svg-muted-s" stroke-width="1.5"/>
+          <rect x="466" y="200" width="334" height="70" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
+          <text x="486" y="224" class="svg-sub">sshd down, bound to a different</text>
+          <text x="486" y="242" class="svg-sub">address, wrong port, or an ACL /</text>
+          <text x="486" y="260" class="svg-sub">firewall rule dropping it.</text>
+
+          <!-- 2 -->
+          <rect x="20" y="282" width="420" height="70" rx="9" class="svg-card svg-stroke" stroke-width="1.5"/>
+          <text x="42" y="308" class="svg-label">2 · Is there a path?</text>
+          <text x="42" y="328" class="svg-sub">tailscale ping &lt;device&gt;</text>
+          <text x="42" y="344" class="svg-sub">note whether it says DERP or a direct IP</text>
+          <path d="M440 317 L466 317" class="svg-muted-s" stroke-width="1.5"/>
+          <rect x="466" y="282" width="334" height="70" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
+          <text x="486" y="306" class="svg-sub">peer asleep or offline. Persistent</text>
+          <text x="486" y="324" class="svg-sub">DERP means UDP is blocked —</text>
+          <text x="486" y="342" class="svg-sub">slow, but not broken.</text>
+
+          <!-- 1 -->
+          <rect x="20" y="364" width="420" height="70" rx="9" class="svg-card svg-stroke" stroke-width="1.5"/>
+          <text x="42" y="390" class="svg-label">1 · Are both on the tailnet?</text>
+          <text x="42" y="410" class="svg-sub">tailscale status</text>
+          <text x="42" y="426" class="svg-sub">check both ends, not just yours</text>
+          <path d="M440 399 L466 399" class="svg-muted-s" stroke-width="1.5"/>
+          <rect x="466" y="364" width="334" height="70" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
+          <text x="486" y="388" class="svg-sub">logged out, key expired, device</text>
+          <text x="486" y="406" class="svg-sub">not approved, or Tailscale simply</text>
+          <text x="486" y="424" class="svg-sub">not running.</text>
+
+          <path d="M230 364 L230 352 M230 282 L230 270 M230 200 L230 188 M230 118 L230 106"
+                class="svg-accent-s" stroke-width="2" fill="none"/>
+          <text x="20" y="462" class="svg-sub">start here ↑ and climb</text>
+        </svg>
+        <figcaption>
+          <b>Resist starting at rung 4.</b> "Permission denied" feels like an auth problem, so that is
+          where people begin — but a wrong port or a stale ACL produces confusing symptoms further up
+          that vanish the moment you check the rung below.
+        </figcaption>
+      </figure>
+
+      <h2>Symptoms and what they mean</h2>
+
+      <h3><code>Connection refused</code></h3>
+      <p>
+        Something answered and said no. The host is reachable; nothing is listening on that port. Check
+        the port number first, then whether sshd is bound where you think:
+      </p>
+      <pre><code>netstat -an -p tcp | grep LISTEN | grep 22     # macOS
+sudo ss -tulpn | grep :22                      # Linux</code></pre>
+      <p>
+        If it shows <code>100.x.y.z.22</code>, the daemon is tailnet-only and you must connect to that
+        address — <code>localhost</code> will be refused, which is correct and by design.
+      </p>
+
+      <h3><code>Connection timed out</code></h3>
+      <p>
+        Nothing answered at all. This is a network-layer problem, not SSH: a dropped packet, an ACL, a
+        firewall, or a peer that is asleep. Drop to rungs 1 and 2.
+      </p>
+
+      <h3><code>Permission denied (publickey)</code></h3>
+      <p>
+        The good news is the daemon is healthy — it completed a handshake and made a decision. Run with
+        <code>-v</code> and read which keys were offered:
+      </p>
+      <pre><code>ssh -v -o IdentitiesOnly=yes -i ~/.ssh/id_ed25519 yourname@host</code></pre>
+      <p>Ordered by how often each is the actual cause:</p>
+      <ul>
+        <li>The public key is not in <code>authorized_keys</code>, or landed in the wrong user's home directory.</li>
+        <li>Permissions. <code>~</code> must not be group/world-writable; <code>~/.ssh</code> should be 700 and <code>authorized_keys</code> 600.</li>
+        <li><code>AllowUsers</code> does not include your account.</li>
+        <li>The client offered a different key first and hit <code>MaxAuthTries</code>. <code>IdentitiesOnly=yes</code> settles it.</li>
+        <li>On macOS: <code>UsePAM yes</code> is set but you are not in <code>com.apple.access_ssh</code>.</li>
+      </ul>
+      <pre><code>chmod 700 ~/.ssh &amp;&amp; chmod 600 ~/.ssh/authorized_keys
+dseditgroup -o checkmember -m "$(whoami)" com.apple.access_ssh   # macOS only</code></pre>
+
+      <h3><code>client_loop: send disconnect: Broken pipe</code></h3>
+      <p>
+        The connection died underneath you and the client noticed on its next write. The server log
+        tells you which side caused it, and this single distinction saves hours:
+      </p>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Server log says</th><th>Meaning</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr><td><code>Received disconnect ... disconnected by user</code></td>
+              <td>Clean shutdown. The client asked to close.</td>
+              <td>Normal. Look elsewhere.</td></tr>
+          <tr><td><code>Read error ... Connection reset by peer</code></td>
+              <td>A TCP reset. The client process was <b>killed</b> — it never got to close the socket.</td>
+              <td><b>Client-side.</b> iOS suspended or terminated the app. No server change will help.</td></tr>
+          <tr><td><code>Timeout, client not responding</code></td>
+              <td>Keepalives went unanswered for the full window.</td>
+              <td>Network path died. Raise <code>ClientAliveCountMax</code>, and use Mosh.</td></tr>
+          <tr><td>Nothing at all</td>
+              <td>The daemon itself was restarted, taking its children with it.</td>
+              <td>Check the supervisor — see the respawn loop below.</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <pre><code># macOS, if the plist has -e
+sudo tail -40 /var/log/com.local.sshd.err
+
+# Linux
+sudo journalctl -u ssh -n 40 --no-pager</code></pre>
+      <div class="callout tip">
+        <div class="ct">The durable fix</div>
+        <p>
+          Mosh removes the TCP connection that keeps breaking. tmux means that even when the client
+          dies outright, nothing is lost. Together they turn this from an outage into a non-event —
+          which is better than any amount of keepalive tuning.
+        </p>
+      </div>
+
+      <h3>Sessions appear to die instantly</h3>
+      <div class="callout warn">
+        <div class="ct">Check your evidence before believing this</div>
+        <p>
+          <code>last</code> prints durations as HH:MM, so <em>every</em> session shorter than one minute
+          displays as <code>(00:00)</code>. A perfectly healthy 30-second session looks identical to one
+          that died on arrival. Confirm with a timed test before diagnosing anything:
+        </p>
+        <pre><code>ssh host 'echo start=$(date +%T); sleep 15; echo end=$(date +%T)'</code></pre>
+      </div>
+      <p>
+        If that genuinely fails, the usual cause is the daemon being restarted underneath the session —
+        a supervisor killing the process group takes every child session with it.
+      </p>
+
+      <h3>A respawn loop <span class="badge mac">macOS</span></h3>
+      <pre><code>sudo launchctl print system/com.local.sshd | grep -E 'runs|last exit code'</code></pre>
+      <p>
+        <code>runs = 1</code> is healthy. <code>runs</code> in the dozens or hundreds with
+        <code>last exit code = 255</code> means launchd is restarting the job continuously. Two causes:
+      </p>
+      <ul>
+        <li><strong>Missing <code>-D</code>.</strong> sshd forks, the tracked parent exits, launchd restarts it, and the replacement finds the port already held by the orphan. Add <code>-D</code>.</li>
+        <li><strong>The bind address does not exist yet.</strong> With <code>ListenAddress</code> set to a Tailscale IP, sshd cannot bind until Tailscale is up. Harmless with <code>ThrottleInterval</code> — it self-heals — but it is why SSH is briefly unavailable after a reboot.</li>
+      </ul>
+
+      <h3><code>WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED</code></h3>
+      <p>
+        Take this seriously rather than reflexively deleting the line. Legitimate causes: the server was
+        rebuilt, or its host keys were regenerated. Illegitimate cause: someone is between you and it.
+      </p>
+      <pre><code># Verify out of band — on the server itself, via a path you trust
+for f in /etc/ssh/ssh_host_*_key.pub; do ssh-keygen -lf "$f"; done
+
+# Only once the fingerprint matches
+ssh-keygen -R '[hostname]:port'</code></pre>
+
+      <h3>Everything is slow</h3>
+      <pre><code>tailscale ping &lt;device&gt;</code></pre>
+      <p>
+        A direct path is typically 1–50 ms. A DERP relay adds real latency. Persistent relay means UDP
+        hole punching is failing — common on restrictive corporate or hotel networks. It is not a
+        security problem, and Mosh's local echo makes even a relayed session feel responsive because
+        keystrokes no longer wait for a round trip.
+      </p>
+
+      <h3><code>tmux: command not found</code> over SSH</h3>
+      <p>
+        A PATH problem, not a missing binary. <code>ssh host 'cmd'</code> runs a non-login,
+        non-interactive shell that reads only <code>~/.zshenv</code> — while Homebrew's PATH is set in
+        <code>~/.zprofile</code>, which only login shells read:
+      </p>
+      <pre><code>ssh macbook -t '/opt/homebrew/bin/tmux new -A -s phone'   # full path
+ssh macbook -t 'zsh -lc "tmux new -A -s phone"'          # or force a login shell</code></pre>
+
+      <h3>A config change had no effect</h3>
+      <p>
+        Remember that <code>sshd_config</code> takes the <strong>first</strong> value for each keyword, not
+        the last. Where the <code>Include</code> line sits decides whether your drop-in wins. Ask the
+        daemon what it actually resolved:
+      </p>
+      <pre><code>sudo sshd -T -f /etc/ssh/sshd_config | grep -i &lt;setting&gt;</code></pre>
+      <p>
+        Also confirm you reloaded the right service, and that the running process is using the config
+        file you edited:
+      </p>
+      <pre><code>ps -eo pid,command | grep '[s]shd'</code></pre>
+
+      <h2>Emergency access</h2>
+      <div class="callout danger">
+        <div class="ct">If you are locked out of the VPS</div>
+        <ol>
+          <li>Use the provider's web console — this is why you tested it in chapter 07.</li>
+          <li>Failing that, boot into recovery/rescue mode and mount the disk.</li>
+          <li>Restore the previous config: <code>cp /etc/ssh/sshd_config.d/99-hardening.conf.bak ...</code></li>
+          <li>Reopen SSH temporarily: <code>ufw allow OpenSSH</code>.</li>
+          <li>Fix, verify from a second terminal, then close it again.</li>
+        </ol>
+        <p>
+          The habit that prevents all of this: keep a second session open while changing SSH, and always
+          back up a config before replacing it.
+        </p>
+      </div>
+
+      <h2>Command reference</h2>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Question</th><th>Command</th></tr></thead>
+        <tbody>
+          <tr><td>Who is on the tailnet?</td><td><code>tailscale status</code></td></tr>
+          <tr><td>Direct or relayed?</td><td><code>tailscale ping &lt;device&gt;</code></td></tr>
+          <tr><td>My tailnet address?</td><td><code>tailscale ip -4</code></td></tr>
+          <tr><td>What is listening?</td><td><code>ss -tulpn</code> · <code>netstat -an -p tcp</code></td></tr>
+          <tr><td>Is a port reachable?</td><td><code>nc -z -G 3 &lt;host&gt; &lt;port&gt;</code></td></tr>
+          <tr><td>Why did auth fail?</td><td><code>ssh -v</code> (add more <code>v</code>s for detail)</td></tr>
+          <tr><td>Effective sshd config?</td><td><code>sudo sshd -T -f /etc/ssh/sshd_config</code></td></tr>
+          <tr><td>Is the config valid?</td><td><code>sudo sshd -t</code></td></tr>
+          <tr><td>Server-side session log?</td><td><code>journalctl -u ssh -f</code> · <code>tail -f /var/log/*sshd.err</code></td></tr>
+          <tr><td>Which keys are trusted?</td><td><code>ssh-keygen -lf ~/.ssh/authorized_keys</code></td></tr>
+          <tr><td>Host key fingerprints?</td><td><code>ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub</code></td></tr>
+          <tr><td>Is the daemon flapping?</td><td><code>launchctl print system/&lt;label&gt;</code> · <code>systemctl status ssh</code></td></tr>
+          <tr><td>Any tmux sessions alive?</td><td><code>tmux ls</code></td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <nav class="pager"></nav>
+    </div>
+  </main>
+  <aside class="toc"></aside>
+</div>
+<script src="../assets/nav.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

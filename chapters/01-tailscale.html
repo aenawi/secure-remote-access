@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tailscale &amp; WireGuard — Secure Remote Dev</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body data-page="tailscale" data-depth="1">
+<div class="layout">
+  <aside class="sidebar"></aside>
+  <main class="main">
+    <div class="content">
+
+      <p class="eyebrow">Chapter 01 · The network plane</p>
+      <h1>Tailscale &amp; WireGuard</h1>
+      <p class="lede">
+        Everything else in this guide depends on one property: your machines are reachable by you and
+        by nobody else. Not "protected by a strong password" — actually unreachable. This chapter
+        explains how that is achieved, because if you understand it, the rest of the configuration
+        stops being cargo cult.
+      </p>
+
+      <h2>WireGuard, honestly described</h2>
+      <p>
+        WireGuard is a VPN protocol small enough to read in an afternoon — roughly 4,000 lines against
+        OpenVPN's hundreds of thousands. That size is a security argument in itself: less code, fewer
+        places for bugs to hide.
+      </p>
+      <p>
+        Three ideas matter for our purposes.
+      </p>
+      <p>
+        <strong>Cryptokey routing.</strong> In WireGuard, a public key <em>is</em> the identity of a peer,
+        and each peer is associated with the set of IP addresses it is allowed to use. When a packet
+        arrives, WireGuard decrypts it, checks which key signed it, and confirms that key is permitted
+        to send from that source address. A packet claiming to be from your MacBook but sealed with a
+        different key is discarded before anything else looks at it. Source-address spoofing, the
+        foundation of a lot of network attacks, simply has no purchase.
+      </p>
+      <p>
+        <strong>It is UDP, and it is silent.</strong> WireGuard has no connection in the TCP sense. There
+        is no listening socket that responds to strangers. An unauthenticated packet gets no reply at
+        all — not a rejection, not a reset, nothing. To a port scanner, a WireGuard endpoint is
+        indistinguishable from an unused IP address. This is why "invisible" is literal rather than
+        marketing.
+      </p>
+      <p>
+        <strong>Roaming is native.</strong> Because there is no connection state tied to an IP address, a
+        peer that changes network — Wi-Fi to LTE, one café to another — just starts sending from the new
+        address. The far end notices the authenticated packets arriving from somewhere new and updates
+        its endpoint. Nothing is renegotiated. This is the property that makes a phone a viable
+        workstation.
+      </p>
+
+      <div class="callout info">
+        <div class="ct">Where WireGuard stops</div>
+        <p>
+          Raw WireGuard requires you to hand-place every peer's public key and endpoint in a config
+          file, on every device. For two machines that is fine. For four machines it is twelve config
+          entries you must keep in sync by hand, and it breaks the moment an IP changes. That
+          key-distribution problem — not the crypto — is what Tailscale solves.
+        </p>
+      </div>
+
+      <h2>What Tailscale adds</h2>
+      <p>
+        Tailscale is WireGuard plus a coordination server plus a great deal of unglamorous NAT
+        engineering. The critical architectural fact, and the one to check when evaluating any such
+        service:
+      </p>
+      <div class="callout ok">
+        <div class="ct">The coordination server cannot read your traffic</div>
+        <p>
+          Private keys are generated on each device and never leave it. The coordination server
+          exchanges <em>public</em> keys and policy. Data packets flow directly between your devices,
+          encrypted end-to-end. Even relayed traffic (see DERP below) is opaque to the relay.
+        </p>
+      </div>
+
+      <h3>The address range</h3>
+      <p>
+        Tailscale assigns each device a stable address from <code>100.64.0.0/10</code>, the
+        carrier-grade NAT range reserved by RFC 6598. It is chosen precisely because it will never
+        collide with your home <code>192.168.x.x</code> or an office <code>10.x.x.x</code>. That address
+        follows the device everywhere — it is the closest thing you get to a permanent name for a
+        machine that moves.
+      </p>
+
+      <h2>How two devices behind NAT find each other</h2>
+      <p>
+        Your phone is behind a carrier NAT you have zero control over. Your MacBook is behind a home
+        router. Neither has a reachable public port. They connect anyway, and understanding how
+        explains the latency numbers you will see in <code>tailscale ping</code>.
+      </p>
+
+      <figure class="diagram">
+        <svg viewBox="0 0 880 440" role="img" aria-label="NAT traversal: peers register endpoints with the coordination server, start relayed via DERP, attempt hole punching, then upgrade to a direct encrypted path">
+          <defs>
+            <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" class="svg-accent"/>
+            </marker>
+            <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="currentColor" opacity=".45"/>
+            </marker>
+          </defs>
+
+          <!-- coordination -->
+          <rect x="326" y="14" width="228" height="52" rx="9" class="svg-card svg-stroke" stroke-width="1.5" stroke-dasharray="5 3"/>
+          <text x="440" y="36" text-anchor="middle" class="svg-label">Coordination server</text>
+          <text x="440" y="54" text-anchor="middle" class="svg-sub">public keys + candidate endpoints</text>
+
+          <!-- peers -->
+          <rect x="24" y="150" width="180" height="92" rx="10" class="svg-card svg-stroke" stroke-width="1.6"/>
+          <rect x="24" y="150" width="5" height="92" rx="2.5" class="svg-accent"/>
+          <text x="46" y="178" class="svg-label">iPhone</text>
+          <text x="46" y="197" class="svg-sub">carrier-grade NAT</text>
+          <text x="46" y="214" class="svg-sub">no inbound port</text>
+          <text x="46" y="231" class="svg-sub">100.126.245.94</text>
+
+          <rect x="676" y="150" width="180" height="92" rx="10" class="svg-card svg-stroke" stroke-width="1.6"/>
+          <rect x="676" y="150" width="5" height="92" rx="2.5" class="svg-accent"/>
+          <text x="698" y="178" class="svg-label">MacBook Pro</text>
+          <text x="698" y="197" class="svg-sub">home router NAT</text>
+          <text x="698" y="214" class="svg-sub">no port forwarding</text>
+          <text x="698" y="231" class="svg-sub">100.117.202.65</text>
+
+          <!-- step 1 registration -->
+          <path d="M150 150 C 190 100, 280 70, 326 52" class="svg-muted-s" stroke-width="1.5" stroke-dasharray="4 4" fill="none" marker-end="url(#a2)"/>
+          <path d="M730 150 C 690 100, 600 70, 554 52" class="svg-muted-s" stroke-width="1.5" stroke-dasharray="4 4" fill="none" marker-end="url(#a2)"/>
+          <circle cx="238" cy="98" r="11" class="svg-card svg-stroke" stroke-width="1.4"/>
+          <text x="238" y="102" text-anchor="middle" class="svg-sub">1</text>
+          <circle cx="642" cy="98" r="11" class="svg-card svg-stroke" stroke-width="1.4"/>
+          <text x="642" y="102" text-anchor="middle" class="svg-sub">1</text>
+
+          <!-- step 2 DERP -->
+          <rect x="336" y="330" width="208" height="60" rx="10" class="svg-surface svg-stroke" stroke-width="1.5"/>
+          <text x="440" y="354" text-anchor="middle" class="svg-label">DERP relay</text>
+          <text x="440" y="372" text-anchor="middle" class="svg-sub">encrypted blobs · cannot decrypt</text>
+
+          <path d="M114 242 C 140 320, 260 350, 336 358" class="svg-muted-s" stroke-width="1.8" fill="none" marker-end="url(#a2)"/>
+          <path d="M766 242 C 740 320, 620 350, 544 358" class="svg-muted-s" stroke-width="1.8" fill="none" marker-end="url(#a2)"/>
+          <circle cx="212" cy="322" r="11" class="svg-card svg-stroke" stroke-width="1.4"/>
+          <text x="212" y="326" text-anchor="middle" class="svg-sub">2</text>
+          <text x="150" y="418" class="svg-sub">works instantly · ~600 ms</text>
+
+          <!-- step 3 hole punch -->
+          <path d="M204 206 L676 206" class="svg-warn-s" stroke-width="1.6" stroke-dasharray="7 5" fill="none"/>
+          <circle cx="440" cy="206" r="11" class="svg-card svg-stroke" stroke-width="1.4"/>
+          <text x="440" y="210" text-anchor="middle" class="svg-sub">3</text>
+          <text x="440" y="192" text-anchor="middle" class="svg-sub">simultaneous outbound probes</text>
+
+          <!-- step 4 direct -->
+          <path d="M204 258 C 340 300, 540 300, 676 258" class="svg-accent-s" stroke-width="2.4" fill="none" marker-end="url(#a1)"/>
+          <circle cx="440" cy="288" r="11" class="svg-card svg-accent-s" stroke-width="1.6"/>
+          <text x="440" y="292" text-anchor="middle" class="svg-sub">4</text>
+          <text x="612" y="418" class="svg-sub">upgraded · ~50 ms on LAN</text>
+        </svg>
+        <figcaption>
+          <b>Connectivity first, speed second.</b> Tailscale does not make you wait for a direct path.
+          It relays immediately through DERP so the connection works at once, attempts hole punching in
+          the background, and silently upgrades when it succeeds. You may notice the first packet of a
+          session being slow and everything after it being fast — that is this upgrade happening live.
+        </figcaption>
+      </figure>
+
+      <h3>Seeing it yourself</h3>
+      <p>
+        <code>tailscale ping</code> tells you which path is in use, and it is the first thing to run when
+        a connection feels sluggish:
+      </p>
+      <pre><code>tailscale ping iphone
+# pong from iphone (100.126.245.94) via DERP(dbi) in 625ms
+# pong from iphone (100.126.245.94) via 192.168.1.222:41641 in 50ms</code></pre>
+      <p>
+        Two lines, two paths. The first went through a relay in Dubai; the second went straight across
+        the LAN once hole punching succeeded. Persistent DERP-only paths mean something is blocking
+        UDP — a restrictive corporate firewall, or a router with symmetric NAT.
+      </p>
+
+      <div class="callout warn">
+        <div class="ct">A relayed path is secure, just slower</div>
+        <p>
+          DERP relays forward encrypted packets they cannot read. Falling back to relay costs you
+          latency, not confidentiality. Do not disable it to "force security" — you will simply lose
+          connectivity on restrictive networks.
+        </p>
+      </div>
+
+      <h2>Access control: the single most valuable setting</h2>
+      <p>
+        By default, a tailnet is permissive: every device can reach every port on every other device.
+        For a two-device personal tailnet that is a defensible starting point. It stops being
+        defensible the moment you have a VPS with a database on it, or you share a node with someone.
+      </p>
+      <p>
+        The policy file is the control. Default-deny, then grant precisely what you need:
+      </p>
+      <div class="filename">Tailscale admin console → Access controls</div>
+      <pre><code>{
+  "tagOwners": {
+    "tag:laptop": ["autogroup:admin"],
+    "tag:server": ["autogroup:admin"]
+  },
+
+  "acls": [
+    // Phone may reach ONLY the SSH port on tagged machines.
+    {
+      "action": "accept",
+      "src":    ["autogroup:member"],
+      "dst":    ["tag:server:22", "tag:laptop:22"]
+    }
+  ],
+
+  "ssh": [
+    // Tailscale SSH: re-authenticate through the browser every 12h.
+    {
+      "action":      "check",
+      "src":         ["autogroup:member"],
+      "dst":         ["autogroup:self"],
+      "users":       ["autogroup:nonroot"],
+      "checkPeriod": "12h"
+    }
+  ]
+}</code></pre>
+      <p>
+        Anything not matched by an <code>accept</code> rule is denied. With the above, a compromised
+        phone can reach port 22 and nothing else — not Redis on 6379, not Postgres on 5432, not an
+        unauthenticated dev server on 8000. This is enforced in the tailnet itself, above the host,
+        so it holds even if a machine is misconfigured.
+      </p>
+
+      <figure class="diagram">
+        <svg viewBox="0 0 820 300" role="img" aria-label="ACL evaluation: packets from the phone are accepted to port 22 and dropped for database and dev-server ports">
+          <rect x="24" y="120" width="150" height="66" rx="9" class="svg-card svg-stroke" stroke-width="1.6"/>
+          <rect x="24" y="120" width="5" height="66" rx="2.5" class="svg-accent"/>
+          <text x="44" y="148" class="svg-label">iPhone</text>
+          <text x="44" y="167" class="svg-sub">autogroup:member</text>
+
+          <rect x="330" y="26" width="164" height="248" rx="11" class="svg-surface svg-stroke" stroke-width="1.6" stroke-dasharray="5 3"/>
+          <text x="412" y="50" text-anchor="middle" class="svg-label">ACL check</text>
+          <text x="412" y="68" text-anchor="middle" class="svg-sub">per packet, in tailnet</text>
+          <text x="412" y="150" text-anchor="middle" class="svg-sub">default</text>
+          <text x="412" y="168" text-anchor="middle" class="svg-sub">DENY</text>
+
+          <!-- allowed -->
+          <path d="M174 142 L330 100" class="svg-accent-s" stroke-width="2.2" fill="none"/>
+          <path d="M494 100 L640 74" class="svg-accent-s" stroke-width="2.2" fill="none"/>
+          <rect x="646" y="46" width="150" height="56" rx="9" class="svg-card svg-accent-s" stroke-width="1.8"/>
+          <text x="666" y="70" class="svg-label">:22 sshd</text>
+          <text x="666" y="88" class="svg-sub">accept</text>
+
+          <!-- denied -->
+          <path d="M174 158 L330 196" class="svg-danger-s" stroke-width="1.8" stroke-dasharray="6 4" fill="none"/>
+          <path d="M494 196 L560 196" class="svg-danger-s" stroke-width="1.8" stroke-dasharray="6 4" fill="none"/>
+          <g class="svg-danger-s" stroke-width="2.6">
+            <path d="M572 186 L592 206"/><path d="M592 186 L572 206"/>
+          </g>
+          <rect x="646" y="128" width="150" height="50" rx="9" class="svg-surface svg-stroke" stroke-width="1.4" stroke-dasharray="4 3"/>
+          <text x="666" y="150" class="svg-label">:6379 redis</text>
+          <text x="666" y="167" class="svg-sub">dropped</text>
+
+          <rect x="646" y="192" width="150" height="50" rx="9" class="svg-surface svg-stroke" stroke-width="1.4" stroke-dasharray="4 3"/>
+          <text x="666" y="214" class="svg-label">:5432 postgres</text>
+          <text x="666" y="231" class="svg-sub">dropped</text>
+
+          <rect x="646" y="252" width="150" height="42" rx="9" class="svg-surface svg-stroke" stroke-width="1.4" stroke-dasharray="4 3"/>
+          <text x="666" y="278" class="svg-label">:8000 dev server</text>
+        </svg>
+        <figcaption>
+          <b>This is why ACLs beat host firewalls.</b> A service bound to <code>0.0.0.0</code> by
+          accident is still unreachable if the tailnet refuses to carry the packet. The host
+          firewall is your second line, not your first.
+        </figcaption>
+      </figure>
+
+      <h2>Tailscale SSH, and when you can use it</h2>
+      <p>
+        Tailscale can terminate SSH itself, authenticating with tailnet identity instead of SSH keys.
+        No <code>authorized_keys</code> to distribute, no key rotation, and the <code>check</code>
+        action can force a browser re-auth every few hours. It is excellent — where it is available.
+      </p>
+      <div class="callout warn">
+        <div class="ct">Server-side support is limited</div>
+        <p>
+          Tailscale SSH can act as a <strong>server</strong> on Linux and on macOS only when you run the
+          open-source <code>tailscale</code>/<code>tailscaled</code> CLI build. The standard macOS app —
+          the one from the App Store or the packaged download — <strong>cannot</strong> be a Tailscale
+          SSH server. So: use it on your VPS and Ubuntu laptop; use OpenSSH on the Mac.
+        </p>
+      </div>
+      <pre><code># On the VPS / Ubuntu laptop (not the Mac app)
+sudo tailscale up --ssh
+
+# Verify what the daemon thinks it is doing
+tailscale debug prefs | grep -i runssh</code></pre>
+
+      <h2>Hardening the tailnet itself</h2>
+      <p>
+        Three settings in the admin console, all worth the two minutes:
+      </p>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Setting</th><th>What it does</th><th>Why</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><b>Key expiry</b></td>
+            <td>Node keys expire (default 180 days) and the device must re-authenticate.</td>
+            <td>A device you lose access to eventually falls off the tailnet by itself. Disable it only for unattended servers, and know that you have done so.</td>
+          </tr>
+          <tr>
+            <td><b>Device approval</b></td>
+            <td>New devices join in a pending state until you approve them.</td>
+            <td>Stolen account credentials alone are not enough to place a new machine inside your network.</td>
+          </tr>
+          <tr>
+            <td><b>Tailnet lock</b></td>
+            <td>Devices sign each other's keys; the coordination server can no longer insert a node on its own.</td>
+            <td>Removes the control plane from your trust model entirely. This is the strongest available setting and the correct answer to "what if Tailscale itself is compromised?"</td>
+          </tr>
+        </tbody>
+      </table>
+      </div>
+
+      <h3>MagicDNS</h3>
+      <p>
+        With MagicDNS on, devices are reachable by name — <code>macbook</code>, or the fully qualified
+        <code>macbook.tailnet-name.ts.net</code>. Use names in your SSH config rather than
+        <code>100.x</code> addresses: names survive a device being removed and re-added, addresses do
+        not always.
+      </p>
+
+      <h2>Verify before moving on</h2>
+      <ul class="checklist">
+        <li>All devices appear in <code>tailscale status</code> and show as online.</li>
+        <li><code>tailscale ping &lt;device&gt;</code> succeeds, and you know whether you are direct or relayed.</li>
+        <li>MagicDNS is enabled and <code>ping macbook</code> resolves.</li>
+        <li>An ACL policy is in place that is default-deny rather than allow-all.</li>
+        <li>Key expiry is on for laptops and phones; deliberately considered for servers.</li>
+        <li>Device approval is enabled.</li>
+        <li>Tailnet lock is enabled, with recovery keys stored somewhere you can actually reach.</li>
+      </ul>
+
+      <nav class="pager"></nav>
+    </div>
+  </main>
+  <aside class="toc"></aside>
+</div>
+<script src="../assets/nav.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Ubuntu laptop — Secure Remote Dev</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body data-page="ubuntu" data-depth="1">
+<div class="layout">
+  <aside class="sidebar"></aside>
+  <main class="main">
+    <div class="content">
+
+      <p class="eyebrow">Chapter 08 · Build <span class="badge linux">Ubuntu</span></p>
+      <h1>The Ubuntu laptop</h1>
+      <p class="lede">
+        A laptop inverts the VPS threat model. It has no public IP and nothing is scanning it, but it
+        gets carried through airports, left in hotel rooms, and joins networks run by strangers. The
+        controls that matter are physical and mobile, not perimeter.
+      </p>
+
+      <div class="callout info">
+        <div class="ct">This chapter is a delta</div>
+        <p>
+          SSH hardening, UFW basics, unattended-upgrades and sysctl are covered in
+          <a href="07-vps.html">chapter 07</a> and apply identically here. What follows is only what
+          differs because this machine has a keyboard, a lid, and legs.
+        </p>
+      </div>
+
+      <h2>Disk encryption is the whole game</h2>
+      <p>
+        Every other control on a laptop assumes the attacker does not have the disk. Without full-disk
+        encryption, a stolen laptop hands over your SSH keys, your browser sessions, and your shell
+        history in the time it takes to boot a USB stick.
+      </p>
+      <pre><code># Are you actually encrypted? crypto_LUKS on the root device is the answer.
+lsblk -o NAME,FSTYPE,MOUNTPOINT
+
+# Detail on the LUKS header
+sudo cryptsetup luksDump /dev/nvme0n1p3</code></pre>
+      <div class="callout danger">
+        <div class="ct">LUKS is chosen at install time</div>
+        <p>
+          Ubuntu's installer offers "Encrypt the new Ubuntu installation" only during a fresh install.
+          Retrofitting encryption onto a running system means a backup, a reinstall, and a restore.
+          If <code>lsblk</code> shows no <code>crypto_LUKS</code>, plan that reinstall — everything else in
+          this guide is built on the assumption that the disk is safe at rest.
+        </p>
+      </div>
+      <p>
+        Two follow-ups people miss. Use a genuinely strong passphrase, since it is the only thing
+        between a thief and the disk — unlike a phone, there is no hardware rate limiting on attempts.
+        And if you hibernate, confirm swap is encrypted too, because hibernation writes RAM (including
+        decrypted keys) to it:
+      </p>
+      <pre><code>lsblk -o NAME,FSTYPE | grep -i swap
+cat /etc/crypttab</code></pre>
+
+      <h3>Firmware and boot</h3>
+      <ul>
+        <li>Set a <strong>BIOS/UEFI supervisor password</strong> so the boot order cannot be changed.</li>
+        <li>Disable booting from USB and network once you no longer need it.</li>
+        <li>Leave <strong>Secure Boot enabled</strong> — Ubuntu supports it out of the box. Check with <code>mokutil --sb-state</code>.</li>
+      </ul>
+      <p>
+        These stop the evil-maid shortcut of booting another OS to read or tamper with your disk. They
+        do not stop a determined attacker with the machine for a week, but they raise the cost
+        substantially for the realistic case.
+      </p>
+
+      <h2>Lock screen and idle</h2>
+      <pre><code>gsettings set org.gnome.desktop.screensaver lock-enabled true
+gsettings set org.gnome.desktop.screensaver lock-delay 0
+gsettings set org.gnome.desktop.session idle-delay 300</code></pre>
+      <p>
+        <code>lock-delay 0</code> means the lock takes effect the instant the screen blanks, with no
+        grace period. On a machine that leaves the house, the grace period is a liability.
+      </p>
+
+      <h2>Hostile networks</h2>
+      <p>
+        A laptop joins conference Wi-Fi and hotel networks where other guests are on the same segment.
+        Default-deny inbound is not paranoia here, it is the baseline:
+      </p>
+      <pre><code>sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw enable
+sudo ufw status verbose</code></pre>
+      <p>
+        Note that you do <em>not</em> add an SSH allow rule. Tailscale traffic arrives over the
+        <code>tailscale0</code> interface, and binding sshd to the tailnet address (below) means the
+        hotel network never sees the port at all.
+      </p>
+
+      <h3>Randomise your MAC address</h3>
+      <p>
+        By default your network card broadcasts a stable hardware address on every network you join,
+        which is a durable tracking identifier across venues:
+      </p>
+      <div class="filename">/etc/NetworkManager/conf.d/00-macrandomize.conf</div>
+      <pre><code>[device]
+wifi.scan-rand-mac-address=yes
+
+[connection]
+wifi.cloned-mac-address=stable
+ethernet.cloned-mac-address=stable</code></pre>
+      <p>
+        <code>stable</code> generates a consistent address per network — so captive portals and MAC
+        allow-lists keep working — while presenting a different one to each. Use <code>random</code> for
+        a fresh address every connection, at the cost of re-authenticating to portals.
+      </p>
+
+      <h2>Joining the tailnet</h2>
+      <pre><code>curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up --ssh
+tailscale ip -4</code></pre>
+      <p>
+        Tailscale SSH works as a server on Linux, so this is the simplest path: identity-based auth, no
+        <code>authorized_keys</code> to maintain, and the ability to force periodic re-authentication
+        through the <code>check</code> action in your ACL policy.
+      </p>
+      <p>
+        If you prefer OpenSSH, bind it to the tailnet address as on the Mac:
+      </p>
+      <div class="filename">/etc/ssh/sshd_config.d/99-tailnet.conf</div>
+      <pre><code>ListenAddress 100.x.y.z
+PasswordAuthentication no
+PermitRootLogin no
+AllowUsers yourname
+ClientAliveInterval 30
+ClientAliveCountMax 6
+LogLevel VERBOSE</code></pre>
+      <div class="callout warn">
+        <div class="ct">A laptop is not always awake</div>
+        <p>
+          Unlike the VPS, this machine sleeps when you close the lid, and a sleeping machine drops off
+          the tailnet. If you want to reach it from your phone reliably, either disable suspend on lid
+          close while on AC power, or accept that it is reachable only when open. tmux means an
+          interrupted session survives the sleep and is waiting when it wakes.
+        </p>
+      </div>
+
+      <h2>AppArmor</h2>
+      <p>
+        Ubuntu ships AppArmor enabled, confining many services to a declared set of files and
+        capabilities. It is easy to leave alone and worth confirming rather than assuming:
+      </p>
+      <pre><code>sudo aa-status</code></pre>
+      <p>
+        If a profile is in <em>complain</em> mode it logs violations without blocking. That is useful while
+        developing a profile and pointless as a permanent state — move profiles you rely on to
+        <em>enforce</em>.
+      </p>
+
+      <h2>Automatic updates</h2>
+      <p>
+        Same package as the VPS, different reboot policy. A laptop should never reboot itself while you
+        are mid-sentence:
+      </p>
+      <pre><code>sudo apt install -y unattended-upgrades
+sudo dpkg-reconfigure -plow unattended-upgrades</code></pre>
+      <div class="filename">/etc/apt/apt.conf.d/50unattended-upgrades</div>
+      <pre><code>Unattended-Upgrade::Automatic-Reboot "false";</code></pre>
+      <p>
+        Then check <code>/var/run/reboot-required</code> yourself, or let the desktop notify you. Kernel
+        and <code>libssl</code> updates do not take effect until a restart, so "patched" and "rebooted
+        since patching" are different states.
+      </p>
+
+      <h2>Dev environment</h2>
+      <pre><code>sudo apt install -y tmux mosh git build-essential
+curl -fsSL https://herdr.dev/install.sh | sh
+
+# Same tmux config as the Mac — keep them identical across machines
+# so your muscle memory works everywhere.</code></pre>
+      <p>
+        Keeping <code>~/.tmux.conf</code> and <code>~/.config/herdr/config.toml</code> byte-identical on
+        every machine is worth the small effort of a dotfiles repo. Prefix keys that differ between
+        hosts are a constant, low-grade tax.
+      </p>
+
+      <h2>Checklist</h2>
+      <ul class="checklist">
+        <li>LUKS full-disk encryption confirmed with <code>lsblk</code>.</li>
+        <li>Strong disk passphrase, stored in a password manager you can reach from another device.</li>
+        <li>Swap encrypted if you hibernate.</li>
+        <li>UEFI supervisor password set; USB/network boot disabled; Secure Boot on.</li>
+        <li>Screen locks immediately on blank, idle timeout at five minutes or less.</li>
+        <li>UFW default-deny inbound, with no public SSH rule.</li>
+        <li>MAC address randomisation configured.</li>
+        <li>Tailscale joined; <code>tailscale up --ssh</code> or sshd bound to the tailnet address.</li>
+        <li>AppArmor enforcing.</li>
+        <li>unattended-upgrades on, automatic reboot off.</li>
+        <li>tmux, mosh and Herdr installed with configs matching your other machines.</li>
+      </ul>
+
+      <nav class="pager"></nav>
+    </div>
+  </main>
+  <aside class="toc"></aside>
+</div>
+<script src="../assets/nav.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

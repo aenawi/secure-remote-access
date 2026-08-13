@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Secure Remote Dev Environment</title>
+<meta name="description" content="Reach your MacBook, VPS and Ubuntu laptop from an iPhone — privately, and without losing your work when the connection drops.">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-page="index" data-depth="0">
+<div class="layout">
+  <aside class="sidebar"></aside>
+  <main class="main">
+    <div class="content">
+
+      <p class="eyebrow">The whole picture</p>
+      <h1>A dev environment you can reach from your pocket</h1>
+      <p class="lede">
+        The goal is narrow and worth stating precisely: open your phone anywhere in the world, get a
+        real shell on your own machines in under two seconds, and lose nothing when the train enters
+        a tunnel. Everything in this guide exists to serve that sentence.
+      </p>
+
+      <p>
+        Most remote-access setups fail in one of two directions. They are either wide open — a
+        password-authenticated SSH port exposed to the internet, quietly absorbing thousands of
+        login attempts a day — or they are so locked down that you stop using them, which is its own
+        kind of failure. This guide aims at a third thing: a network where your machines are
+        <em>invisible</em> to everyone but you, and a session layer that treats disconnection as
+        normal rather than exceptional.
+      </p>
+
+      <h2>The four machines</h2>
+      <p>
+        Four devices, one private network. The phone is a client only. The other three are
+        machines you work on, and each is hardened in its own chapter.
+      </p>
+
+      <figure class="diagram">
+        <svg viewBox="0 0 900 470" role="img" aria-label="Topology: four devices joined by a Tailscale mesh, with a coordination server issuing keys and a DERP relay as fallback path">
+          <defs>
+            <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" class="svg-accent"/>
+            </marker>
+            <marker id="arm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="currentColor" opacity=".5"/>
+            </marker>
+          </defs>
+
+          <!-- control plane -->
+          <rect x="330" y="18" width="240" height="62" rx="10" class="svg-card svg-stroke" stroke-width="1.5" stroke-dasharray="5 3"/>
+          <text x="450" y="42" text-anchor="middle" class="svg-label">Tailscale coordination server</text>
+          <text x="450" y="60" text-anchor="middle" class="svg-sub">exchanges public keys · never sees traffic</text>
+
+          <!-- control lines -->
+          <path d="M450 80 L450 196" class="svg-muted-s" stroke-width="1.4" stroke-dasharray="4 4" fill="none"/>
+          <text x="462" y="140" class="svg-sub">control plane</text>
+
+          <!-- tailnet hub -->
+          <rect x="336" y="196" width="228" height="104" rx="12" class="svg-card svg-accent-s" stroke-width="2"/>
+          <text x="450" y="228" text-anchor="middle" class="svg-label">Your tailnet</text>
+          <text x="450" y="248" text-anchor="middle" class="svg-sub">100.64.0.0/10</text>
+          <text x="450" y="266" text-anchor="middle" class="svg-sub">WireGuard · end-to-end</text>
+          <text x="450" y="286" text-anchor="middle" class="svg-sub">ACLs enforced per packet</text>
+
+          <!-- devices -->
+          <g>
+            <rect x="40" y="116" width="176" height="82" rx="10" class="svg-card svg-stroke" stroke-width="1.5"/>
+            <text x="60" y="144" class="svg-label">iPhone</text>
+            <text x="60" y="163" class="svg-sub">Blink Shell + Mosh</text>
+            <text x="60" y="180" class="svg-sub">key in Secure Enclave</text>
+            <rect x="40" y="116" width="4" height="82" rx="2" class="svg-accent"/>
+          </g>
+          <g>
+            <rect x="684" y="116" width="176" height="82" rx="10" class="svg-card svg-stroke" stroke-width="1.5"/>
+            <text x="704" y="144" class="svg-label">MacBook Pro</text>
+            <text x="704" y="163" class="svg-sub">sshd bound to tailnet IP</text>
+            <text x="704" y="180" class="svg-sub">tmux + Herdr</text>
+            <rect x="684" y="116" width="4" height="82" rx="2" class="svg-accent"/>
+          </g>
+          <g>
+            <rect x="40" y="318" width="176" height="82" rx="10" class="svg-card svg-stroke" stroke-width="1.5"/>
+            <text x="60" y="346" class="svg-label">Ubuntu laptop</text>
+            <text x="60" y="365" class="svg-sub">LUKS + UFW</text>
+            <text x="60" y="382" class="svg-sub">roams networks</text>
+            <rect x="40" y="318" width="4" height="82" rx="2" class="svg-accent"/>
+          </g>
+          <g>
+            <rect x="684" y="318" width="176" height="82" rx="10" class="svg-card svg-stroke" stroke-width="1.5"/>
+            <text x="704" y="346" class="svg-label">Linux VPS</text>
+            <text x="704" y="365" class="svg-sub">public IP · always on</text>
+            <text x="704" y="382" class="svg-sub">Tailscale SSH available</text>
+            <rect x="684" y="318" width="4" height="82" rx="2" class="svg-accent"/>
+          </g>
+
+          <!-- data plane links -->
+          <path d="M216 157 C 280 157, 300 210, 336 224" class="svg-accent-s" stroke-width="2" fill="none" marker-end="url(#ar)"/>
+          <path d="M684 157 C 620 157, 600 210, 564 224" class="svg-accent-s" stroke-width="2" fill="none" marker-end="url(#ar)"/>
+          <path d="M216 359 C 280 359, 300 306, 336 292" class="svg-accent-s" stroke-width="2" fill="none" marker-end="url(#ar)"/>
+          <path d="M684 359 C 620 359, 600 306, 564 292" class="svg-accent-s" stroke-width="2" fill="none" marker-end="url(#ar)"/>
+
+          <!-- DERP -->
+          <rect x="356" y="392" width="188" height="56" rx="10" class="svg-surface svg-stroke" stroke-width="1.4" stroke-dasharray="5 3"/>
+          <text x="450" y="415" text-anchor="middle" class="svg-label">DERP relay</text>
+          <text x="450" y="433" text-anchor="middle" class="svg-sub">fallback when NAT blocks direct</text>
+          <path d="M450 300 L450 392" class="svg-muted-s" stroke-width="1.4" stroke-dasharray="4 4" fill="none"/>
+
+          <text x="236" y="196" class="svg-sub">encrypted</text>
+          <text x="600" y="196" class="svg-sub">encrypted</text>
+        </svg>
+        <figcaption>
+          <b>The coordination server never carries your traffic.</b> It distributes public keys and
+          policy, then gets out of the way — packets flow directly between devices, encrypted with
+          keys the server has never held. When two devices sit behind NATs that refuse to cooperate,
+          traffic falls back to an encrypted DERP relay, which still cannot read it.
+        </figcaption>
+      </figure>
+
+      <h2>The three planes</h2>
+      <p>
+        It helps to stop thinking of this as "a VPN plus SSH" and start thinking in planes. Each
+        answers a different question, and each fails differently.
+      </p>
+
+      <div class="grid2">
+        <div class="card">
+          <div class="k">Plane 1</div>
+          <h4>Identity — who are you?</h4>
+          <p>Tailscale ties every device to an account and a signed node key. Access rules are written
+          against identities, not IP addresses. Revoking a stolen phone is one click, not a key hunt.</p>
+        </div>
+        <div class="card">
+          <div class="k">Plane 2</div>
+          <h4>Network — can you even reach it?</h4>
+          <p>WireGuard builds encrypted point-to-point tunnels. Your SSH port binds to the tailnet
+          address only, so from the public internet and even your own café Wi-Fi, the port does not exist.</p>
+        </div>
+        <div class="card">
+          <div class="k">Plane 3</div>
+          <h4>Session — does your work survive?</h4>
+          <p>Mosh survives roaming and sleep. tmux survives the client dying entirely. Herdr keeps
+          coding agents alive and tells you which ones are blocked on you.</p>
+        </div>
+      </div>
+
+      <h2>How the session layers stack</h2>
+      <p>
+        This is the part people usually get wrong, because the layers look redundant. They are not.
+        Each one survives a failure the layer below it cannot.
+      </p>
+
+      <figure class="diagram">
+        <svg viewBox="0 0 860 396" role="img" aria-label="Stack diagram: from untrusted network at the bottom through WireGuard, SSH, Mosh, tmux and Herdr, each surviving a different failure">
+          <text x="20" y="22" class="svg-sub">LAYER</text>
+          <text x="440" y="22" class="svg-sub">GIVES YOU</text>
+          <text x="700" y="22" class="svg-sub">SURVIVES</text>
+
+          <g>
+            <rect x="20" y="34" width="820" height="52" rx="9" class="svg-card svg-accent-s" stroke-width="1.8"/>
+            <rect x="20" y="34" width="5" height="52" rx="2.5" class="svg-accent"/>
+            <text x="42" y="58" class="svg-label">Herdr</text>
+            <text x="42" y="76" class="svg-sub">agent multiplexer</text>
+            <text x="440" y="58" class="svg-sub">panes that know if an agent is working,</text>
+            <text x="440" y="74" class="svg-sub">blocked or idle</text>
+            <text x="700" y="66" class="svg-sub">server restart</text>
+          </g>
+          <g>
+            <rect x="20" y="94" width="820" height="52" rx="9" class="svg-card svg-accent-s" stroke-width="1.8"/>
+            <rect x="20" y="94" width="5" height="52" rx="2.5" class="svg-accent"/>
+            <text x="42" y="118" class="svg-label">tmux</text>
+            <text x="42" y="136" class="svg-sub">session persistence</text>
+            <text x="440" y="118" class="svg-sub">processes keep running with no</text>
+            <text x="440" y="134" class="svg-sub">terminal attached at all</text>
+            <text x="700" y="126" class="svg-sub">client killed</text>
+          </g>
+          <g>
+            <rect x="20" y="154" width="820" height="52" rx="9" class="svg-card svg-accent-s" stroke-width="1.8"/>
+            <rect x="20" y="154" width="5" height="52" rx="2.5" class="svg-accent"/>
+            <text x="42" y="178" class="svg-label">Mosh</text>
+            <text x="42" y="196" class="svg-sub">roaming transport</text>
+            <text x="440" y="178" class="svg-sub">UDP state sync, local echo,</text>
+            <text x="440" y="194" class="svg-sub">no TCP connection to break</text>
+            <text x="700" y="186" class="svg-sub">IP change, sleep</text>
+          </g>
+          <g>
+            <rect x="20" y="214" width="820" height="52" rx="9" class="svg-card svg-stroke" stroke-width="1.6"/>
+            <text x="42" y="238" class="svg-label">SSH</text>
+            <text x="42" y="256" class="svg-sub">authenticated channel</text>
+            <text x="440" y="238" class="svg-sub">proves who you are, bootstraps</text>
+            <text x="440" y="254" class="svg-sub">Mosh, carries the PTY</text>
+            <text x="700" y="246" class="svg-sub">nothing — it is TCP</text>
+          </g>
+          <g>
+            <rect x="20" y="274" width="820" height="52" rx="9" class="svg-card svg-stroke" stroke-width="1.6"/>
+            <text x="42" y="298" class="svg-label">WireGuard / Tailscale</text>
+            <text x="42" y="316" class="svg-sub">private network</text>
+            <text x="440" y="298" class="svg-sub">encryption + identity, and makes</text>
+            <text x="440" y="314" class="svg-sub">the port unreachable to everyone else</text>
+            <text x="700" y="306" class="svg-sub">network change</text>
+          </g>
+          <g>
+            <rect x="20" y="334" width="820" height="46" rx="9" class="svg-surface svg-danger-s" stroke-width="1.5" stroke-dasharray="5 3"/>
+            <text x="42" y="356" class="svg-label">Wi-Fi · LTE · the internet</text>
+            <text x="42" y="372" class="svg-sub">assumed hostile</text>
+            <text x="700" y="362" class="svg-sub">—</text>
+          </g>
+        </svg>
+        <figcaption>
+          <b>Read it from the bottom.</b> SSH alone survives nothing: it rides on a TCP connection, and
+          when your phone's IP changes or iOS suspends the app, that connection is gone —
+          <code>client_loop: send disconnect: Broken pipe</code>. Mosh removes the TCP dependency.
+          tmux removes the client dependency entirely. Herdr adds awareness of what your agents are doing.
+        </figcaption>
+      </figure>
+
+      <div class="callout tip">
+        <div class="ct">The one-line version</div>
+        <p>
+          Tailscale decides <em>who can reach the port</em>. SSH decides <em>who can log in</em>.
+          Mosh decides <em>whether a bad network ends your session</em>. tmux decides
+          <em>whether closing your phone ends your work</em>. Confusing these four is the root of
+          most bad setups.
+        </p>
+      </div>
+
+      <h2>What you will actually type</h2>
+      <p>
+        The end state is short enough to memorise. From Blink Shell on the phone:
+      </p>
+      <div class="filename">Blink Shell — the daily command</div>
+      <pre><code>mosh macbook -- tmux new -A -s phone</code></pre>
+      <p>
+        That single line rides an encrypted WireGuard tunnel to a host that is invisible to the rest
+        of the internet, authenticates with a key that cannot be extracted from your phone, survives
+        you walking into a lift, and reattaches to a session that has been running for a week. Inside
+        it, Herdr holds your coding agents.
+      </p>
+
+      <h2>Chapters</h2>
+      <p>
+        The first four explain the technologies well enough that the build chapters are obvious rather
+        than magical. If you only want it working, jump to chapter 05 and refer back.
+      </p>
+      <div class="chapter-cards" id="cards"></div>
+
+      <div class="callout info">
+        <div class="ct">How to read this</div>
+        <p>
+          Checklists throughout remember what you have ticked, per chapter, in this browser. The
+          theme toggle sits in the bottom-right. Every command block has a copy button. Nothing here
+          phones home, and the whole guide works offline from the filesystem.
+        </p>
+      </div>
+
+      <nav class="pager"></nav>
+    </div>
+  </main>
+  <aside class="toc"></aside>
+</div>
+<script src="assets/nav.js"></script>
+<script src="assets/app.js"></script>
+<script>
+(function () {
+  var host = document.getElementById("cards");
+  if (!host || !window.GUIDE_FLAT) return;
+  host.innerHTML = window.GUIDE_FLAT.filter(function (c) { return c.id !== "index"; })
+    .map(function (c) {
+      return '<a href="' + c.file + '"><div class="n">' + c.n + '</div>' +
+             '<div class="t">' + c.title + '</div>' +
+             '<div class="d">' + c.desc + '</div></a>';
+    }).join("");
+})();
+</script>
+</body>
+</html>

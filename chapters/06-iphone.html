@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The iPhone client — Secure Remote Dev</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body data-page="iphone" data-depth="1">
+<div class="layout">
+  <aside class="sidebar"></aside>
+  <main class="main">
+    <div class="content">
+
+      <p class="eyebrow">Chapter 06 · Build <span class="badge ios">iOS</span></p>
+      <h1>The iPhone client</h1>
+      <p class="lede">
+        The phone is the only device here that is purely a client — nothing listens on it, nothing is
+        served from it. That makes its security story unusually simple, and concentrates it almost
+        entirely on one question: where does the private key live?
+      </p>
+
+      <h2>Harden the device first</h2>
+      <p>
+        A phone that can open a root shell on three machines deserves the same care as those machines.
+      </p>
+      <ul>
+        <li><strong>Six-digit passcode minimum</strong>, ideally alphanumeric. Face ID is convenience on top of the passcode, not a replacement — the passcode is what actually derives the encryption keys.</li>
+        <li><strong>Auto-Lock at 30 seconds or 1 minute.</strong> The window where a snatched unlocked phone is useful should be tiny.</li>
+        <li><strong>Erase after 10 failed attempts</strong> if you have backups worth trusting.</li>
+        <li><strong>Encrypted backups.</strong> An unencrypted local backup can carry file-based keys off the device. Secure Enclave keys never leave, which is one more argument for them.</li>
+        <li><strong>Lockdown Mode</strong> if you are plausibly a target. It breaks some web features; it does not affect SSH, Tailscale or Blink.</li>
+      </ul>
+
+      <h2>Tailscale on iOS</h2>
+      <p>
+        Install Tailscale from the App Store and sign in with the same account as your other machines.
+        A few iOS-specific notes that save confusion later:
+      </p>
+      <ul>
+        <li>Tailscale runs as a Network Extension. iOS shows a VPN badge — it is not routing all your traffic unless you have set an exit node; by default only tailnet addresses go through it.</li>
+        <li>Leave <strong>on-demand / connect on demand</strong> enabled so the tunnel is up before you open a terminal.</li>
+        <li><strong>Low Power Mode makes disconnections much more aggressive.</strong> If sessions start dying only when your battery is low, that is why.</li>
+        <li>If you enabled device approval on the tailnet, approve the phone in the admin console before it can reach anything.</li>
+      </ul>
+      <pre><code># From the phone, once Tailscale is up — Blink can ping
+ping macbook
+# then check the path from the Mac side
+tailscale ping iphone</code></pre>
+
+      <h2>Blink Shell</h2>
+
+      <h3>1. Create a Secure Enclave key</h3>
+      <p>
+        <span class="kbd">Settings → Keys → +</span>, and choose the <strong>Secure Enclave</strong> key
+        type rather than a generated ed25519 file. Name it for the device, e.g. <code>iphone-se</code>.
+      </p>
+      <div class="callout ok">
+        <div class="ct">Why this specific choice matters</div>
+        <p>
+          A Secure Enclave key is generated inside a separate coprocessor and cannot be exported — not
+          by Blink, not by iOS, not by malware, not by you. Signing happens inside the enclave, gated
+          by Face ID or your passcode. There is no file to steal, nothing in a backup, and nothing to
+          rotate on your other machines if the phone is lost. You revoke one line and move on.
+        </p>
+      </div>
+
+      <h3>2. Install the public key on each machine</h3>
+      <p>
+        Copy the public key from Blink, then add it on each host. Keep the comment meaningful — this is
+        the label you will use when revoking:
+      </p>
+      <pre><code># On each machine (Mac, VPS, Ubuntu laptop)
+echo 'ssh-ed25519 AAAAC3Nza... iphone-blink-se' &gt;&gt; ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+chmod 700 ~/.ssh</code></pre>
+      <p>
+        Optionally constrain it to the tailnet, so the key is useless from anywhere else even if the
+        server is later exposed:
+      </p>
+      <pre><code>from="100.64.0.0/10" ssh-ed25519 AAAAC3Nza... iphone-blink-se</code></pre>
+
+      <h3>3. Verify plain SSH, and check the host key</h3>
+      <pre><code>ssh yourname@macbook</code></pre>
+      <p>
+        The first connection asks you to trust a host key. Compare the fingerprint against what the
+        server reports before accepting — this is the one moment where a man-in-the-middle would be
+        invisible:
+      </p>
+      <pre><code># Run this ON the server, compare to what Blink shows
+for f in /etc/ssh/ssh_host_*_key.pub; do ssh-keygen -lf "$f"; done</code></pre>
+
+      <h3>4. Upgrade to Mosh</h3>
+      <pre><code>mosh --install-static yourname@macbook</code></pre>
+      <p>
+        Blink deploys <code>mosh-server</code> without needing root. After that, connect with
+        <code>mosh</code> rather than <code>ssh</code>.
+      </p>
+
+      <h3>5. Save a host so you type one word</h3>
+      <p>
+        <span class="kbd">Settings → Hosts → +</span>:
+      </p>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Field</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>Host</td><td><code>macbook</code></td></tr>
+          <tr><td>HostName</td><td><code>macbook.your-tailnet.ts.net</code></td></tr>
+          <tr><td>Port</td><td>whatever you set in chapter 05</td></tr>
+          <tr><td>User</td><td>your account name</td></tr>
+          <tr><td>Key</td><td><code>iphone-se</code></td></tr>
+          <tr><td>Mosh command</td><td><code>tmux new -A -s phone</code></td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p>Use the MagicDNS name, not the <code>100.x</code> address — names survive a device being removed and re-added.</p>
+
+      <h3>6. Client-side resilience</h3>
+      <div class="filename">Blink → Settings → SSH Config</div>
+      <pre><code>Host *
+  ServerAliveInterval 30
+  ServerAliveCountMax 6
+  TCPKeepAlive yes</code></pre>
+      <p>
+        These help plain SSH notice a dead link promptly. They do not prevent drops — nothing
+        client-side can, once iOS decides to suspend the app. That is what Mosh and tmux are for.
+      </p>
+
+      <h2>Making a phone genuinely usable</h2>
+      <p>
+        Two settings do most of the work. In Blink, map <span class="kbd">Caps Lock</span> to
+        <span class="kbd">Ctrl</span> — on a hardware keyboard this single change makes tmux and Emacs
+        bindings reachable. Then turn on tmux's mouse mode (chapter 04), which makes panes tappable and
+        scrollback draggable with a thumb.
+      </p>
+      <div class="callout tip">
+        <div class="ct">The daily command</div>
+        <pre><code>mosh macbook -- tmux new -A -s phone</code></pre>
+        <p>
+          Set as the host's command, this is the entire interface. Connecting is attaching; a dropped
+          connection followed by a reconnect puts you back exactly where you were.
+        </p>
+      </div>
+
+      <h2>If sessions still drop</h2>
+      <p>
+        Work through it in this order — it is ordered by how often each is the actual cause:
+      </p>
+      <ol>
+        <li><strong>Are you using Mosh, or did you fall back to SSH?</strong> The command is <code>mosh</code>, not <code>ssh</code>. This is the answer most of the time.</li>
+        <li><strong>Low Power Mode?</strong> It makes iOS far more aggressive about suspending apps.</li>
+        <li><strong>Which client?</strong> iSH is an x86 emulator and is killed readily under memory pressure. That produces a TCP reset, which the server logs as <code>Connection reset by peer</code> — proof the fault is client-side.</li>
+        <li><strong>Is tmux running?</strong> If it is, a drop costs you nothing and the question becomes cosmetic.</li>
+      </ol>
+
+      <h2>Checklist</h2>
+      <ul class="checklist">
+        <li>Passcode, short Auto-Lock, and encrypted backups configured.</li>
+        <li>Tailscale installed, signed in, approved in the admin console, connect-on-demand enabled.</li>
+        <li>Blink installed with a key created <em>in the Secure Enclave</em>.</li>
+        <li>Public key added to every machine, with an identifying comment.</li>
+        <li>Host key fingerprints verified on first connection.</li>
+        <li><code>mosh --install-static</code> run against each machine.</li>
+        <li>A saved host per machine, with <code>tmux new -A -s phone</code> as the command.</li>
+        <li>Caps Lock remapped to Ctrl.</li>
+        <li>Wi-Fi → LTE mid-session tested; the session survived.</li>
+      </ul>
+
+      <nav class="pager"></nav>
+    </div>
+  </main>
+  <aside class="toc"></aside>
+</div>
+<script src="../assets/nav.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+# macOS
+.DS_Store
+._*
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# Local tooling artefacts
+.mcp-web-inspector/
+.ast-bro/

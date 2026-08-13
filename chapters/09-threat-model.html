@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Threat model &amp; key custody — Secure Remote Dev</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body data-page="threat-model" data-depth="1">
+<div class="layout">
+  <aside class="sidebar"></aside>
+  <main class="main">
+    <div class="content">
+
+      <p class="eyebrow">Chapter 09 · Operate</p>
+      <h1>Threat model &amp; key custody</h1>
+      <p class="lede">
+        Security advice given without a threat model is just superstition with a command line. This
+        chapter states plainly who you are defending against, which controls actually stop them, and —
+        the part usually left out — what this design does not protect you from.
+      </p>
+
+      <h2>Who is actually attacking you</h2>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Adversary</th><th>Likelihood</th><th>What stops them</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><b>Automated internet scanners</b><br><span class="svg-sub">botnets sweeping for open SSH</span></td>
+            <td>Constant. Minutes after a VPS gets an IP.</td>
+            <td><b>Fully solved.</b> Tailnet-only binding means there is no port to find. This is the single highest-value control in the guide.</td>
+          </tr>
+          <tr>
+            <td><b>Hostile local network</b><br><span class="svg-sub">café, hotel, conference Wi-Fi</span></td>
+            <td>Every time you travel.</td>
+            <td><b>Solved.</b> WireGuard encrypts everything; default-deny inbound means your laptop offers nothing to the segment it joined.</td>
+          </tr>
+          <tr>
+            <td><b>Lost or stolen device</b></td>
+            <td>Plausible. Phones and laptops go missing.</td>
+            <td><b>Strongly mitigated.</b> Full-disk encryption at rest, Secure Enclave keys that cannot be extracted, and one-click revocation in the tailnet.</td>
+          </tr>
+          <tr>
+            <td><b>Malware on a device you own</b></td>
+            <td>Possible. A bad dependency, a malicious VS Code extension.</td>
+            <td><b>Partially.</b> Secure Enclave keys cannot be stolen — but malware can still <em>use</em> the key while you are unlocked. Assume a compromised endpoint means compromised access.</td>
+          </tr>
+          <tr>
+            <td><b>Compromise of Tailscale itself</b></td>
+            <td>Low, high impact.</td>
+            <td><b>Solvable.</b> Tailnet lock removes the coordination server from your trust model — it can no longer insert a node into your network.</td>
+          </tr>
+          <tr>
+            <td><b>Targeted attacker with resources</b></td>
+            <td>Only you know.</td>
+            <td><b>Not solved, and no consumer setup solves it.</b> Raise the cost; do not pretend to eliminate the risk.</td>
+          </tr>
+        </tbody>
+      </table>
+      </div>
+
+      <h2>Layers, and what each one actually stops</h2>
+      <p>
+        The value of defence in depth is that each layer fails differently. A misconfigured
+        <code>sshd_config</code> does not matter if the packet never arrives; a tailnet ACL mistake does
+        not matter if the key is not in <code>authorized_keys</code>.
+      </p>
+
+      <figure class="diagram">
+        <svg viewBox="0 0 720 430" role="img" aria-label="Nested defence layers from tailnet ACL on the outside through host firewall, sshd policy, key possession and PAM, to the shell at the centre">
+          <rect x="16" y="16" width="688" height="398" rx="14" class="svg-surface svg-stroke" stroke-width="1.6"/>
+          <text x="34" y="40" class="svg-label">1 · Tailnet ACL</text>
+          <text x="34" y="58" class="svg-sub">stops: everyone on the internet, and every device not granted this port</text>
+
+          <rect x="60" y="72" width="600" height="318" rx="13" class="svg-card svg-stroke" stroke-width="1.5"/>
+          <text x="78" y="96" class="svg-label">2 · Host firewall &amp; bind address</text>
+          <text x="78" y="114" class="svg-sub">stops: the café network, your LAN, a service bound too widely</text>
+
+          <rect x="104" y="128" width="512" height="238" rx="12" class="svg-surface svg-stroke" stroke-width="1.5"/>
+          <text x="122" y="152" class="svg-label">3 · sshd policy</text>
+          <text x="122" y="170" class="svg-sub">stops: root login, password guessing, users who should not log in</text>
+
+          <rect x="148" y="184" width="424" height="158" rx="11" class="svg-card svg-accent-s" stroke-width="1.7"/>
+          <text x="166" y="208" class="svg-label">4 · Key possession</text>
+          <text x="166" y="226" class="svg-sub">stops: anyone without the private key — the enclave holds it</text>
+
+          <rect x="192" y="240" width="336" height="78" rx="10" class="svg-surface svg-stroke" stroke-width="1.4"/>
+          <text x="210" y="264" class="svg-label">5 · PAM / SACL</text>
+          <text x="210" y="282" class="svg-sub">stops: accounts not on the SSH access list</text>
+
+          <rect x="236" y="292" width="248" height="42" rx="9" class="svg-card svg-accent-s" stroke-width="1.8"/>
+          <text x="360" y="318" text-anchor="middle" class="svg-label">your shell</text>
+        </svg>
+        <figcaption>
+          <b>An attacker must defeat every ring, in order.</b> Most real-world compromises come from a
+          single layer being the <em>only</em> layer. The reason to keep sshd hardened even behind a
+          private network is that layer 1 will eventually be misconfigured, and you want that to be an
+          inconvenience rather than an incident.
+        </figcaption>
+      </figure>
+
+      <h2>Where every key lives</h2>
+      <p>
+        Knowing this table cold is what makes an incident boring instead of frightening.
+      </p>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Key</th><th>Lives</th><th>Extractable?</th><th>If the device is lost</th></tr></thead>
+        <tbody>
+          <tr><td>iPhone SSH key</td><td>Secure Enclave</td><td><b>No</b> — hardware-bound</td>
+              <td>Remove one <code>authorized_keys</code> line per host; revoke the node. Nothing to rotate elsewhere.</td></tr>
+          <tr><td>Mac / Ubuntu SSH key</td><td><code>~/.ssh/id_ed25519</code>, passphrase-encrypted</td><td>Yes, with the passphrase</td>
+              <td>Assume compromised. Rotate it everywhere, promptly.</td></tr>
+          <tr><td>Tailscale node key</td><td>Per-device, generated locally</td><td>No</td>
+              <td>Revoke the device in the admin console. Immediate and global.</td></tr>
+          <tr><td>SSH host keys</td><td><code>/etc/ssh/ssh_host_*</code> on each server</td><td>Root can read them</td>
+              <td>Server compromise means regenerating them, and every client will warn on next connect.</td></tr>
+          <tr><td>FileVault / LUKS key</td><td>Derived from your passphrase</td><td>No</td>
+              <td>This is what makes a stolen disk useless. Store the recovery key <em>off</em> the machine.</td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <figure class="diagram">
+        <svg viewBox="0 0 820 300" role="img" aria-label="A file-based key can be read by any process with file access and travels in backups, whereas a Secure Enclave key can only be asked to produce signatures">
+          <!-- file key -->
+          <rect x="18" y="18" width="386" height="264" rx="12" class="svg-surface svg-stroke" stroke-width="1.5"/>
+          <text x="40" y="46" class="svg-label">File-based key</text>
+          <text x="40" y="64" class="svg-sub">~/.ssh/id_ed25519</text>
+
+          <rect x="42" y="84" width="150" height="48" rx="8" class="svg-card svg-stroke" stroke-width="1.4"/>
+          <text x="117" y="106" text-anchor="middle" class="svg-sub">key bytes</text>
+          <text x="117" y="122" text-anchor="middle" class="svg-sub">on disk</text>
+
+          <path d="M192 108 L242 108" class="svg-danger-s" stroke-width="1.8" fill="none"/>
+          <rect x="242" y="84" width="140" height="48" rx="8" class="svg-surface svg-danger-s" stroke-width="1.4"/>
+          <text x="312" y="106" text-anchor="middle" class="svg-sub">any process with</text>
+          <text x="312" y="122" text-anchor="middle" class="svg-sub">file access</text>
+
+          <text x="42" y="166" class="svg-sub">· decrypted into RAM while in use</text>
+          <text x="42" y="190" class="svg-sub">· copied by an unencrypted backup</text>
+          <text x="42" y="214" class="svg-sub">· survives on old drives you forgot</text>
+          <text x="42" y="252" class="svg-mono-danger">compromise = rotate everywhere</text>
+
+          <!-- SE key -->
+          <rect x="424" y="18" width="378" height="264" rx="12" class="svg-surface svg-accent-s" stroke-width="1.7"/>
+          <text x="446" y="46" class="svg-label">Secure Enclave key</text>
+          <text x="446" y="64" class="svg-sub">separate coprocessor</text>
+
+          <rect x="448" y="84" width="150" height="48" rx="8" class="svg-card svg-accent-s" stroke-width="1.7"/>
+          <text x="523" y="106" text-anchor="middle" class="svg-sub">key never</text>
+          <text x="523" y="122" text-anchor="middle" class="svg-sub">leaves enclave</text>
+
+          <path d="M598 100 L648 100" class="svg-accent-s" stroke-width="1.8" fill="none"/>
+          <text x="668" y="98" class="svg-sub">&ldquo;sign this&rdquo;</text>
+          <path d="M648 120 L598 120" class="svg-accent-s" stroke-width="1.8" fill="none"/>
+          <text x="668" y="126" class="svg-sub">signature</text>
+
+          <text x="446" y="166" class="svg-sub">· no bytes for malware to read</text>
+          <text x="446" y="190" class="svg-sub">· absent from every backup</text>
+          <text x="446" y="214" class="svg-sub">· each use gated by Face ID</text>
+          <text x="446" y="252" class="svg-mono-accent">compromise = revoke one line</text>
+        </svg>
+        <figcaption>
+          <b>The enclave is a signing oracle, not a container.</b> You never retrieve the key; you ask
+          for signatures. That is why losing the phone does not mean rotating keys on your other
+          machines — the key existed nowhere else and could not have leaked ahead of time.
+        </figcaption>
+      </figure>
+
+      <h2>Blast radius</h2>
+      <p>
+        For each thing that could go wrong, what does the attacker actually get?
+      </p>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Compromised</th><th>They get</th><th>They do not get</th></tr></thead>
+        <tbody>
+          <tr><td>iPhone, locked</td><td>Nothing. The enclave requires Face ID or passcode.</td><td>Any access at all.</td></tr>
+          <tr><td>iPhone, unlocked</td><td>Shell on every machine, until you revoke.</td><td>The key itself — so revocation is complete and final.</td></tr>
+          <tr><td>Mac, powered off</td><td>Nothing. FileVault.</td><td>Keys, sessions, history.</td></tr>
+          <tr><td>Mac, unlocked and malware-infected</td><td>Everything that machine can reach, plus its SSH key.</td><td>Your phone's key, your VPS disk at rest.</td></tr>
+          <tr><td>VPS root</td><td>The VPS, its data, its host keys, its tailnet membership.</td><td>Your laptops — unless you forwarded an agent, which is why forwarding is off.</td></tr>
+          <tr><td>Tailscale account</td><td>Ability to add a device — <em>unless</em> tailnet lock is on.</td><td>Traffic, which is end-to-end encrypted.</td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <div class="callout warn">
+        <div class="ct">The agent-forwarding row is the one to internalise</div>
+        <p>
+          If you SSH into a compromised server with <code>-A</code>, root on that box can use your
+          forwarded agent to authenticate as you, anywhere your key is trusted, silently, for as long
+          as you stay connected. That converts "one server was compromised" into "everything was."
+          Use <code>ProxyJump</code> instead — the keys stay on your machine.
+        </p>
+      </div>
+
+      <h2>What this design does not protect against</h2>
+      <p>
+        Stated plainly, because a threat model that claims to cover everything is not a threat model:
+      </p>
+      <ul>
+        <li><strong>A compromised endpoint you are actively using.</strong> Malware on your unlocked Mac acts as you. No network design fixes this.</li>
+        <li><strong>Malicious code you run yourself.</strong> A backdoored dependency executes with your privileges. This is the most probable serious compromise for most developers, and nothing in this guide addresses it.</li>
+        <li><strong>Coercion.</strong> Encryption yields to a court order or a threat.</li>
+        <li><strong>Your cloud provider.</strong> They control the hypervisor. Disk encryption on a VPS protects against decommissioned-disk recovery, not against the host.</li>
+        <li><strong>Metadata.</strong> Your ISP cannot read WireGuard traffic but sees that you connect and how much.</li>
+      </ul>
+
+      <h2>Incident response</h2>
+
+      <h3>Phone lost or stolen</h3>
+      <ol>
+        <li>Tailscale admin console → remove the device. It loses network access immediately; this is the fastest and broadest action, so do it first.</li>
+        <li>Find My → Mark as Lost, and Erase if you are confident it is gone.</li>
+        <li>Remove its line from <code>~/.ssh/authorized_keys</code> on every machine.</li>
+        <li>No further rotation needed — the Secure Enclave key never existed anywhere else.</li>
+      </ol>
+
+      <h3>A machine's SSH key may have leaked</h3>
+      <ol>
+        <li>Remove the public key from every <code>authorized_keys</code> immediately. Revocation first, replacement second.</li>
+        <li>Generate a fresh key on that device and distribute the new public half.</li>
+        <li>Check <code>~/.ssh/authorized_keys</code> on every host for entries you do not recognise — adding a key is the classic persistence move.</li>
+        <li>Review authentication logs for the fingerprints that actually logged in:
+          <code>grep 'Accepted publickey' /var/log/auth.log</code>. This is what <code>LogLevel VERBOSE</code> was for.</li>
+      </ol>
+
+      <h3>A server may be compromised</h3>
+      <ol>
+        <li>Isolate it: <code>sudo tailscale down</code>, and remove the node from the tailnet.</li>
+        <li>Do not trust anything it tells you. A rootkit edits the logs and the tools that read them.</li>
+        <li>Snapshot the disk for later analysis if it matters.</li>
+        <li><strong>Rebuild rather than clean.</strong> Restore data, not binaries. Regenerate host keys; clients will warn, and that warning is correct.</li>
+        <li>Rotate every credential that machine held.</li>
+      </ol>
+
+      <h2>Review periodically</h2>
+      <ul class="checklist">
+        <li>Every entry in every <code>authorized_keys</code> is one you recognise and still want.</li>
+        <li>Tailnet device list contains no machines you have retired.</li>
+        <li>Key expiry is on where appropriate; you know where you disabled it and why.</li>
+        <li>Tailnet lock is enabled and recovery keys are reachable from another device.</li>
+        <li>FileVault and LUKS recovery keys are stored off the machines they unlock.</li>
+        <li>ACL policy still reflects reality after any new device joined.</li>
+        <li>Auth logs reviewed for unfamiliar key fingerprints.</li>
+      </ul>
+
+      <nav class="pager"></nav>
+    </div>
+  </main>
+  <aside class="toc"></aside>
+</div>
+<script src="../assets/nav.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>
