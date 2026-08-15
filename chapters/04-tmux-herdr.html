@@ -30,77 +30,149 @@
         local socket, and viewers are disposable.
       </p>
 
-      <figure class="diagram">
-        <svg viewBox="0 0 860 400" role="img" aria-label="Process tree before and after a disconnect: the sshd branch is destroyed while the tmux server branch and everything under it keeps running">
-          <!-- panel A -->
-          <rect x="14" y="14" width="404" height="372" rx="12" class="svg-surface svg-stroke" stroke-width="1.5"/>
-          <text x="34" y="40" class="svg-label">While the phone is connected</text>
+      <figure class="diagram sim" data-sim data-step-ms="3800" tabindex="0"
+              aria-label="Interactive walkthrough of what a dropped connection does to the process tree, with and without tmux. Use the left and right arrow keys to step through it.">
 
-          <rect x="140" y="56" width="152" height="32" rx="7" class="svg-card svg-stroke" stroke-width="1.4"/>
-          <text x="216" y="77" text-anchor="middle" class="svg-sub">launchd / systemd</text>
+        <div class="sim-bar">
+          <span class="sim-bar-label">Your build is running</span>
+          <button type="button" class="sim-scn is-on" data-scenario="tmux" aria-pressed="true">Under tmux</button>
+          <button type="button" class="sim-scn" data-scenario="plain" aria-pressed="false">Straight under sshd</button>
+        </div>
 
-          <path d="M216 88 L216 104 M100 104 L332 104 M100 104 L100 120 M332 104 L332 120" class="svg-muted-s" stroke-width="1.3" fill="none"/>
+        <svg viewBox="0 0 880 430" role="img" aria-label="Process tree during a disconnect: the sshd branch is destroyed while the tmux server branch and everything under it keeps running">
 
-          <rect x="36" y="120" width="128" height="30" rx="7" class="svg-card svg-stroke" stroke-width="1.4"/>
-          <text x="100" y="140" text-anchor="middle" class="svg-sub">sshd</text>
-          <path d="M100 150 L100 166" class="svg-muted-s" stroke-width="1.3"/>
-          <rect x="36" y="166" width="128" height="30" rx="7" class="svg-card svg-stroke" stroke-width="1.4"/>
-          <text x="100" y="186" text-anchor="middle" class="svg-sub">login shell</text>
-          <path d="M100 196 L100 212" class="svg-muted-s" stroke-width="1.3"/>
-          <rect x="36" y="212" width="128" height="30" rx="7" class="svg-card svg-stroke" stroke-width="1.4"/>
-          <text x="100" y="232" text-anchor="middle" class="svg-sub">tmux client</text>
-
-          <rect x="268" y="120" width="128" height="30" rx="7" class="svg-card svg-accent-s" stroke-width="1.6"/>
-          <text x="332" y="140" text-anchor="middle" class="svg-sub">tmux server</text>
-          <path d="M332 150 L332 166" class="svg-muted-s" stroke-width="1.3"/>
-          <rect x="268" y="166" width="128" height="30" rx="7" class="svg-card svg-accent-s" stroke-width="1.6"/>
-          <text x="332" y="186" text-anchor="middle" class="svg-sub">shell</text>
-          <path d="M332 196 L332 212" class="svg-muted-s" stroke-width="1.3"/>
-          <rect x="268" y="212" width="128" height="30" rx="7" class="svg-card svg-accent-s" stroke-width="1.6"/>
-          <text x="332" y="232" text-anchor="middle" class="svg-sub">herdr server</text>
-          <path d="M332 242 L332 258" class="svg-muted-s" stroke-width="1.3"/>
-          <rect x="268" y="258" width="128" height="30" rx="7" class="svg-card svg-accent-s" stroke-width="1.6"/>
-          <text x="332" y="278" text-anchor="middle" class="svg-sub">coding agents</text>
-
-          <path d="M164 227 C 200 227, 232 227, 268 227" class="svg-muted-s" stroke-width="1.4" stroke-dasharray="4 3" fill="none"/>
-          <text x="216" y="308" text-anchor="middle" class="svg-sub">unix socket</text>
-          <text x="216" y="326" text-anchor="middle" class="svg-sub">— not a parent/child link —</text>
-
-          <!-- panel B -->
-          <rect x="442" y="14" width="404" height="372" rx="12" class="svg-surface svg-accent-s" stroke-width="1.6"/>
-          <text x="462" y="40" class="svg-label">After the phone dies</text>
-
-          <rect x="568" y="56" width="152" height="32" rx="7" class="svg-card svg-stroke" stroke-width="1.4"/>
-          <text x="644" y="77" text-anchor="middle" class="svg-sub">launchd / systemd</text>
-
-          <path d="M644 88 L644 104 M528 104 L760 104 M528 104 L528 120 M760 104 L760 120" class="svg-muted-s" stroke-width="1.3" fill="none"/>
-
-          <g opacity=".4">
-            <rect x="464" y="120" width="128" height="30" rx="7" class="svg-surface svg-danger-s" stroke-width="1.3" stroke-dasharray="5 3"/>
-            <text x="528" y="140" text-anchor="middle" class="svg-sub">sshd</text>
-            <rect x="464" y="166" width="128" height="30" rx="7" class="svg-surface svg-danger-s" stroke-width="1.3" stroke-dasharray="5 3"/>
-            <text x="528" y="186" text-anchor="middle" class="svg-sub">login shell</text>
-            <rect x="464" y="212" width="128" height="30" rx="7" class="svg-surface svg-danger-s" stroke-width="1.3" stroke-dasharray="5 3"/>
-            <text x="528" y="232" text-anchor="middle" class="svg-sub">tmux client</text>
+          <!-- ============ the phone ============ -->
+          <g data-at="0+" class="sim-pop">
+            <rect x="16" y="150" width="96" height="56" rx="9" class="svg-card svg-stroke" stroke-width="1.5"/>
+            <text x="64" y="174" text-anchor="middle" class="svg-label">iPhone</text>
+            <text x="64" y="192" text-anchor="middle" class="svg-sub">Blink · mosh</text>
           </g>
-          <g class="svg-danger-s" stroke-width="2.4">
-            <path d="M512 165 L544 197"/><path d="M544 165 L512 197"/>
+          <text data-at="1+" data-scn="tmux plain" data-poster x="64" y="224" text-anchor="middle" class="svg-mono-danger">battery 0%</text>
+
+          <!-- ============ the host ============ -->
+          <rect data-at="0+" x="136" y="14" width="728" height="402" rx="12" class="svg-surface svg-stroke" stroke-width="1.5"/>
+          <text data-at="0+" x="158" y="40" class="svg-label">MacBook · the host</text>
+
+          <g data-at="0+" class="sim-pop">
+            <rect x="415" y="56" width="170" height="32" rx="7" class="svg-card svg-stroke" stroke-width="1.4"/>
+            <text x="500" y="77" text-anchor="middle" class="svg-sub">launchd / systemd</text>
           </g>
 
-          <rect x="696" y="120" width="128" height="30" rx="7" class="svg-card svg-accent-s" stroke-width="1.8"/>
-          <text x="760" y="140" text-anchor="middle" class="svg-sub">tmux server</text>
-          <path d="M760 150 L760 166" class="svg-muted-s" stroke-width="1.3"/>
-          <rect x="696" y="166" width="128" height="30" rx="7" class="svg-card svg-accent-s" stroke-width="1.8"/>
-          <text x="760" y="186" text-anchor="middle" class="svg-sub">shell</text>
-          <path d="M760 196 L760 212" class="svg-muted-s" stroke-width="1.3"/>
-          <rect x="696" y="212" width="128" height="30" rx="7" class="svg-card svg-accent-s" stroke-width="1.8"/>
-          <text x="760" y="232" text-anchor="middle" class="svg-sub">herdr server</text>
-          <path d="M760 242 L760 258" class="svg-muted-s" stroke-width="1.3"/>
-          <rect x="696" y="258" width="128" height="30" rx="7" class="svg-card svg-accent-s" stroke-width="1.8"/>
-          <text x="760" y="278" text-anchor="middle" class="svg-sub">still building</text>
+          <!-- tree spine, one shape per scenario -->
+          <path data-at="0+" data-scn="tmux" data-poster fill="none" class="svg-muted-s" stroke-width="1.3"
+                d="M500 88 L500 104 M250 104 L750 104 M250 104 L250 120 M750 104 L750 120"/>
+          <path data-at="0+" data-scn="plain" fill="none" class="svg-muted-s" stroke-width="1.3"
+                d="M500 88 L500 104 L250 104 L250 120"/>
 
-          <text x="644" y="326" text-anchor="middle" class="svg-sub">reattach later, exactly where you left off</text>
+          <!-- the link the phone rides in on -->
+          <path data-at="0" data-scn="tmux plain" data-flow="accent" data-count="2" data-speed="0.16" data-r="3.5"
+                d="M112 178 C 140 178, 148 136, 175 136" class="svg-accent-s" stroke-width="1.8" fill="none"/>
+          <path data-at="1+" data-scn="tmux plain" data-poster
+                d="M112 178 C 140 178, 148 136, 175 136" class="svg-danger-s" stroke-width="1.8" stroke-dasharray="6 4" fill="none"/>
+          <g data-at="1+" data-scn="tmux plain" data-poster class="svg-danger-s" stroke-width="2.6">
+            <path d="M134 145 L154 165"/><path d="M154 145 L134 165"/>
+          </g>
+
+          <!-- ============ left branch · the disposable half ============ -->
+          <g data-at="0+" class="sim-pop">
+            <rect x="175" y="120" width="150" height="32" rx="7" class="svg-card svg-stroke" stroke-width="1.4"/>
+            <text x="250" y="141" text-anchor="middle" class="svg-sub">sshd</text>
+            <path d="M250 152 L250 170" class="svg-muted-s" stroke-width="1.3"/>
+            <rect x="175" y="170" width="150" height="32" rx="7" class="svg-card svg-stroke" stroke-width="1.4"/>
+            <text x="250" y="191" text-anchor="middle" class="svg-sub">login shell</text>
+            <path d="M250 202 L250 220" class="svg-muted-s" stroke-width="1.3"/>
+          </g>
+          <g data-at="0+" data-scn="tmux" data-poster class="sim-pop">
+            <rect x="175" y="220" width="150" height="32" rx="7" class="svg-card svg-stroke" stroke-width="1.4"/>
+            <text x="250" y="241" text-anchor="middle" class="svg-sub">tmux client</text>
+          </g>
+          <g data-at="0+" data-scn="plain" class="sim-pop">
+            <rect x="175" y="220" width="150" height="32" rx="7" class="svg-card svg-stroke" stroke-width="1.4"/>
+            <text x="250" y="241" text-anchor="middle" class="svg-sub">npm run build</text>
+          </g>
+
+          <!-- step 2 · sshd tears its own branch down -->
+          <g data-at="2+" data-scn="tmux plain" data-poster>
+            <rect x="169" y="114" width="162" height="144" rx="10" fill="none" class="svg-danger-s" stroke-width="1.6" stroke-dasharray="5 3"/>
+            <g class="svg-danger-s" stroke-width="2.6">
+              <path d="M228 198 L272 229"/><path d="M272 198 L228 229"/>
+            </g>
+            <text x="250" y="278" text-anchor="middle" class="svg-mono-danger">SIGHUP · branch dies</text>
+          </g>
+
+          <!-- ============ right branch · the durable half ============ -->
+          <g data-at="0+" data-scn="tmux" data-poster class="sim-pop">
+            <rect x="675" y="120" width="150" height="32" rx="7" class="svg-card svg-accent-s" stroke-width="1.6"/>
+            <text x="750" y="141" text-anchor="middle" class="svg-sub">tmux server</text>
+            <path d="M750 152 L750 170" class="svg-muted-s" stroke-width="1.3"/>
+            <rect x="675" y="170" width="150" height="32" rx="7" class="svg-card svg-accent-s" stroke-width="1.6"/>
+            <text x="750" y="191" text-anchor="middle" class="svg-sub">shell</text>
+            <path d="M750 202 L750 220" class="svg-muted-s" stroke-width="1.3"/>
+            <rect x="675" y="220" width="150" height="32" rx="7" class="svg-card svg-accent-s" stroke-width="1.6"/>
+            <text x="750" y="241" text-anchor="middle" class="svg-sub">herdr server</text>
+            <path d="M750 252 L750 270" class="svg-muted-s" stroke-width="1.3"/>
+            <rect x="675" y="270" width="150" height="32" rx="7" class="svg-card svg-accent-s" stroke-width="1.6"/>
+            <text x="750" y="291" text-anchor="middle" class="svg-sub">npm run build</text>
+          </g>
+          <rect data-at="3" data-scn="tmux" x="669" y="114" width="162" height="194" rx="11" fill="none" class="svg-accent-s" stroke-width="2"/>
+
+          <!-- the socket between the two halves -->
+          <path data-at="0+" data-scn="tmux" data-poster
+                d="M325 236 C 450 236, 550 136, 675 136" class="svg-muted-s" stroke-width="1.4" stroke-dasharray="4 3" fill="none"/>
+          <path data-at="0-1" data-scn="tmux" data-flow="accent" data-count="2" data-speed="0.14" data-r="3"
+                d="M325 236 C 450 236, 550 136, 675 136" stroke="none" fill="none"/>
+          <text data-at="0+" data-scn="tmux" data-poster x="500" y="168" text-anchor="middle" class="svg-sub">unix socket</text>
+          <text data-at="0+" data-scn="tmux" data-poster x="500" y="254" text-anchor="middle" class="svg-sub">— not a parent/child link —</text>
+          <g data-at="2+" data-scn="tmux" data-poster class="svg-danger-s" stroke-width="2.4">
+            <path d="M488 175 L512 199"/><path d="M512 175 L488 199"/>
+          </g>
+
+          <!-- ============ running log ============ -->
+          <text data-at="0+" data-scn="tmux plain" data-poster x="352" y="348" class="svg-sub">build running · 42%</text>
+          <text data-at="2+" data-scn="tmux" data-poster x="352" y="370" class="svg-mono-accent">connection gone · the build never noticed</text>
+          <text data-at="3+" data-scn="tmux" data-poster x="352" y="392" class="svg-mono-accent">reattached · 91% · nothing was lost</text>
+          <text data-at="2+" data-scn="plain" x="352" y="370" class="svg-mono-danger">SIGHUP · build killed at 47%</text>
+          <text data-at="3+" data-scn="plain" x="352" y="392" class="svg-mono-danger">reconnect → start again from 0%</text>
         </svg>
+
+        <div class="sim-controls">
+          <button type="button" class="sim-btn" data-act="prev" aria-label="Previous step"><span class="sim-glyph">◀</span></button>
+          <button type="button" class="sim-btn sim-btn-play" data-act="play" aria-label="Play">
+            <span class="sim-glyph">▶</span><span class="sim-btn-text">Play</span>
+          </button>
+          <button type="button" class="sim-btn" data-act="next" aria-label="Next step"><span class="sim-glyph">▶</span></button>
+          <div class="sim-track" role="group" aria-label="Jump to step">
+            <button type="button" class="sim-dot" data-goto="0" aria-label="Step 0, connected">0</button>
+            <button type="button" class="sim-dot" data-goto="1" aria-label="Step 1, the phone dies">1</button>
+            <button type="button" class="sim-dot" data-goto="2" aria-label="Step 2, sshd tears down its branch">2</button>
+            <button type="button" class="sim-dot" data-goto="3" aria-label="Step 3, what is left">3</button>
+          </div>
+          <div class="sim-progress" aria-hidden="true"><span></span></div>
+        </div>
+
+        <ol class="sim-steps" aria-live="polite">
+          <li data-at="0" data-scn="tmux" data-poster><b>Connected</b>You are attached from the phone. Note the shape of the tree: <code>sshd</code> owns a login shell which owns a tmux <em>client</em>, and that client talks to the tmux <strong>server</strong> over a unix socket. The server is a child of <code>launchd</code>, not of anything on the left.</li>
+          <li data-at="0" data-scn="plain"><b>Connected</b>No multiplexer. You typed <code>npm run build</code> at the shell <code>sshd</code> gave you, so the build is a grandchild of <code>sshd</code>. Everything you care about hangs off the connection.</li>
+
+          <li data-at="1"><b>1 · The phone dies</b>Battery flat, or a tunnel, or airplane mode. The TCP connection is gone. Nothing on the host has reacted yet — it takes a moment for <code>sshd</code> to notice the socket is dead.</li>
+
+          <li data-at="2" data-scn="tmux" data-poster><b>2 · sshd cleans up after itself</b><code>sshd</code> sends <code>SIGHUP</code> to its session and the whole left branch exits: the login shell, and with it the tmux client. The socket closes. That is the entire blast radius.</li>
+          <li data-at="2" data-scn="plain"><b>2 · sshd cleans up after itself</b>The same <code>SIGHUP</code> goes out — but this time your build is <em>inside</em> that branch, so it is killed along with the shell. Forty-seven percent of the way through, and gone.</li>
+
+          <li data-at="3" data-scn="tmux" data-poster><b>3 · Reattach whenever</b>The tmux server never had a terminal to lose, so it and everything under it kept running. Later you connect from anywhere, a fresh client attaches to the same server, and the screen comes back mid-build. A viewer died; the work did not.</li>
+          <li data-at="3" data-scn="plain"><b>3 · Nothing to come back to</b>There is no server holding the work, so there is nothing to reattach to. You reconnect, you get a brand new shell, and you start the build again from zero.</li>
+        </ol>
+
+        <div class="sim-term" aria-hidden="true">
+          <div data-at="0" data-scn="tmux" data-poster><span class="tp">phone$</span> mosh macbook -- tmux new -A -s phone<br><span class="tdim">npm run build … 42%</span></div>
+          <div data-at="0" data-scn="plain"><span class="tp">phone$</span> ssh macbook<br><span class="tdim">npm run build … 42%</span></div>
+          <div data-at="1" data-scn="tmux plain"><span class="tdim">— the screen freezes, then goes dark —</span><br><span class="tdim">&nbsp;</span></div>
+          <div data-at="2" data-scn="tmux"><span class="tp">macbook$</span> tmux ls<br><span class="tok">phone: 1 windows (created Tue 09:12)</span> <span class="tdim">— no "(attached)"</span></div>
+          <div data-at="2" data-scn="plain"><span class="tp">macbook$</span> pgrep -f 'npm run build'<br><span class="twarn">(no output — the process is gone)</span></div>
+          <div data-at="3" data-scn="tmux"><span class="tp">phone$</span> mosh macbook -- tmux new -A -s phone<br><span class="tok">npm run build … 91%</span></div>
+          <div data-at="3" data-scn="plain"><span class="tp">phone$</span> ssh macbook<br><span class="tp">$</span> npm run build <span class="tdim"># from zero</span></div>
+        </div>
+
         <figcaption>
           <b>Only the left branch dies.</b> Because your work hangs off the tmux server rather than off
           <code>sshd</code>, losing the connection destroys a viewer and nothing else. A build started
@@ -181,6 +253,180 @@ setw -g pane-base-index 1</code></pre>
         Herdr tells you which one it is.
       </p>
 
+      <figure class="diagram sim" data-sim data-step-ms="3600" tabindex="0"
+              aria-label="Interactive comparison of five coding agents running under Herdr versus under plain tmux, as two of them become blocked. Use the left and right arrow keys to step through it.">
+
+        <div class="sim-bar">
+          <span class="sim-bar-label">Five agents, watched by</span>
+          <button type="button" class="sim-scn is-on" data-scenario="herdr" aria-pressed="true">Herdr</button>
+          <button type="button" class="sim-scn" data-scenario="tmux" aria-pressed="false">Plain tmux</button>
+        </div>
+
+        <svg viewBox="0 0 860 420" role="img" aria-label="Five agent panes changing state over time: Herdr labels each pane working, blocked or done and surfaces the blocked ones, while plain tmux shows five identical panes and you must cycle through them">
+
+          <text data-at="0+" x="24" y="32" class="svg-label">Five agents, and one of them is waiting on you</text>
+          <text data-at="0+" data-scn="herdr" data-poster x="24" y="52" class="svg-sub">Herdr reads each pane and labels it</text>
+          <text data-at="0+" data-scn="tmux" x="24" y="52" class="svg-sub">tmux shows you rectangles and wishes you luck</text>
+
+          <!-- ============ the five panes ============ -->
+          <g data-at="0+" class="sim-pop">
+            <rect x="24" y="76" width="252" height="96" rx="10" class="svg-card svg-stroke" stroke-width="1.4"/>
+            <text x="40" y="104" class="svg-label">1 · api-refactor</text>
+            <text x="40" y="124" class="svg-sub">claude · editing files</text>
+
+            <rect x="296" y="76" width="252" height="96" rx="10" class="svg-card svg-stroke" stroke-width="1.4"/>
+            <text x="312" y="104" class="svg-label">2 · flaky-test</text>
+            <text x="312" y="124" class="svg-sub">claude · running the suite</text>
+
+            <rect x="568" y="76" width="252" height="96" rx="10" class="svg-card svg-stroke" stroke-width="1.4"/>
+            <text x="584" y="104" class="svg-label">3 · db-migration</text>
+            <text x="584" y="124" class="svg-sub">claude · schema change</text>
+
+            <rect x="168" y="196" width="252" height="96" rx="10" class="svg-card svg-stroke" stroke-width="1.4"/>
+            <text x="184" y="224" class="svg-label">4 · docs-pass</text>
+            <text x="184" y="244" class="svg-sub">claude · rewriting README</text>
+
+            <rect x="440" y="196" width="252" height="96" rx="10" class="svg-card svg-stroke" stroke-width="1.4"/>
+            <text x="456" y="224" class="svg-label">5 · deploy-script</text>
+            <text x="456" y="244" class="svg-sub">claude · terraform plan</text>
+          </g>
+
+          <!-- ============ what tmux can tell you ============ -->
+          <g data-at="0+" data-scn="tmux">
+            <rect x="40" y="136" width="118" height="22" rx="11" fill="none" class="svg-muted-s" stroke-width="1.4"/>
+            <text x="54" y="151" class="svg-sub">running?</text>
+            <rect x="312" y="136" width="118" height="22" rx="11" fill="none" class="svg-muted-s" stroke-width="1.4"/>
+            <text x="326" y="151" class="svg-sub">running?</text>
+            <rect x="584" y="136" width="118" height="22" rx="11" fill="none" class="svg-muted-s" stroke-width="1.4"/>
+            <text x="598" y="151" class="svg-sub">running?</text>
+            <rect x="184" y="256" width="118" height="22" rx="11" fill="none" class="svg-muted-s" stroke-width="1.4"/>
+            <text x="198" y="271" class="svg-sub">running?</text>
+            <rect x="456" y="256" width="118" height="22" rx="11" fill="none" class="svg-muted-s" stroke-width="1.4"/>
+            <text x="470" y="271" class="svg-sub">running?</text>
+          </g>
+          <!-- you, cycling with Ctrl-b n, one window at a time -->
+          <rect data-at="0" data-scn="tmux" x="20" y="72" width="260" height="104" rx="12" fill="none" class="svg-stroke" stroke-width="2.4"/>
+          <rect data-at="1" data-scn="tmux" x="292" y="72" width="260" height="104" rx="12" fill="none" class="svg-stroke" stroke-width="2.4"/>
+          <rect data-at="2" data-scn="tmux" x="564" y="72" width="260" height="104" rx="12" fill="none" class="svg-stroke" stroke-width="2.4"/>
+          <rect data-at="3" data-scn="tmux" x="164" y="192" width="260" height="104" rx="12" fill="none" class="svg-stroke" stroke-width="2.4"/>
+
+          <!-- ============ what Herdr can tell you ============ -->
+          <!-- step 0 · everything is working -->
+          <g data-at="0" data-scn="herdr">
+            <rect x="40" y="136" width="118" height="22" rx="11" fill="none" class="svg-accent-s" stroke-width="1.4"/>
+            <text x="54" y="151" class="svg-sub svg-accent">working</text>
+            <rect x="312" y="136" width="118" height="22" rx="11" fill="none" class="svg-accent-s" stroke-width="1.4"/>
+            <text x="326" y="151" class="svg-sub svg-accent">working</text>
+            <rect x="584" y="136" width="118" height="22" rx="11" fill="none" class="svg-accent-s" stroke-width="1.4"/>
+            <text x="598" y="151" class="svg-sub svg-accent">working</text>
+            <rect x="184" y="256" width="118" height="22" rx="11" fill="none" class="svg-accent-s" stroke-width="1.4"/>
+            <text x="198" y="271" class="svg-sub svg-accent">working</text>
+            <rect x="456" y="256" width="118" height="22" rx="11" fill="none" class="svg-accent-s" stroke-width="1.4"/>
+            <text x="470" y="271" class="svg-sub svg-accent">working</text>
+          </g>
+
+          <!-- step 1 · pane 3 stops and asks -->
+          <g data-at="1" data-scn="herdr">
+            <rect x="40" y="136" width="118" height="22" rx="11" fill="none" class="svg-accent-s" stroke-width="1.4"/>
+            <text x="54" y="151" class="svg-sub svg-accent">working</text>
+            <rect x="312" y="136" width="118" height="22" rx="11" fill="none" class="svg-accent-s" stroke-width="1.4"/>
+            <text x="326" y="151" class="svg-sub svg-accent">working</text>
+            <rect x="564" y="72" width="260" height="104" rx="12" fill="none" class="svg-warn-s" stroke-width="2.4"/>
+            <rect x="584" y="136" width="118" height="22" rx="11" fill="none" class="svg-warn-s" stroke-width="1.8"/>
+            <text x="598" y="151" class="svg-sub svg-warn">blocked</text>
+            <rect x="184" y="256" width="118" height="22" rx="11" fill="none" class="svg-accent-s" stroke-width="1.4"/>
+            <text x="198" y="271" class="svg-sub svg-accent">working</text>
+            <rect x="456" y="256" width="118" height="22" rx="11" fill="none" class="svg-accent-s" stroke-width="1.4"/>
+            <text x="470" y="271" class="svg-sub svg-accent">working</text>
+          </g>
+
+          <!-- step 2 · one finished, a second one blocked -->
+          <g data-at="2" data-scn="herdr" data-poster>
+            <rect x="40" y="136" width="118" height="22" rx="11" fill="none" class="svg-accent-s" stroke-width="1.4" stroke-dasharray="4 3"/>
+            <text x="54" y="151" class="svg-sub svg-accent">done</text>
+            <rect x="312" y="136" width="118" height="22" rx="11" fill="none" class="svg-accent-s" stroke-width="1.4"/>
+            <text x="326" y="151" class="svg-sub svg-accent">working</text>
+            <rect x="564" y="72" width="260" height="104" rx="12" fill="none" class="svg-warn-s" stroke-width="2.4"/>
+            <rect x="584" y="136" width="118" height="22" rx="11" fill="none" class="svg-warn-s" stroke-width="1.8"/>
+            <text x="598" y="151" class="svg-sub svg-warn">blocked</text>
+            <rect x="184" y="256" width="118" height="22" rx="11" fill="none" class="svg-accent-s" stroke-width="1.4"/>
+            <text x="198" y="271" class="svg-sub svg-accent">working</text>
+            <rect x="436" y="192" width="260" height="104" rx="12" fill="none" class="svg-warn-s" stroke-width="2.4"/>
+            <rect x="456" y="256" width="118" height="22" rx="11" fill="none" class="svg-warn-s" stroke-width="1.8"/>
+            <text x="470" y="271" class="svg-sub svg-warn">blocked</text>
+          </g>
+
+          <!-- step 3 · both answered -->
+          <g data-at="3" data-scn="herdr">
+            <rect x="40" y="136" width="118" height="22" rx="11" fill="none" class="svg-accent-s" stroke-width="1.4" stroke-dasharray="4 3"/>
+            <text x="54" y="151" class="svg-sub svg-accent">done</text>
+            <rect x="312" y="136" width="118" height="22" rx="11" fill="none" class="svg-accent-s" stroke-width="1.4"/>
+            <text x="326" y="151" class="svg-sub svg-accent">working</text>
+            <rect x="584" y="136" width="118" height="22" rx="11" fill="none" class="svg-accent-s" stroke-width="1.4"/>
+            <text x="598" y="151" class="svg-sub svg-accent">working</text>
+            <rect x="184" y="256" width="118" height="22" rx="11" fill="none" class="svg-accent-s" stroke-width="1.4"/>
+            <text x="198" y="271" class="svg-sub svg-accent">working</text>
+            <rect x="456" y="256" width="118" height="22" rx="11" fill="none" class="svg-accent-s" stroke-width="1.4"/>
+            <text x="470" y="271" class="svg-sub svg-accent">working</text>
+          </g>
+
+          <!-- ============ the status bar you actually read ============ -->
+          <rect data-at="0+" x="24" y="316" width="812" height="76" rx="10" class="svg-surface svg-stroke" stroke-width="1.4"/>
+
+          <text data-at="0+" data-scn="tmux" x="48" y="346" class="svg-sub">tmux · [1] agents* [2] shell</text>
+          <text data-at="0" data-scn="tmux" x="48" y="372" class="svg-sub">you open pane 1 · working · not this one</text>
+          <text data-at="1" data-scn="tmux" x="48" y="372" class="svg-sub">Ctrl-b n → pane 2 · working · not this one either</text>
+          <text data-at="2" data-scn="tmux" x="48" y="372" class="svg-sub">Ctrl-b n → pane 3 · there it is, four keypresses later</text>
+          <text data-at="3" data-scn="tmux" x="48" y="372" class="svg-mono-danger">…and pane 5 has been waiting for two minutes without your knowing</text>
+
+          <text data-at="0" data-scn="herdr" x="48" y="346" class="svg-mono-accent">herdr · 5 panes · all working</text>
+          <text data-at="0" data-scn="herdr" x="48" y="372" class="svg-sub">nothing needs you. Put the phone down.</text>
+          <text data-at="1" data-scn="herdr" x="48" y="346" class="svg-sub svg-warn">herdr · 1 blocked — pane 3 · db-migration</text>
+          <text data-at="1" data-scn="herdr" x="48" y="372" class="svg-sub">prefix + g takes you straight there. You did not have to go looking.</text>
+          <text data-at="2" data-scn="herdr" data-poster x="48" y="346" class="svg-sub svg-warn">herdr · 2 blocked — panes 3, 5 · 1 done</text>
+          <text data-at="2" data-scn="herdr" data-poster x="48" y="372" class="svg-sub">the whole queue is legible without opening a single pane</text>
+          <text data-at="3" data-scn="herdr" x="48" y="346" class="svg-mono-accent">herdr · both answered · 4 working, 1 done</text>
+          <text data-at="3" data-scn="herdr" x="48" y="372" class="svg-sub">you touched exactly the two panes that needed you, and nothing else</text>
+        </svg>
+
+        <div class="sim-controls">
+          <button type="button" class="sim-btn" data-act="prev" aria-label="Previous step"><span class="sim-glyph">◀</span></button>
+          <button type="button" class="sim-btn sim-btn-play" data-act="play" aria-label="Play">
+            <span class="sim-glyph">▶</span><span class="sim-btn-text">Play</span>
+          </button>
+          <button type="button" class="sim-btn" data-act="next" aria-label="Next step"><span class="sim-glyph">▶</span></button>
+          <div class="sim-track" role="group" aria-label="Jump to step">
+            <button type="button" class="sim-dot" data-goto="0" aria-label="Step 0, all five working">0</button>
+            <button type="button" class="sim-dot" data-goto="1" aria-label="Step 1, one agent blocked">1</button>
+            <button type="button" class="sim-dot" data-goto="2" aria-label="Step 2, two blocked and one finished">2</button>
+            <button type="button" class="sim-dot" data-goto="3" aria-label="Step 3, both answered">3</button>
+          </div>
+          <div class="sim-progress" aria-hidden="true"><span></span></div>
+        </div>
+
+        <ol class="sim-steps" aria-live="polite">
+          <li data-at="0" data-scn="herdr" data-poster><b>All five are working</b>Herdr watches what each pane is actually printing, so it can say so. The useful part here is the negative result: you can see at a glance that nothing needs you, which is the state you want to be able to trust.</li>
+          <li data-at="0" data-scn="tmux"><b>All five are… something</b>tmux knows a process is attached to a pty. It does not read the pane, so it has nothing to report. To learn anything you have to open a pane and look.</li>
+
+          <li data-at="1" data-scn="herdr" data-poster><b>1 · Pane 3 stops and asks</b>The migration agent hits a destructive step and waits for approval. Herdr notices the pane went quiet on a prompt and flags it. You find out without having gone looking.</li>
+          <li data-at="1" data-scn="tmux"><b>1 · Pane 3 stops and asks — silently</b>The same thing happens, and tmux's status bar looks exactly as it did a second ago. You start cycling: <code>Ctrl-b n</code>, look, <code>Ctrl-b n</code>, look.</li>
+
+          <li data-at="2" data-scn="herdr" data-poster><b>2 · A second one blocks, a first one finishes</b>Pane 5 hits an approval too, and pane 1 is done. Three different states across five panes, all readable at once. <code>prefix + g</code> takes you to whichever one you pick.</li>
+          <li data-at="2" data-scn="tmux"><b>2 · You finally find pane 3</b>Four keypresses in, you land on the one that was waiting. It has been idle that whole time. Meanwhile pane 5 has quietly blocked behind you and pane 1 finished without your noticing.</li>
+
+          <li data-at="3" data-scn="herdr" data-poster><b>3 · You answer both and stop</b>Two approvals, two visits, nothing else opened. That is the difference the state-reading buys you: attention spent where it was needed rather than spread evenly over five panes.</li>
+          <li data-at="3" data-scn="tmux"><b>3 · You keep cycling</b>Having answered pane 3, you have no way to know pane 5 is waiting except to keep walking the list. With five agents that is tolerable. It scales badly.</li>
+        </ol>
+
+        <figcaption>
+          <b>Herdr's one real idea is reading the pane.</b> Everything else it does — workspaces, tabs,
+          detach, reattach — tmux already did. What tmux cannot do is tell you which of your agents is
+          <em>blocked</em>, because tmux deliberately treats a pane's contents as none of its business.
+          Whether that idea is worth a second multiplexer depends entirely on how many agents you run
+          at once.
+        </figcaption>
+      </figure>
+
       <pre><code># Install (macOS and Linux)
 brew install herdr
 # or
@@ -231,47 +477,141 @@ auto_switch = true</code></pre>
         never being spoken to.
       </p>
 
-      <figure class="diagram">
-        <svg viewBox="0 0 840 300" role="img" aria-label="Keystroke routing: with both prefixes set to Ctrl-b the outer tmux consumes every prefix; after remapping Herdr to Ctrl-a each multiplexer receives its own prefix">
-          <!-- before -->
-          <text x="20" y="28" class="svg-label">Before — both bound to Ctrl-b</text>
-          <rect x="20" y="42" width="112" height="46" rx="8" class="svg-card svg-stroke" stroke-width="1.4"/>
-          <text x="76" y="70" text-anchor="middle" class="svg-sub">Ctrl-b</text>
-          <path d="M132 65 L206 65" class="svg-muted-s" stroke-width="1.8" fill="none"/>
-          <rect x="206" y="42" width="150" height="46" rx="8" class="svg-card svg-accent-s" stroke-width="1.8"/>
-          <text x="281" y="63" text-anchor="middle" class="svg-sub">outer tmux</text>
-          <text x="281" y="79" text-anchor="middle" class="svg-sub">consumes it</text>
-          <path d="M356 65 L430 65" class="svg-danger-s" stroke-width="1.8" stroke-dasharray="6 4" fill="none"/>
-          <g class="svg-danger-s" stroke-width="2.6">
-            <path d="M440 55 L458 73"/><path d="M458 55 L440 73"/>
+      <figure class="diagram sim" data-sim data-step-ms="3400" tabindex="0"
+              aria-label="Interactive keystroke-routing walkthrough for Herdr nested inside tmux. Pick a prefix configuration, then step through where the keystroke ends up. Use the left and right arrow keys.">
+
+        <div class="sim-bar">
+          <span class="sim-bar-label">Config &amp; keypress</span>
+          <button type="button" class="sim-scn is-on" data-scenario="clash" aria-pressed="true">Both Ctrl-b · press Ctrl-b</button>
+          <button type="button" class="sim-scn" data-scenario="inner" aria-pressed="false">Herdr on Ctrl-a · press Ctrl-a</button>
+          <button type="button" class="sim-scn" data-scenario="outer" aria-pressed="false">Herdr on Ctrl-a · press Ctrl-b</button>
+        </div>
+
+        <svg viewBox="0 0 860 320" role="img" aria-label="Keystroke routing: with both prefixes set to Ctrl-b the outer tmux consumes every prefix and Herdr never sees it; after remapping Herdr to Ctrl-a each multiplexer receives its own prefix">
+          <defs>
+            <marker id="k1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" class="svg-accent"/>
+            </marker>
+            <marker id="k2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" class="svg-danger"/>
+            </marker>
+          </defs>
+
+          <text data-at="0+" x="24" y="32" class="svg-label">Where does the keystroke land?</text>
+          <text data-at="0+" data-scn="clash" data-poster x="24" y="54" class="svg-sub">both multiplexers answer to Ctrl-b</text>
+          <text data-at="0+" data-scn="inner" x="24" y="54" class="svg-sub">Herdr remapped to Ctrl-a · you want a Herdr tab</text>
+          <text data-at="0+" data-scn="outer" x="24" y="54" class="svg-sub">Herdr remapped to Ctrl-a · you want to detach tmux</text>
+
+          <!-- everything to the right of here lives inside the outer tmux -->
+          <g data-at="0+">
+            <rect x="452" y="70" width="396" height="124" rx="11" fill="none" class="svg-stroke" stroke-width="1.3" stroke-dasharray="5 3"/>
+            <text x="650" y="62" text-anchor="middle" class="svg-sub">— running inside the outer tmux —</text>
           </g>
-          <rect x="474" y="42" width="150" height="46" rx="8" class="svg-surface svg-stroke" stroke-width="1.3" stroke-dasharray="5 3"/>
-          <text x="549" y="63" text-anchor="middle" class="svg-sub">inner herdr</text>
-          <text x="549" y="79" text-anchor="middle" class="svg-sub">never notified</text>
-          <text x="648" y="70" class="svg-sub">bindings look dead</text>
 
-          <!-- after -->
-          <text x="20" y="150" class="svg-label">After — Herdr remapped to Ctrl-a</text>
+          <!-- the key you pressed -->
+          <g data-at="0+" class="sim-pop">
+            <rect x="24" y="102" width="112" height="56" rx="9" class="svg-card svg-stroke" stroke-width="1.5"/>
+            <text x="80" y="126" text-anchor="middle" class="svg-sub">you press</text>
+          </g>
+          <text data-at="0+" data-scn="clash outer" data-poster x="80" y="148" text-anchor="middle" class="svg-label">Ctrl-b</text>
+          <text data-at="0+" data-scn="inner" x="80" y="148" text-anchor="middle" class="svg-label">Ctrl-a</text>
 
-          <rect x="20" y="164" width="112" height="46" rx="8" class="svg-card svg-stroke" stroke-width="1.4"/>
-          <text x="76" y="192" text-anchor="middle" class="svg-sub">Ctrl-b</text>
-          <path d="M132 187 L206 187" class="svg-muted-s" stroke-width="1.8" fill="none"/>
-          <rect x="206" y="164" width="150" height="46" rx="8" class="svg-card svg-accent-s" stroke-width="1.8"/>
-          <text x="281" y="185" text-anchor="middle" class="svg-sub">outer tmux</text>
-          <text x="281" y="201" text-anchor="middle" class="svg-sub">detach, windows</text>
+          <!-- outer tmux -->
+          <g data-at="0+" class="sim-pop">
+            <rect x="206" y="90" width="180" height="80" rx="9" class="svg-card svg-stroke" stroke-width="1.5"/>
+            <text x="296" y="116" text-anchor="middle" class="svg-label">outer tmux</text>
+            <text x="296" y="136" text-anchor="middle" class="svg-sub">prefix = Ctrl-b</text>
+          </g>
 
-          <rect x="20" y="228" width="112" height="46" rx="8" class="svg-card svg-stroke" stroke-width="1.4"/>
-          <text x="76" y="256" text-anchor="middle" class="svg-sub">Ctrl-a</text>
-          <path d="M132 251 L206 251 L206 251" class="svg-muted-s" stroke-width="1.8" fill="none"/>
-          <path d="M356 251 L474 251" class="svg-accent-s" stroke-width="2" fill="none"/>
-          <rect x="206" y="228" width="150" height="46" rx="8" class="svg-surface svg-stroke" stroke-width="1.3" stroke-dasharray="5 3"/>
-          <text x="281" y="249" text-anchor="middle" class="svg-sub">outer tmux</text>
-          <text x="281" y="265" text-anchor="middle" class="svg-sub">passes through</text>
-          <rect x="474" y="228" width="150" height="46" rx="8" class="svg-card svg-accent-s" stroke-width="1.8"/>
-          <text x="549" y="249" text-anchor="middle" class="svg-sub">inner herdr</text>
-          <text x="549" y="265" text-anchor="middle" class="svg-sub">panes, agents</text>
-          <text x="648" y="256" class="svg-sub">both usable</text>
+          <!-- inner herdr -->
+          <g data-at="0+" class="sim-pop">
+            <rect x="470" y="90" width="180" height="80" rx="9" class="svg-card svg-stroke" stroke-width="1.5"/>
+            <text x="560" y="116" text-anchor="middle" class="svg-label">inner herdr</text>
+          </g>
+          <text data-at="0+" data-scn="clash" data-poster x="560" y="136" text-anchor="middle" class="svg-mono-danger">prefix = Ctrl-b</text>
+          <text data-at="0+" data-scn="inner outer" x="560" y="136" text-anchor="middle" class="svg-sub">prefix = Ctrl-a</text>
+
+          <!-- the agent pane -->
+          <g data-at="0+" class="sim-pop">
+            <rect x="724" y="90" width="112" height="80" rx="9" class="svg-card svg-stroke" stroke-width="1.5"/>
+            <text x="780" y="124" text-anchor="middle" class="svg-sub">agent pane</text>
+            <text x="780" y="142" text-anchor="middle" class="svg-sub">claude</text>
+          </g>
+
+          <!-- 1 · the keystroke reaches the outermost layer first -->
+          <path data-at="1+" data-flow="accent" data-count="2" data-speed="0.2" data-r="3.5"
+                d="M136 130 L200 130" class="svg-accent-s" stroke-width="1.8" fill="none" marker-end="url(#k1)"/>
+
+          <!-- 2 · what the outer tmux decides -->
+          <text data-at="2+" data-scn="clash" data-poster x="296" y="156" text-anchor="middle" class="svg-mono-danger">mine → consumed</text>
+          <text data-at="2+" data-scn="outer" x="296" y="156" text-anchor="middle" class="svg-mono-accent">mine → consumed</text>
+          <text data-at="2+" data-scn="inner" x="296" y="156" text-anchor="middle" class="svg-mono-accent">not mine → passed on</text>
+
+          <path data-at="2+" data-scn="inner" data-flow="accent" data-count="2" data-speed="0.2" data-r="3.5"
+                d="M386 130 L464 130" class="svg-accent-s" stroke-width="1.8" fill="none" marker-end="url(#k1)"/>
+
+          <g data-at="2+" data-scn="clash" data-poster>
+            <path d="M386 130 L410 130" class="svg-danger-s" stroke-width="1.8" stroke-dasharray="5 3" fill="none"/>
+            <g class="svg-danger-s" stroke-width="2.6">
+              <path d="M416 118 L440 142"/><path d="M440 118 L416 142"/>
+            </g>
+          </g>
+
+          <!-- 3 · outcome -->
+          <text data-at="3" data-scn="clash" data-poster x="560" y="156" text-anchor="middle" class="svg-mono-danger">never notified</text>
+          <text data-at="3" data-scn="inner" x="560" y="156" text-anchor="middle" class="svg-mono-accent">mine → new tab</text>
+          <rect data-at="3" data-scn="inner" x="464" y="84" width="192" height="92" rx="11" fill="none" class="svg-accent-s" stroke-width="2"/>
+          <path data-at="3" data-scn="inner" data-flow="accent" data-count="2" data-speed="0.22" data-r="3.5"
+                d="M650 130 L718 130" class="svg-accent-s" stroke-width="1.8" fill="none" marker-end="url(#k1)"/>
+          <rect data-at="3" data-scn="outer" x="200" y="84" width="192" height="92" rx="11" fill="none" class="svg-accent-s" stroke-width="2"/>
+          <text data-at="3" data-scn="outer" x="560" y="156" text-anchor="middle" class="svg-sub">untouched, still running</text>
+
+          <!-- verdict -->
+          <rect data-at="3" x="24" y="224" width="812" height="76" rx="10" class="svg-surface svg-stroke" stroke-width="1.4"/>
+          <g data-at="3" data-scn="clash" data-poster>
+            <text x="48" y="254" class="svg-mono-danger">Ctrl-b c opened a tmux window — not a Herdr tab.</text>
+            <text x="48" y="280" class="svg-sub">Herdr looks broken. It is not. It is simply never being spoken to.</text>
+          </g>
+          <g data-at="3" data-scn="inner">
+            <text x="48" y="254" class="svg-mono-accent">Herdr opens a new tab, exactly as documented.</text>
+            <text x="48" y="280" class="svg-sub">One prefix per layer, and both layers stay reachable.</text>
+          </g>
+          <g data-at="3" data-scn="outer">
+            <text x="48" y="254" class="svg-mono-accent">tmux detaches the whole stack.</text>
+            <text x="48" y="280" class="svg-sub">Herdr and every agent under it keep running, waiting for you to come back.</text>
+          </g>
         </svg>
+
+        <div class="sim-controls">
+          <button type="button" class="sim-btn" data-act="prev" aria-label="Previous step"><span class="sim-glyph">◀</span></button>
+          <button type="button" class="sim-btn sim-btn-play" data-act="play" aria-label="Play">
+            <span class="sim-glyph">▶</span><span class="sim-btn-text">Play</span>
+          </button>
+          <button type="button" class="sim-btn" data-act="next" aria-label="Next step"><span class="sim-glyph">▶</span></button>
+          <div class="sim-track" role="group" aria-label="Jump to step">
+            <button type="button" class="sim-dot" data-goto="0" aria-label="Step 0, the stack at rest">0</button>
+            <button type="button" class="sim-dot" data-goto="1" aria-label="Step 1, the keystroke reaches the outer layer">1</button>
+            <button type="button" class="sim-dot" data-goto="2" aria-label="Step 2, the outer tmux decides">2</button>
+            <button type="button" class="sim-dot" data-goto="3" aria-label="Step 3, outcome">3</button>
+          </div>
+          <div class="sim-progress" aria-hidden="true"><span></span></div>
+        </div>
+
+        <ol class="sim-steps" aria-live="polite">
+          <li data-at="0" data-scn="clash" data-poster><b>The stack, with the defaults</b>Blink → mosh → tmux → Herdr → your agent pane. Both multiplexers were installed with their factory prefix, so both are sitting there listening for <code>Ctrl-b</code>. You want a new Herdr tab, so you press <code>Ctrl-b</code> then <code>c</code>.</li>
+          <li data-at="0" data-scn="inner"><b>The stack, after remapping</b>Herdr's config now says <code>prefix = "ctrl+a"</code>. You want a new Herdr tab, so you press <code>Ctrl-a</code> then <code>c</code>.</li>
+          <li data-at="0" data-scn="outer"><b>The stack, after remapping</b>Same config, different intent: this time you want to detach the outer tmux and put the phone away, so you press <code>Ctrl-b</code> then <code>d</code>.</li>
+
+          <li data-at="1"><b>1 · The outermost layer sees it first</b>That is all "outer" means. Every byte you type is delivered to tmux, and only tmux decides whether anything further in gets a copy. Herdr is downstream of that decision and cannot influence it.</li>
+
+          <li data-at="2" data-scn="clash" data-poster><b>2 · tmux swallows it</b>The keystroke matches tmux's own prefix, so tmux consumes it and waits for the next key to complete a tmux command. Nothing is written to the pane, so nothing reaches Herdr.</li>
+          <li data-at="2" data-scn="inner"><b>2 · tmux passes it through</b><code>Ctrl-a</code> means nothing to tmux, so it is treated as ordinary input and written straight into the pane — and the program running in that pane is Herdr.</li>
+          <li data-at="2" data-scn="outer"><b>2 · tmux swallows it — correctly</b>Same mechanism as the broken case, but now it is what you wanted. <code>Ctrl-b</code> belongs to tmux and only tmux, so the outer layer acting on it is right.</li>
+
+          <li data-at="3" data-scn="clash" data-poster><b>3 · Herdr never hears you</b>Every Herdr binding appears dead, and the failure is quiet: <code>Ctrl-b c</code> does not error, it opens a <em>tmux</em> window. You end up with tmux windows you did not want while wondering why Herdr is broken.</li>
+          <li data-at="3" data-scn="inner"><b>3 · Herdr acts</b>Herdr sees its own prefix, opens a tab, and tmux is none the wiser. Both layers keep their full keymap because the two prefixes never collide.</li>
+          <li data-at="3" data-scn="outer"><b>3 · tmux acts</b>The outer session detaches and you close the phone. Herdr, its panes, and every agent inside are children of the Herdr server, which is a child of a shell inside the tmux server — so they all keep running.</li>
+        </ol>
         <figcaption>
           <b>Give each multiplexer its own prefix.</b> Change Herdr's rather than tmux's — tmux muscle
           memory is worth preserving, and Herdr's config file makes the change trivial. Keep the
@@ -328,5 +668,6 @@ herdr            # ctrl-b c for a second window whenever you want one</code></pr
 </div>
 <script src="../assets/nav.js"></script>
 <script src="../assets/app.js"></script>
+<script src="../assets/anim.js"></script>
 </body>
 </html>
