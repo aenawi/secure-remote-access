@@ -28,63 +28,201 @@
         replayed against a different session.
       </p>
 
-      <figure class="diagram">
-        <svg viewBox="0 0 820 500" role="img" aria-label="SSH public key authentication sequence: key exchange derives a session ID, the client signs a challenge including that session ID, and the server verifies with the stored public key">
+      <figure class="diagram sim" data-sim data-step-ms="3800" tabindex="0"
+              aria-label="Interactive SSH public key authentication walkthrough. Use the left and right arrow keys to step through it.">
+
+        <div class="sim-bar">
+          <span class="sim-bar-label">Who is dialling</span>
+          <button type="button" class="sim-scn is-on" data-scenario="ok" aria-pressed="true">You, with your key</button>
+          <button type="button" class="sim-scn" data-scenario="nokey" aria-pressed="false">Key not on the server</button>
+          <button type="button" class="sim-scn" data-scenario="replay" aria-pressed="false">Replayed signature</button>
+        </div>
+
+        <svg viewBox="0 0 820 530" role="img" aria-label="SSH public key authentication sequence: key exchange derives a session ID, the client signs a challenge including that session ID, and the server verifies with the stored public key">
           <defs>
             <marker id="s1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
               <path d="M0 0 L10 5 L0 10 z" class="svg-accent"/>
             </marker>
+            <marker id="s2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="currentColor" opacity=".45"/>
+            </marker>
+            <marker id="s3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" class="svg-danger"/>
+            </marker>
           </defs>
 
-          <rect x="76" y="16" width="200" height="40" rx="8" class="svg-card svg-stroke" stroke-width="1.6"/>
-          <text x="176" y="41" text-anchor="middle" class="svg-label">Client (your phone)</text>
-          <rect x="546" y="16" width="200" height="40" rx="8" class="svg-card svg-stroke" stroke-width="1.6"/>
-          <text x="646" y="41" text-anchor="middle" class="svg-label">Server (sshd)</text>
+          <!-- actors -->
+          <g data-at="0+" class="sim-pop">
+            <rect x="76" y="16" width="200" height="44" rx="8" class="svg-card svg-stroke" stroke-width="1.6"/>
+            <text x="176" y="43" text-anchor="middle" class="svg-label">Client (your phone)</text>
+          </g>
+          <g data-at="0+" class="sim-pop">
+            <rect x="546" y="16" width="200" height="44" rx="8" class="svg-card svg-stroke" stroke-width="1.6"/>
+            <text x="646" y="43" text-anchor="middle" class="svg-label">Server (sshd)</text>
+          </g>
+          <g data-at="0+">
+            <path d="M176 60 L176 486" class="svg-muted-s" stroke-width="1.3" stroke-dasharray="4 4"/>
+            <path d="M646 60 L646 486" class="svg-muted-s" stroke-width="1.3" stroke-dasharray="4 4"/>
+          </g>
+          <!-- data-scn lists every scenario: always on under JS, dropped from
+               the no-JS poster where the later layers already fill this row. -->
+          <text data-at="0" data-scn="ok nokey replay" x="410" y="270" text-anchor="middle" class="svg-sub">TCP is open · nothing is authenticated yet</text>
 
-          <path d="M176 56 L176 476" class="svg-muted-s" stroke-width="1.3" stroke-dasharray="4 4"/>
-          <path d="M646 56 L646 476" class="svg-muted-s" stroke-width="1.3" stroke-dasharray="4 4"/>
+          <!-- 1 · version + algorithm exchange -->
+          <g data-at="1+">
+            <path d="M176 100 L640 100" class="svg-muted-s" stroke-width="1.7" fill="none" marker-end="url(#s2)"/>
+            <text x="186" y="92" class="svg-sub">1 · version + algorithm exchange</text>
+          </g>
+          <path data-at="1" data-scn="ok nokey replay" data-flow="info" data-count="2" data-speed="0.34"
+                d="M176 100 L640 100" class="svg-accent-s" stroke-width="2" fill="none"/>
 
-          <!-- 1 -->
-          <path d="M176 96 L640 96" class="svg-muted-s" stroke-width="1.7" fill="none" marker-end="url(#s1)"/>
-          <text x="186" y="88" class="svg-sub">1 · version + algorithm exchange</text>
+          <!-- 2 · host key + DH, then the session ID -->
+          <g data-at="2+">
+            <path d="M646 146 L182 146" class="svg-muted-s" stroke-width="1.7" fill="none" marker-end="url(#s2)"/>
+            <text x="186" y="138" class="svg-sub">2 · host key + Diffie-Hellman share</text>
+            <text x="186" y="166" class="svg-sub">client compares it against ~/.ssh/known_hosts</text>
+          </g>
+          <path data-at="2" data-scn="ok nokey replay" data-flow="info" data-count="2" data-speed="0.34"
+                d="M646 146 L182 146" class="svg-accent-s" stroke-width="2" fill="none"/>
 
-          <!-- 2 -->
-          <path d="M640 136 L182 136" class="svg-muted-s" stroke-width="1.7" fill="none" marker-end="url(#s1)"/>
-          <text x="186" y="128" class="svg-sub">2 · host key + Diffie-Hellman share</text>
-          <text x="186" y="156" class="svg-sub">client checks host key against known_hosts</text>
+          <g data-at="2+" class="sim-pop">
+            <rect x="120" y="186" width="580" height="48" rx="9" class="svg-surface svg-accent-s" stroke-width="1.6"/>
+            <text x="410" y="208" text-anchor="middle" class="svg-label">shared secret established → session ID</text>
+            <text x="410" y="226" text-anchor="middle" class="svg-sub">everything from here is encrypted; the ID is unique to this connection</text>
+          </g>
 
-          <!-- session id band -->
-          <rect x="120" y="176" width="580" height="46" rx="9" class="svg-surface svg-accent-s" stroke-width="1.6"/>
-          <text x="410" y="198" text-anchor="middle" class="svg-label">shared secret established → session ID</text>
-          <text x="410" y="215" text-anchor="middle" class="svg-sub">everything from here is encrypted; the ID is unique to this connection</text>
+          <!-- 3 · offer the public key -->
+          <g data-at="3+">
+            <path d="M176 274 L640 274" class="svg-muted-s" stroke-width="1.7" fill="none" marker-end="url(#s2)"/>
+            <text x="186" y="266" class="svg-sub">3 · &ldquo;I intend to use this public key&rdquo;</text>
+          </g>
+          <path data-at="3" data-scn="ok nokey replay" data-flow="info" data-count="2" data-speed="0.34"
+                d="M176 274 L640 274" class="svg-accent-s" stroke-width="2" fill="none"/>
 
-          <!-- 3 -->
-          <path d="M176 262 L640 262" class="svg-muted-s" stroke-width="1.7" fill="none" marker-end="url(#s1)"/>
-          <text x="186" y="254" class="svg-sub">3 · &ldquo;I intend to use this public key&rdquo;</text>
+          <g data-at="3+" class="sim-pop">
+            <rect x="546" y="292" width="200" height="50" rx="8" class="svg-card svg-stroke" stroke-width="1.4"/>
+            <text x="646" y="313" text-anchor="middle" class="svg-sub">search ~/.ssh/authorized_keys</text>
+          </g>
+          <text data-at="3+" data-scn="ok replay" data-poster x="646" y="332" text-anchor="middle" class="svg-mono-accent">match · iphone-blink</text>
+          <text data-at="3+" data-scn="nokey" x="646" y="332" text-anchor="middle" class="svg-mono-danger">no matching line</text>
 
-          <!-- 4 -->
-          <rect x="546" y="286" width="200" height="52" rx="8" class="svg-card svg-stroke" stroke-width="1.4"/>
-          <text x="646" y="308" text-anchor="middle" class="svg-sub">look up the key in</text>
-          <text x="646" y="325" text-anchor="middle" class="svg-sub">~/.ssh/authorized_keys</text>
+          <!-- 4 · the challenge (or the refusal) -->
+          <g data-at="4+" data-scn="ok replay" data-poster>
+            <path d="M646 374 L182 374" class="svg-muted-s" stroke-width="1.7" fill="none" marker-end="url(#s2)"/>
+            <text x="186" y="366" class="svg-sub">4 · &ldquo;prove you hold the private half&rdquo;</text>
+          </g>
+          <path data-at="4" data-scn="ok replay" data-flow="info" data-count="2" data-speed="0.34"
+                d="M646 374 L182 374" class="svg-accent-s" stroke-width="2" fill="none"/>
 
-          <!-- 5 -->
-          <path d="M640 362 L182 362" class="svg-muted-s" stroke-width="1.7" fill="none" marker-end="url(#s1)"/>
-          <text x="186" y="354" class="svg-sub">4 · &ldquo;prove you hold the private half&rdquo;</text>
+          <g data-at="4+" data-scn="nokey">
+            <path d="M646 374 L182 374" class="svg-danger-s" stroke-width="1.7" stroke-dasharray="6 4" fill="none" marker-end="url(#s3)"/>
+            <text x="186" y="366" class="svg-sub">4 · &ldquo;that key is not authorized here&rdquo;</text>
+          </g>
+          <path data-at="4" data-scn="nokey" data-flow="warn" data-count="2" data-speed="0.34"
+                d="M646 374 L182 374" stroke="none" fill="none"/>
 
-          <!-- 6 -->
-          <rect x="76" y="386" width="200" height="52" rx="8" class="svg-card svg-accent-s" stroke-width="1.6"/>
-          <text x="176" y="408" text-anchor="middle" class="svg-sub">sign(session ID + context)</text>
-          <text x="176" y="425" text-anchor="middle" class="svg-sub">private key never leaves</text>
+          <!-- what the client does with the challenge -->
+          <g data-at="4+" data-scn="ok" data-poster class="sim-pop">
+            <rect x="76" y="392" width="200" height="50" rx="8" class="svg-card svg-accent-s" stroke-width="1.6"/>
+            <text x="176" y="413" text-anchor="middle" class="svg-sub">sign(session ID + context)</text>
+            <text x="176" y="430" text-anchor="middle" class="svg-sub">private key never leaves</text>
+          </g>
+          <g data-at="4+" data-scn="replay" class="sim-pop">
+            <rect x="76" y="392" width="200" height="50" rx="8" class="svg-card svg-warn-s" stroke-width="1.6"/>
+            <text x="176" y="413" text-anchor="middle" class="svg-sub">replays a captured signature</text>
+            <text x="176" y="430" text-anchor="middle" class="svg-sub">from session 4a91… — no key held</text>
+          </g>
+          <g data-at="4+" data-scn="nokey" class="sim-pop">
+            <rect x="76" y="392" width="200" height="50" rx="8" class="svg-card svg-stroke" stroke-width="1.4" stroke-dasharray="5 3"/>
+            <text x="176" y="413" text-anchor="middle" class="svg-sub">nothing to sign</text>
+            <text x="176" y="430" text-anchor="middle" class="svg-sub">no challenge ever came</text>
+          </g>
 
-          <!-- 7 -->
-          <path d="M176 462 L640 462" class="svg-accent-s" stroke-width="2.2" fill="none" marker-end="url(#s1)"/>
-          <text x="186" y="454" class="svg-sub">5 · signature → verified → shell</text>
+          <!-- 5 · outcome -->
+          <g data-at="5" data-scn="ok" data-poster>
+            <path d="M176 470 L640 470" class="svg-accent-s" stroke-width="2.4" fill="none" marker-end="url(#s1)"/>
+            <text x="186" y="462" class="svg-sub">5 · signature over this session&rsquo;s ID</text>
+            <text x="410" y="512" text-anchor="middle" class="svg-mono-accent">verified → shell</text>
+          </g>
+          <path data-at="5" data-scn="ok" data-poster data-flow="accent" data-count="3" data-speed="0.4" data-r="4.5"
+                d="M176 470 L640 470" stroke="none" fill="none"/>
+
+          <g data-at="5" data-scn="replay">
+            <path d="M176 470 L640 470" class="svg-warn-s" stroke-width="2" stroke-dasharray="7 5" fill="none"/>
+            <text x="186" y="462" class="svg-sub">5 · a signature over some other session&rsquo;s ID</text>
+            <g class="svg-danger-s" stroke-width="2.8">
+              <path d="M596 458 L620 482"/><path d="M620 458 L596 482"/>
+            </g>
+            <text x="410" y="512" text-anchor="middle" class="svg-mono-danger">session ID mismatch → rejected</text>
+          </g>
+          <path data-at="5" data-scn="replay" data-flow="warn" data-count="2" data-speed="0.4"
+                d="M176 470 L596 470" stroke="none" fill="none"/>
+
+          <g data-at="5" data-scn="nokey">
+            <g class="svg-danger-s" stroke-width="2.8">
+              <path d="M164 458 L188 482"/><path d="M188 458 L164 482"/>
+            </g>
+            <text x="410" y="512" text-anchor="middle" class="svg-mono-danger">Permission denied (publickey)</text>
+          </g>
         </svg>
+
+        <div class="sim-controls">
+          <button type="button" class="sim-btn" data-act="prev" aria-label="Previous step"><span class="sim-glyph">◀</span></button>
+          <button type="button" class="sim-btn sim-btn-play" data-act="play" aria-label="Play">
+            <span class="sim-glyph">▶</span><span class="sim-btn-text">Play</span>
+          </button>
+          <button type="button" class="sim-btn" data-act="next" aria-label="Next step"><span class="sim-glyph">▶</span></button>
+          <div class="sim-track" role="group" aria-label="Jump to step">
+            <button type="button" class="sim-dot" data-goto="0" aria-label="Step 0, connection open">0</button>
+            <button type="button" class="sim-dot" data-goto="1" aria-label="Step 1, algorithm exchange">1</button>
+            <button type="button" class="sim-dot" data-goto="2" aria-label="Step 2, key exchange and session ID">2</button>
+            <button type="button" class="sim-dot" data-goto="3" aria-label="Step 3, public key offered">3</button>
+            <button type="button" class="sim-dot" data-goto="4" aria-label="Step 4, challenge">4</button>
+            <button type="button" class="sim-dot" data-goto="5" aria-label="Step 5, outcome">5</button>
+          </div>
+          <div class="sim-progress" aria-hidden="true"><span></span></div>
+        </div>
+
+        <ol class="sim-steps" aria-live="polite">
+          <li data-at="0" data-scn="ok" data-poster><b>Connection open</b>A TCP socket exists and nothing more. The server does not know who you are, and you do not yet know the server is the machine you meant to reach.</li>
+          <li data-at="0" data-scn="nokey"><b>Connection open</b>Same start, but this device's public key was never added to <code>authorized_keys</code> on the server — a new phone, or one you already revoked.</li>
+          <li data-at="0" data-scn="replay"><b>Connection open</b>An attacker who captured a signature from one of your earlier sessions is dialling. They hold the signature, not the private key.</li>
+
+          <li data-at="1"><b>1 · Agreeing on the rules</b>Both sides announce their protocol version and the ciphers, key-exchange methods and MACs they support, then pick the strongest they share. Nobody is authenticated yet.</li>
+
+          <li data-at="2"><b>2 · Key exchange, and the session ID</b>The server sends its host key and a Diffie-Hellman share; the client checks that host key against <code>known_hosts</code>. The shared secret they derive produces a <em>session ID</em> unique to this connection — remember it, it is the hinge of the whole thing.</li>
+
+          <li data-at="3" data-scn="ok replay" data-poster><b>3 · Offering a key</b>The client names the public key it wants to use. The server looks for that exact key in <code>~/.ssh/authorized_keys</code> and finds the <code>iphone-blink</code> line.</li>
+          <li data-at="3" data-scn="nokey"><b>3 · Offering a key</b>The client names its public key. The server reads <code>~/.ssh/authorized_keys</code> line by line and finds nothing that matches.</li>
+
+          <li data-at="4" data-scn="ok" data-poster><b>4 · The challenge</b>The server asks for proof. The client signs a blob that <em>includes the session ID</em> using the private key. The private key itself never crosses the wire, and never leaves the device.</li>
+          <li data-at="4" data-scn="nokey"><b>4 · No challenge is issued</b>An unknown key gets no challenge at all — there is nothing to prove. The client offers its next key if it has one, otherwise it is finished.</li>
+          <li data-at="4" data-scn="replay"><b>4 · Nothing to sign with</b>The challenge arrives, but the attacker holds no private key. All they have is a signature captured from an earlier session, so that is what they send.</li>
+
+          <li data-at="5" data-scn="ok" data-poster><b>5 · Verified</b>The server checks the signature with the stored public key and confirms it covers <em>this</em> session ID. Proof accepted, shell granted.</li>
+          <li data-at="5" data-scn="nokey"><b>5 · Permission denied</b><code>Permission denied (publickey)</code>. Note what did <em>not</em> happen: no password prompt, no partial access. With <code>PasswordAuthentication no</code> this is the only possible ending for an unknown key.</li>
+          <li data-at="5" data-scn="replay"><b>5 · Replay refused</b>The signature is valid — for a different session. Its session ID does not match this one, so verification fails. This is why a signature is worth nothing outside the connection that produced it.</li>
+        </ol>
+
+        <div class="sim-term" aria-hidden="true">
+          <div data-at="0"><span class="tp">$</span> ssh -v macbook<br><span class="tdim">debug1: Connecting to macbook port 22.</span></div>
+          <div data-at="1"><span class="tp">$</span> ssh -v macbook<br><span class="tdim">debug1: Remote protocol version 2.0, remote software version OpenSSH_9.6</span></div>
+          <div data-at="2"><span class="tp">$</span> ssh -v macbook<br>debug1: Server host key: ssh-ed25519 SHA256:9Y3gK…<br><span class="tok">debug1: Host 'macbook' is known and matches the ED25519 host key.</span></div>
+          <div data-at="3"><span class="tp">$</span> ssh -v macbook<br><span class="tdim">debug1: Offering public key: ~/.ssh/id_ed25519 ED25519 SHA256:tk7Qm…</span></div>
+          <div data-at="4" data-scn="ok" data-poster><span class="tp">$</span> ssh -v macbook<br><span class="tok">debug1: Server accepts key: ~/.ssh/id_ed25519 ED25519 SHA256:tk7Qm…</span></div>
+          <div data-at="4" data-scn="nokey"><span class="tp">$</span> ssh -v macbook<br><span class="twarn">debug1: Authentications that can continue: publickey</span></div>
+          <div data-at="4" data-scn="replay"><span class="tp">$</span> ssh -v macbook<br><span class="tok">debug1: Server accepts key: ~/.ssh/id_ed25519 ED25519 SHA256:tk7Qm…</span></div>
+          <div data-at="5" data-scn="ok" data-poster><span class="tp">$</span> ssh -v macbook<br><span class="tok">debug1: Authenticated to macbook ([100.117.202.65]:22) using "publickey".</span></div>
+          <div data-at="5" data-scn="nokey"><span class="tp">$</span> ssh -v macbook<br><span class="tdim">debug1: No more authentication methods to try.</span><br>macbook: Permission denied (publickey).</div>
+          <div data-at="5" data-scn="replay"><span class="tp">$</span> ssh -v macbook<br><span class="tdim">sshd[4412]: Failed publickey for yourname port 51402 ssh2: ED25519 SHA256:tk7Qm…</span><br>macbook: Permission denied (publickey).</div>
+        </div>
+
         <figcaption>
           <b>The signature covers the session ID.</b> That is the whole trick. A signature captured from
           one connection is worthless on another, because the session ID differs. A malicious server
           you connect to cannot take your proof and replay it elsewhere — which is exactly what makes
-          agent forwarding (later) so much more dangerous than it looks.
+          agent forwarding (later) so much more dangerous than it looks. Switch the caller above to
+          watch each failure mode play out.
         </figcaption>
       </figure>
 
@@ -295,5 +433,6 @@ session  required  pam_launchd.so
 </div>
 <script src="../assets/nav.js"></script>
 <script src="../assets/app.js"></script>
+<script src="../assets/anim.js"></script>
 </body>
 </html>
