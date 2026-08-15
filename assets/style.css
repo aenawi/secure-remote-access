@@ -392,10 +392,11 @@ td code { font-size: 12.5px; }
 .sim-progress > span { display: block; height: 100%; width: 0; background: var(--accent); }
 .sim:not(.is-playing) .sim-progress > span { width: 0 !important; }
 
-/* narration */
+/* narration — stacked in one grid cell so the box reserves the height of
+   the tallest variant instead of clipping the longest one */
 .sim-steps { list-style: none; margin: 14px 0 0; padding: 0; }
-.sim-on .sim-steps { position: relative; min-height: 62px; }
-.sim-on .sim-steps > li { position: absolute; inset: 0; }
+.sim-on .sim-steps { display: grid; }
+.sim-on .sim-steps > li { grid-area: 1 / 1; }
 .sim-steps > li {
   font-size: 13.5px; line-height: 1.55; color: var(--text-muted);
   padding-left: 14px; border-left: 2px solid var(--accent);
@@ -408,10 +409,17 @@ td code { font-size: 12.5px; }
   margin-top: 14px; padding: 12px 14px; border-radius: 8px;
   background: var(--bg-code); border: 1px solid var(--border);
   font-family: var(--mono); font-size: 11.5px; line-height: 1.85;
-  min-height: 78px;
+  overflow-x: auto;
 }
-.sim-on .sim-term { position: relative; }
-.sim-on .sim-term > div[data-at] { position: absolute; left: 14px; right: 14px; }
+.sim-on .sim-term { display: grid; }
+.sim-on .sim-term > div[data-at] { grid-area: 1 / 1; white-space: nowrap; }
+
+/* Hand off between stacked variants instead of cross-fading them: the
+   outgoing one clears before the incoming one arrives. */
+.sim-on .sim-steps > li,
+.sim-on .sim-term > div[data-at] { transition: opacity .16s ease; }
+.sim-on .sim-steps > li.is-on,
+.sim-on .sim-term > div[data-at].is-on { transition: opacity .28s ease .15s; }
 .sim-term .tp { color: var(--text-faint); }
 .sim-term .tok { color: var(--ok); }
 .sim-term .twarn { color: var(--warn); }

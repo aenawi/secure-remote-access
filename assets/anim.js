@@ -53,6 +53,7 @@
     this.stepMs = parseInt(fig.getAttribute('data-step-ms'), 10) || 3400;
     this.step = 0;
     this.playing = false;
+    this.touched = false;
     this.raf = null;
     this.lastFrame = 0;
     this.stepElapsed = 0;
@@ -99,7 +100,9 @@
       var seen = false;
       var io = new IntersectionObserver(function (entries) {
         entries.forEach(function (e) {
-          if (e.isIntersecting && !seen) {
+          /* autoplay once, and never over the top of someone who has
+             already taken control of the timeline */
+          if (e.isIntersecting && !seen && !self.touched) {
             seen = true;
             self.play();
           } else if (!e.isIntersecting && self.playing) {
@@ -117,6 +120,7 @@
     this.fig.addEventListener('click', function (ev) {
       var btn = ev.target.closest('button');
       if (!btn || !self.fig.contains(btn)) return;
+      self.touched = true;
 
       var act = btn.getAttribute('data-act');
       if (act === 'play') { self.playing ? self.pause() : self.play(); return; }
@@ -133,6 +137,7 @@
 
     /* left / right arrows step the timeline when the figure has focus */
     this.fig.addEventListener('keydown', function (ev) {
+      if (['ArrowRight', 'ArrowLeft', ' '].indexOf(ev.key) !== -1) self.touched = true;
       if (ev.key === 'ArrowRight') { self.pause(); self.goto(self.step + 1); ev.preventDefault(); }
       else if (ev.key === 'ArrowLeft') { self.pause(); self.goto(self.step - 1); ev.preventDefault(); }
       else if (ev.key === ' ' && ev.target === self.fig) {

@@ -351,47 +351,141 @@
         so it holds even if a machine is misconfigured.
       </p>
 
-      <figure class="diagram">
-        <svg viewBox="0 0 820 300" role="img" aria-label="ACL evaluation: packets from the phone are accepted to port 22 and dropped for database and dev-server ports">
-          <rect x="24" y="120" width="150" height="66" rx="9" class="svg-card svg-stroke" stroke-width="1.6"/>
-          <rect x="24" y="120" width="5" height="66" rx="2.5" class="svg-accent"/>
-          <text x="44" y="148" class="svg-label">iPhone</text>
-          <text x="44" y="167" class="svg-sub">autogroup:member</text>
+      <figure class="diagram sim" data-sim data-step-ms="3000" tabindex="0"
+              aria-label="Interactive ACL walkthrough. Pick a destination port, then step through what the tailnet does with the packet.">
 
-          <rect x="330" y="26" width="164" height="248" rx="11" class="svg-surface svg-stroke" stroke-width="1.6" stroke-dasharray="5 3"/>
-          <text x="412" y="50" text-anchor="middle" class="svg-label">ACL check</text>
-          <text x="412" y="68" text-anchor="middle" class="svg-sub">per packet, in tailnet</text>
-          <text x="412" y="150" text-anchor="middle" class="svg-sub">default</text>
-          <text x="412" y="168" text-anchor="middle" class="svg-sub">DENY</text>
+        <div class="sim-bar">
+          <span class="sim-bar-label">Phone dials</span>
+          <button type="button" class="sim-scn is-on" data-scenario="ssh" aria-pressed="true">:22 sshd</button>
+          <button type="button" class="sim-scn" data-scenario="redis" aria-pressed="false">:6379 redis</button>
+          <button type="button" class="sim-scn" data-scenario="pg" aria-pressed="false">:5432 postgres</button>
+          <button type="button" class="sim-scn" data-scenario="dev" aria-pressed="false">:8000 dev server</button>
+        </div>
 
-          <!-- allowed -->
-          <path d="M174 142 L330 100" class="svg-accent-s" stroke-width="2.2" fill="none"/>
-          <path d="M494 100 L640 74" class="svg-accent-s" stroke-width="2.2" fill="none"/>
-          <rect x="646" y="46" width="150" height="56" rx="9" class="svg-card svg-accent-s" stroke-width="1.8"/>
-          <text x="666" y="70" class="svg-label">:22 sshd</text>
-          <text x="666" y="88" class="svg-sub">accept</text>
+        <svg viewBox="0 0 820 330" role="img" aria-label="ACL evaluation: packets from the phone are accepted to port 22 and dropped for database and dev-server ports">
+          <defs>
+            <marker id="b1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" class="svg-accent"/>
+            </marker>
+          </defs>
 
-          <!-- denied -->
-          <path d="M174 158 L330 196" class="svg-danger-s" stroke-width="1.8" stroke-dasharray="6 4" fill="none"/>
-          <path d="M494 196 L560 196" class="svg-danger-s" stroke-width="1.8" stroke-dasharray="6 4" fill="none"/>
-          <g class="svg-danger-s" stroke-width="2.6">
-            <path d="M572 186 L592 206"/><path d="M592 186 L572 206"/>
+          <!-- source -->
+          <g data-at="0+" class="sim-pop">
+            <rect x="24" y="140" width="160" height="66" rx="9" class="svg-card svg-stroke" stroke-width="1.6"/>
+            <rect x="24" y="140" width="5" height="66" rx="2.5" class="svg-accent"/>
+            <text x="46" y="168" class="svg-label">iPhone</text>
+            <text x="46" y="187" class="svg-sub">autogroup:member</text>
           </g>
-          <rect x="646" y="128" width="150" height="50" rx="9" class="svg-surface svg-stroke" stroke-width="1.4" stroke-dasharray="4 3"/>
-          <text x="666" y="150" class="svg-label">:6379 redis</text>
-          <text x="666" y="167" class="svg-sub">dropped</text>
 
-          <rect x="646" y="192" width="150" height="50" rx="9" class="svg-surface svg-stroke" stroke-width="1.4" stroke-dasharray="4 3"/>
-          <text x="666" y="214" class="svg-label">:5432 postgres</text>
-          <text x="666" y="231" class="svg-sub">dropped</text>
+          <!-- the gate -->
+          <g data-at="0+" class="sim-pop">
+            <rect x="326" y="24" width="168" height="282" rx="11" class="svg-surface svg-stroke" stroke-width="1.6" stroke-dasharray="5 3"/>
+            <text x="410" y="50" text-anchor="middle" class="svg-label">ACL check</text>
+            <text x="410" y="68" text-anchor="middle" class="svg-sub">per packet, in tailnet</text>
+          </g>
 
-          <rect x="646" y="252" width="150" height="42" rx="9" class="svg-surface svg-stroke" stroke-width="1.4" stroke-dasharray="4 3"/>
-          <text x="666" y="278" class="svg-label">:8000 dev server</text>
+          <!-- destinations, always drawn, dim -->
+          <g data-at="0+">
+            <rect x="632" y="36" width="164" height="54" rx="9" class="svg-surface svg-stroke" stroke-width="1.4" stroke-dasharray="4 3"/>
+            <text x="652" y="60" class="svg-label">:22 sshd</text>
+            <rect x="632" y="104" width="164" height="54" rx="9" class="svg-surface svg-stroke" stroke-width="1.4" stroke-dasharray="4 3"/>
+            <text x="652" y="128" class="svg-label">:6379 redis</text>
+            <rect x="632" y="172" width="164" height="54" rx="9" class="svg-surface svg-stroke" stroke-width="1.4" stroke-dasharray="4 3"/>
+            <text x="652" y="196" class="svg-label">:5432 postgres</text>
+            <rect x="632" y="240" width="164" height="54" rx="9" class="svg-surface svg-stroke" stroke-width="1.4" stroke-dasharray="4 3"/>
+            <text x="652" y="264" class="svg-label">:8000 dev server</text>
+          </g>
+
+          <!-- which one we are aiming at -->
+          <rect data-at="0+" data-scn="ssh" data-poster x="632" y="36" width="164" height="54" rx="9" fill="none" class="svg-stroke" stroke-width="2.4"/>
+          <rect data-at="0+" data-scn="redis" x="632" y="104" width="164" height="54" rx="9" fill="none" class="svg-stroke" stroke-width="2.4"/>
+          <rect data-at="0+" data-scn="pg" x="632" y="172" width="164" height="54" rx="9" fill="none" class="svg-stroke" stroke-width="2.4"/>
+          <rect data-at="0+" data-scn="dev" x="632" y="240" width="164" height="54" rx="9" fill="none" class="svg-stroke" stroke-width="2.4"/>
+
+          <!-- step 1-2: packet travels to the gate -->
+          <path data-at="1-2" data-flow="info" data-count="3" data-speed="0.22"
+                d="M184 173 L326 173" class="svg-muted-s" stroke-width="1.8" fill="none"/>
+          <text data-at="1" x="255" y="160" text-anchor="middle" class="svg-sub">SYN</text>
+
+          <!-- step 2: the verdict inside the gate -->
+          <g data-at="2+" data-scn="ssh" data-poster>
+            <text x="410" y="160" text-anchor="middle" class="svg-sub">rule matched</text>
+            <text x="410" y="182" text-anchor="middle" class="svg-mono-accent">ACCEPT</text>
+            <text x="410" y="202" text-anchor="middle" class="svg-sub">tag:laptop:22</text>
+          </g>
+          <g data-at="2+" data-scn="redis pg dev">
+            <text x="410" y="160" text-anchor="middle" class="svg-sub">no rule matched</text>
+            <text x="410" y="182" text-anchor="middle" class="svg-mono-danger">DEFAULT DENY</text>
+            <text x="410" y="202" text-anchor="middle" class="svg-sub">packet discarded here</text>
+          </g>
+
+          <!-- step 3: accepted, packet continues -->
+          <g data-at="3" data-scn="ssh" data-poster>
+            <path data-flow="accent" data-count="3" data-speed="0.26"
+                  d="M494 173 C 548 173, 574 63, 628 63"
+                  class="svg-accent-s" stroke-width="2.2" fill="none" marker-end="url(#b1)"/>
+            <rect x="632" y="36" width="164" height="54" rx="9" fill="none" class="svg-accent-s" stroke-width="2"/>
+            <text x="652" y="78" class="svg-sub">sshd sees the connection</text>
+          </g>
+
+          <!-- step 3: dropped at the gate -->
+          <g data-at="3" data-scn="redis pg dev">
+            <g class="svg-danger-s" stroke-width="2.8">
+              <path d="M500 160 L524 184"/><path d="M524 160 L500 184"/>
+            </g>
+            <text x="536" y="177" class="svg-mono-danger">never leaves the tailnet</text>
+          </g>
+          <text data-at="3" data-scn="redis" x="652" y="146" class="svg-sub">no packet ever arrives</text>
+          <text data-at="3" data-scn="pg" x="652" y="214" class="svg-sub">no packet ever arrives</text>
+          <text data-at="3" data-scn="dev" x="652" y="282" class="svg-sub">no packet ever arrives</text>
         </svg>
+
+        <div class="sim-controls">
+          <button type="button" class="sim-btn" data-act="prev" aria-label="Previous step"><span class="sim-glyph">◀</span></button>
+          <button type="button" class="sim-btn sim-btn-play" data-act="play" aria-label="Play">
+            <span class="sim-glyph">▶</span><span class="sim-btn-text">Play</span>
+          </button>
+          <button type="button" class="sim-btn" data-act="next" aria-label="Next step"><span class="sim-glyph">▶</span></button>
+          <div class="sim-track" role="group" aria-label="Jump to step">
+            <button type="button" class="sim-dot" data-goto="0" aria-label="Step 0, idle">0</button>
+            <button type="button" class="sim-dot" data-goto="1" aria-label="Step 1, packet sent">1</button>
+            <button type="button" class="sim-dot" data-goto="2" aria-label="Step 2, policy evaluated">2</button>
+            <button type="button" class="sim-dot" data-goto="3" aria-label="Step 3, outcome">3</button>
+          </div>
+          <div class="sim-progress" aria-hidden="true"><span></span></div>
+        </div>
+
+        <ol class="sim-steps" aria-live="polite">
+          <li data-at="0" data-scn="ssh" data-poster><b>Target: port 22</b>Your phone is about to open an SSH session to the MacBook. Nothing has been sent yet.</li>
+          <li data-at="0" data-scn="redis"><b>Target: port 6379</b>Something on your phone — an app, a script, malware — tries to reach Redis on the MacBook.</li>
+          <li data-at="0" data-scn="pg"><b>Target: port 5432</b>Something tries to reach Postgres directly, with no tunnel and no password prompt yet.</li>
+          <li data-at="0" data-scn="dev"><b>Target: port 8000</b>A dev server you started with <code>--host 0.0.0.0</code> and forgot about. No auth on it at all.</li>
+
+          <li data-at="1"><b>1 · Packet sent</b>The connection attempt enters the tailnet. It has not reached the MacBook yet — it has not reached <em>any</em> host yet.</li>
+
+          <li data-at="2" data-scn="ssh" data-poster><b>2 · Rule matched</b>One rule says <code>src: autogroup:member → dst: tag:laptop:22</code>. This packet fits it, so the verdict is accept.</li>
+          <li data-at="2" data-scn="redis pg dev"><b>2 · Nothing matched</b>No <code>accept</code> rule mentions this port. There is no "deny" rule to write — anything unmatched is denied, and that is the whole point of default-deny.</li>
+
+          <li data-at="3" data-scn="ssh" data-poster><b>3 · Delivered</b>The packet is carried to the MacBook and <code>sshd</code> answers. Now the host's own auth takes over: keys, then your passphrase.</li>
+          <li data-at="3" data-scn="redis pg dev"><b>3 · Discarded in the network</b>The packet is dropped before any host sees it. The service is not asked to refuse the connection — it is never given the chance. That holds even if the service is bound to <code>0.0.0.0</code> with no password.</li>
+        </ol>
+
+        <div class="sim-term" aria-hidden="true">
+          <div data-at="0-2" data-scn="ssh" data-poster><span class="tp">$</span> nc -vz macbook 22<br><span class="tdim">…</span></div>
+          <div data-at="0-2" data-scn="redis"><span class="tp">$</span> nc -vz macbook 6379<br><span class="tdim">…</span></div>
+          <div data-at="0-2" data-scn="pg"><span class="tp">$</span> nc -vz macbook 5432<br><span class="tdim">…</span></div>
+          <div data-at="0-2" data-scn="dev"><span class="tp">$</span> nc -vz macbook 8000<br><span class="tdim">…</span></div>
+          <div data-at="3" data-scn="ssh" data-poster><span class="tp">$</span> nc -vz macbook 22<br><span class="tok">Connection to macbook port 22 [tcp/ssh] succeeded!</span></div>
+          <div data-at="3" data-scn="redis"><span class="tp">$</span> nc -vz macbook 6379<br><span class="tdim">nc: connectx to macbook port 6379 (tcp) failed: Operation timed out</span></div>
+          <div data-at="3" data-scn="pg"><span class="tp">$</span> nc -vz macbook 5432<br><span class="tdim">nc: connectx to macbook port 5432 (tcp) failed: Operation timed out</span></div>
+          <div data-at="3" data-scn="dev"><span class="tp">$</span> nc -vz macbook 8000<br><span class="tdim">nc: connectx to macbook port 8000 (tcp) failed: Operation timed out</span></div>
+        </div>
+
         <figcaption>
           <b>This is why ACLs beat host firewalls.</b> A service bound to <code>0.0.0.0</code> by
           accident is still unreachable if the tailnet refuses to carry the packet. The host
-          firewall is your second line, not your first.
+          firewall is your second line, not your first. Note the failure mode on the blocked ports:
+          a timeout, not a refusal — the same silence a port scanner gets from a WireGuard endpoint.
         </figcaption>
       </figure>
 
