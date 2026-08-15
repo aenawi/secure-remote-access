@@ -69,47 +69,190 @@ sudo lsof -nP -iTCP -sTCP:LISTEN</code></pre>
         <code>dbfilename</code> to write files as your user, including into <code>~/.ssh/</code>.
       </p>
 
-      <figure class="diagram">
-        <svg viewBox="0 0 840 300" role="img" aria-label="Three binding scopes: 0.0.0.0 reachable by internet LAN and tailnet, 127.0.0.1 reachable only locally, and the tailnet address reachable only by your own devices">
-          <text x="20" y="26" class="svg-sub">BIND ADDRESS</text>
-          <text x="250" y="26" class="svg-sub">WHO CAN CONNECT</text>
+      <figure class="diagram sim" data-sim data-step-ms="3800" tabindex="0"
+              aria-label="Interactive comparison of three bind addresses for a Redis server on a laptop, showing who can connect in each case. Use the left and right arrow keys to step through it.">
 
-          <!-- 0.0.0.0 -->
-          <rect x="20" y="40" width="200" height="64" rx="9" class="svg-card svg-danger-s" stroke-width="1.8"/>
-          <text x="40" y="66" class="svg-label">0.0.0.0 / *</text>
-          <text x="40" y="86" class="svg-sub">every interface</text>
-          <rect x="250" y="40" width="130" height="64" rx="8" class="svg-surface svg-danger-s" stroke-width="1.4"/>
-          <text x="315" y="70" text-anchor="middle" class="svg-sub">café Wi-Fi</text>
-          <text x="315" y="87" text-anchor="middle" class="svg-sub">strangers</text>
-          <rect x="392" y="40" width="130" height="64" rx="8" class="svg-surface svg-danger-s" stroke-width="1.4"/>
-          <text x="457" y="70" text-anchor="middle" class="svg-sub">your LAN</text>
-          <text x="457" y="87" text-anchor="middle" class="svg-sub">any device</text>
-          <rect x="534" y="40" width="130" height="64" rx="8" class="svg-surface svg-stroke" stroke-width="1.4"/>
-          <text x="599" y="78" text-anchor="middle" class="svg-sub">tailnet</text>
-          <text x="686" y="78" class="svg-sub">← too much</text>
+        <div class="sim-bar">
+          <span class="sim-bar-label">redis-server is bound to</span>
+          <button type="button" class="sim-scn is-on" data-scenario="all" aria-pressed="true">0.0.0.0</button>
+          <button type="button" class="sim-scn" data-scenario="loop" aria-pressed="false">127.0.0.1</button>
+          <button type="button" class="sim-scn" data-scenario="tail" aria-pressed="false">tailnet IP</button>
+        </div>
 
-          <!-- 127.0.0.1 -->
-          <rect x="20" y="118" width="200" height="64" rx="9" class="svg-card svg-stroke" stroke-width="1.6"/>
-          <text x="40" y="144" class="svg-label">127.0.0.1</text>
-          <text x="40" y="164" class="svg-sub">loopback only</text>
-          <rect x="250" y="118" width="414" height="64" rx="8" class="svg-surface svg-stroke" stroke-width="1.3" stroke-dasharray="5 3"/>
-          <text x="457" y="156" text-anchor="middle" class="svg-sub">nobody but this machine</text>
-          <text x="686" y="156" class="svg-sub">← databases</text>
+        <svg viewBox="0 0 860 450" role="img" aria-label="A Redis server on a MacBook and four possible callers — a stranger on café Wi-Fi, a device on your LAN, your own phone over the tailnet, and a local tool on loopback — with each connection succeeding or being refused depending on the bind address">
+          <defs>
+            <marker id="p1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" class="svg-danger"/>
+            </marker>
+            <marker id="p2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" class="svg-accent"/>
+            </marker>
+          </defs>
 
-          <!-- tailnet -->
-          <rect x="20" y="196" width="200" height="64" rx="9" class="svg-card svg-accent-s" stroke-width="1.8"/>
-          <text x="40" y="222" class="svg-label">100.117.202.65</text>
-          <text x="40" y="242" class="svg-sub">tailnet address</text>
-          <rect x="250" y="196" width="272" height="64" rx="8" class="svg-surface svg-stroke" stroke-width="1.3" stroke-dasharray="5 3"/>
-          <text x="386" y="234" text-anchor="middle" class="svg-sub">not reachable</text>
-          <rect x="534" y="196" width="130" height="64" rx="8" class="svg-card svg-accent-s" stroke-width="1.8"/>
-          <text x="599" y="234" text-anchor="middle" class="svg-sub">tailnet only</text>
-          <text x="686" y="234" class="svg-sub">← sshd</text>
+          <text data-at="0+" x="24" y="30" class="svg-label">One config line decides who in the world can talk to your database</text>
+          <text data-at="0+" data-scn="all" data-poster x="24" y="50" class="svg-sub">the default for most tools — and for Redis, the dangerous one</text>
+          <text data-at="0+" data-scn="loop" x="24" y="50" class="svg-sub">loopback: packets never reach a network card at all</text>
+          <text data-at="0+" data-scn="tail" x="24" y="50" class="svg-sub">the address WireGuard put on utun — your devices, nobody else</text>
+
+          <!-- ============ the machine ============ -->
+          <g data-at="0+" class="sim-pop">
+            <rect x="24" y="168" width="216" height="128" rx="10" class="svg-card svg-stroke" stroke-width="1.6"/>
+            <text x="40" y="196" class="svg-label">MacBook Pro</text>
+            <text x="40" y="216" class="svg-sub">redis-server · port 6379</text>
+            <text x="40" y="286" class="svg-sub">no password · default build</text>
+          </g>
+          <g data-at="0+" data-scn="all" data-poster>
+            <rect x="40" y="232" width="184" height="26" rx="13" fill="none" class="svg-danger-s" stroke-width="1.8"/>
+            <text x="54" y="249" class="svg-mono-danger">bind 0.0.0.0</text>
+          </g>
+          <g data-at="0+" data-scn="loop">
+            <rect x="40" y="232" width="184" height="26" rx="13" fill="none" class="svg-accent-s" stroke-width="1.8"/>
+            <text x="54" y="249" class="svg-mono-accent">bind 127.0.0.1</text>
+          </g>
+          <g data-at="0+" data-scn="tail">
+            <rect x="40" y="232" width="184" height="26" rx="13" fill="none" class="svg-accent-s" stroke-width="1.8"/>
+            <text x="54" y="249" class="svg-mono-accent">bind 100.117.202.65</text>
+          </g>
+
+          <!-- ============ the four callers ============ -->
+          <g data-at="0+">
+            <rect x="620" y="86"  width="216" height="54" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
+            <text x="636" y="110" class="svg-label">café Wi-Fi</text>
+            <text x="636" y="130" class="svg-sub">a stranger on the same subnet</text>
+
+            <rect x="620" y="154" width="216" height="54" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
+            <text x="636" y="178" class="svg-label">your LAN</text>
+            <text x="636" y="198" class="svg-sub">the TV, the guest laptop</text>
+
+            <rect x="620" y="222" width="216" height="54" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
+            <text x="636" y="246" class="svg-label">your tailnet</text>
+            <text x="636" y="266" class="svg-sub">iPhone, VPS — signed in</text>
+
+            <rect x="620" y="290" width="216" height="54" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
+            <text x="636" y="314" class="svg-label">this machine</text>
+            <text x="636" y="334" class="svg-sub">redis-cli over loopback</text>
+          </g>
+
+          <!-- ============ step 1 · the untrusted side tries ============ -->
+          <g data-at="1+" data-scn="all" data-poster>
+            <path d="M614 113 C480 113 390 190 246 190" fill="none" class="svg-danger-s" stroke-width="1.8" marker-end="url(#p1)"/>
+            <path d="M614 181 C500 181 420 202 246 202" fill="none" class="svg-danger-s" stroke-width="1.8" marker-end="url(#p1)"/>
+            <text x="820" y="110" text-anchor="end" class="svg-mono-danger">CONNECTED</text>
+            <text x="820" y="178" text-anchor="end" class="svg-mono-danger">CONNECTED</text>
+          </g>
+          <path data-at="1" data-scn="all" data-flow="warn" data-count="3" data-speed="0.3" data-r="4"
+                d="M614 113 C480 113 390 190 246 190" stroke="none" fill="none"/>
+          <path data-at="1" data-scn="all" data-flow="warn" data-count="3" data-speed="0.3" data-r="4"
+                d="M614 181 C500 181 420 202 246 202" stroke="none" fill="none"/>
+
+          <g data-at="1+" data-scn="loop tail">
+            <path d="M614 113 C480 113 390 190 246 190" fill="none" class="svg-muted-s" stroke-width="1.4" stroke-dasharray="5 4"/>
+            <path d="M614 181 C500 181 420 202 246 202" fill="none" class="svg-muted-s" stroke-width="1.4" stroke-dasharray="5 4"/>
+            <g class="svg-muted-s" stroke-width="2.4">
+              <path d="M425 143 L443 161"/><path d="M443 143 L425 161"/>
+              <path d="M443 183 L461 201"/><path d="M461 183 L443 201"/>
+            </g>
+            <text x="820" y="110" text-anchor="end" class="svg-sub">refused</text>
+            <text x="820" y="178" text-anchor="end" class="svg-sub">refused</text>
+          </g>
+
+          <!-- ============ step 2 · the side you actually want ============ -->
+          <g data-at="2+" data-scn="all" data-poster>
+            <path d="M614 249 C500 249 420 240 246 240" fill="none" class="svg-accent-s" stroke-width="1.8" marker-end="url(#p2)"/>
+            <path d="M614 317 C480 317 390 262 246 262" fill="none" class="svg-accent-s" stroke-width="1.8" marker-end="url(#p2)"/>
+            <text x="820" y="246" text-anchor="end" class="svg-mono-accent">connected</text>
+            <text x="820" y="314" text-anchor="end" class="svg-mono-accent">connected</text>
+          </g>
+          <g data-at="2+" data-scn="loop">
+            <path d="M614 249 C500 249 420 240 246 240" fill="none" class="svg-muted-s" stroke-width="1.4" stroke-dasharray="5 4"/>
+            <g class="svg-muted-s" stroke-width="2.4">
+              <path d="M443 235 L461 253"/><path d="M461 235 L443 253"/>
+            </g>
+            <text x="820" y="246" text-anchor="end" class="svg-sub">refused</text>
+            <path d="M614 317 C480 317 390 262 246 262" fill="none" class="svg-accent-s" stroke-width="1.8" marker-end="url(#p2)"/>
+            <text x="820" y="314" text-anchor="end" class="svg-mono-accent">connected</text>
+          </g>
+          <g data-at="2+" data-scn="tail">
+            <path d="M614 249 C500 249 420 240 246 240" fill="none" class="svg-accent-s" stroke-width="1.8" marker-end="url(#p2)"/>
+            <text x="820" y="246" text-anchor="end" class="svg-mono-accent">connected</text>
+            <path d="M614 317 C480 317 390 262 246 262" fill="none" class="svg-muted-s" stroke-width="1.4" stroke-dasharray="5 4"/>
+            <g class="svg-muted-s" stroke-width="2.4">
+              <path d="M425 281 L443 299"/><path d="M443 281 L425 299"/>
+            </g>
+            <text x="820" y="314" text-anchor="end" class="svg-sub">refused</text>
+          </g>
+          <path data-at="2" data-scn="all tail" data-flow="accent" data-count="2" data-speed="0.3" data-r="4"
+                d="M614 249 C500 249 420 240 246 240" stroke="none" fill="none"/>
+          <path data-at="2" data-scn="all loop" data-flow="accent" data-count="2" data-speed="0.3" data-r="4"
+                d="M614 317 C480 317 390 262 246 262" stroke="none" fill="none"/>
+
+          <!-- ============ the verdict band ============ -->
+          <rect data-at="0+" x="24" y="366" width="812" height="66" rx="10" class="svg-surface svg-stroke" stroke-width="1.4"/>
+
+          <text data-at="0" data-scn="all" x="48" y="394" class="svg-sub">0.0.0.0 means every interface — including the ones you have not joined yet.</text>
+          <text data-at="0" data-scn="all" x="48" y="418" class="svg-sub">Nothing warns you. netstat shows *.6379 and that is the only clue you get.</text>
+          <text data-at="0" data-scn="loop" x="48" y="394" class="svg-sub">127.0.0.1 is the loopback interface. Packets to it never touch a network card.</text>
+          <text data-at="0" data-scn="loop" x="48" y="418" class="svg-sub">Off-machine reachability is not filtered here — it simply does not exist.</text>
+          <text data-at="0" data-scn="tail" x="48" y="394" class="svg-sub">100.117.202.65 lives on utun, the interface Tailscale creates.</text>
+          <text data-at="0" data-scn="tail" x="48" y="418" class="svg-sub">It exists only while Tailscale is up — which matters at boot. See below.</text>
+
+          <text data-at="1" data-scn="all" x="48" y="394" class="svg-mono-danger">The stranger connects. A default Redis build asks for no password.</text>
+          <text data-at="1" data-scn="all" x="48" y="418" class="svg-sub">So does every other device on that network, and on the next one you join.</text>
+          <text data-at="1" data-scn="loop tail" x="48" y="394" class="svg-sub">Connection refused. The port is not open on that interface at all.</text>
+          <text data-at="1" data-scn="loop tail" x="48" y="418" class="svg-sub">There is no firewall rule to get wrong, because there is nothing to filter.</text>
+
+          <text data-at="2" data-scn="all" x="48" y="394" class="svg-sub">Everything reaches it, which is exactly the problem: you cannot tell these apart.</text>
+          <text data-at="2" data-scn="all" x="48" y="418" class="svg-sub">One bind address, four very different sets of people.</text>
+          <text data-at="2" data-scn="loop" x="48" y="394" class="svg-sub">Local tools are unaffected — they were always talking to 127.0.0.1.</text>
+          <text data-at="2" data-scn="loop" x="48" y="418" class="svg-sub">Your phone is refused too. Reach it by SSHing in first, not by widening the bind.</text>
+          <text data-at="2" data-scn="tail" x="48" y="394" class="svg-sub">Your own devices reach it. Every café in the world does not.</text>
+          <text data-at="2" data-scn="tail" x="48" y="418" class="svg-sub">Note the cost: tools hard-coded to 127.0.0.1 stop working. Bind both, or neither.</text>
+
+          <text data-at="3" data-scn="all" data-poster x="48" y="394" class="svg-mono-danger">CONFIG SET dir /Users/you/.ssh · CONFIG SET dbfilename authorized_keys · SAVE</text>
+          <text data-at="3" data-scn="all" data-poster x="48" y="418" class="svg-sub">No exploit required. Redis writes the attacker's public key as you, and now they SSH in.</text>
+          <text data-at="3" data-scn="loop" x="48" y="394" class="svg-mono-accent">Correct for databases, caches and dev servers.</text>
+          <text data-at="3" data-scn="loop" x="48" y="418" class="svg-sub">Redis, PostgreSQL, Rails, Vite — none of them need to be reachable off the machine.</text>
+          <text data-at="3" data-scn="tail" x="48" y="394" class="svg-mono-accent">Correct for sshd, and for the few things you genuinely want remote.</text>
+          <text data-at="3" data-scn="tail" x="48" y="418" class="svg-sub">Reachable by devices you signed into the tailnet, refused by everyone else.</text>
         </svg>
+
+        <div class="sim-controls">
+          <button type="button" class="sim-btn" data-act="prev" aria-label="Previous step"><span class="sim-glyph">◀</span></button>
+          <button type="button" class="sim-btn sim-btn-play" data-act="play" aria-label="Play">
+            <span class="sim-glyph">▶</span><span class="sim-btn-text">Play</span>
+          </button>
+          <button type="button" class="sim-btn" data-act="next" aria-label="Next step"><span class="sim-glyph">▶</span></button>
+          <div class="sim-track" role="group" aria-label="Jump to step">
+            <button type="button" class="sim-dot" data-goto="0" aria-label="Step 0, the bind address">0</button>
+            <button type="button" class="sim-dot" data-goto="1" aria-label="Step 1, the untrusted networks try">1</button>
+            <button type="button" class="sim-dot" data-goto="2" aria-label="Step 2, your own devices try">2</button>
+            <button type="button" class="sim-dot" data-goto="3" aria-label="Step 3, what it costs you">3</button>
+          </div>
+          <div class="sim-progress" aria-hidden="true"><span></span></div>
+        </div>
+
+        <ol class="sim-steps" aria-live="polite">
+          <li data-at="0" data-scn="all" data-poster><b>Bound to <code>0.0.0.0</code></b>The default in a startling number of tools. It does not mean "the network you are on" — it means every interface the machine has now or acquires later. Join a café network and the port arrives there with you.</li>
+          <li data-at="0" data-scn="loop"><b>Bound to <code>127.0.0.1</code></b>The loopback interface is not a network. Packets addressed to it are handed straight back to the kernel and never reach a network card, so there is no path in from outside — not blocked, absent.</li>
+          <li data-at="0" data-scn="tail"><b>Bound to the tailnet address</b><code>100.117.202.65</code> sits on <code>utun</code>, the virtual interface Tailscale creates. Traffic to it arrives inside WireGuard, already authenticated as a device you enrolled.</li>
+
+          <li data-at="1" data-scn="all" data-poster><b>1 · The café network reaches in</b>Someone on the same subnet scans it — that costs them one command — and finds 6379 open. Default Redis builds have no authentication whatsoever, so "found it" and "logged in" are the same event.</li>
+          <li data-at="1" data-scn="loop tail"><b>1 · The café network is refused</b>The scan finds nothing, because the port genuinely is not listening on that interface. This is stronger than a firewall rule: there is no rule to misconfigure, no ordering to get wrong, no state to reload.</li>
+
+          <li data-at="2" data-scn="all" data-poster><b>2 · And so does everyone else</b>Your phone works. <code>redis-cli</code> works. That is what makes this so easy to leave in place — from where you sit, everything is fine, and nothing distinguishes your laptop from the stranger's.</li>
+          <li data-at="2" data-scn="loop"><b>2 · Local tools keep working; your phone does not</b>Your app and <code>redis-cli</code> were always connecting over loopback, so nothing changes for them. Remote access goes through SSH instead — you log in to the machine, and the tool runs there.</li>
+          <li data-at="2" data-scn="tail"><b>2 · Your devices reach it; loopback stops</b>The useful half of this is obvious. The half that catches people: a service bound <em>only</em> to the tailnet address is no longer on <code>127.0.0.1</code>, so anything hard-coded to localhost breaks. For sshd that is fine; for a database it usually is not.</li>
+
+          <li data-at="3" data-scn="all" data-poster><b>3 · What that actually costs</b>An unauthenticated Redis is a file-write primitive. <code>CONFIG SET dir</code> and <code>dbfilename</code> point it at <code>~/.ssh/authorized_keys</code>, <code>SAVE</code> writes the attacker's key there as your user, and they log in over the SSH you just spent a chapter hardening.</li>
+          <li data-at="3" data-scn="loop"><b>3 · The right answer for stateful services</b>Databases, caches and dev servers belong here. Nothing you run locally needs to be reachable from another machine, and the moment one does, that is a decision to make on purpose rather than a default to inherit.</li>
+          <li data-at="3" data-scn="tail"><b>3 · The right answer for sshd</b>This is the whole design of the guide in one line of config. The port is reachable by devices you enrolled in the tailnet and does not exist anywhere else — which is why the rest of this chapter goes to the trouble of running its own sshd.</li>
+        </ol>
+
         <figcaption>
-          <b>Every listening service belongs in row two or three.</b> Databases and caches bind to
-          loopback. SSH binds to the tailnet address. Nothing a developer runs needs row one, and the
-          fact that it is the default for so many tools is precisely why this audit is worth doing.
+          <b>Every listening service belongs on loopback or on the tailnet address.</b> Databases and
+          caches bind to <code>127.0.0.1</code>. SSH binds to the tailnet address. Nothing a developer
+          runs needs <code>0.0.0.0</code>, and the fact that it is the default for so many tools is
+          precisely why this audit is worth doing.
         </figcaption>
       </figure>
 
@@ -244,6 +387,164 @@ AuthorizedKeysFile .ssh/authorized_keys</code></pre>
         </p>
       </div>
 
+      <figure class="diagram sim" data-sim data-step-ms="3800" tabindex="0"
+              aria-label="Interactive comparison of a launchd sshd job started with and without the -D flag, showing how the fork causes a restart loop. Use the left and right arrow keys to step through it.">
+
+        <div class="sim-bar">
+          <span class="sim-bar-label">ProgramArguments</span>
+          <button type="button" class="sim-scn is-on" data-scenario="nod" aria-pressed="true">without <code>-D</code></button>
+          <button type="button" class="sim-scn" data-scenario="d" aria-pressed="false">with <code>-D</code></button>
+        </div>
+
+        <svg viewBox="0 0 880 396" role="img" aria-label="A sequence between launchd, the sshd process it started, a forked child, and TCP port 22. Without -D the tracked process forks and exits, launchd restarts it, and the replacement cannot bind because the orphan still holds the port.">
+          <defs>
+            <marker id="d1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="currentColor" opacity=".5"/>
+            </marker>
+            <marker id="d2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" class="svg-accent"/>
+            </marker>
+            <marker id="d3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" class="svg-danger"/>
+            </marker>
+          </defs>
+
+          <!-- ============ lifelines ============ -->
+          <g data-at="0+">
+            <rect x="20" y="16" width="160" height="52" rx="9" class="svg-card svg-stroke" stroke-width="1.6"/>
+            <text x="100" y="38" text-anchor="middle" class="svg-label">launchd</text>
+            <text x="100" y="57" text-anchor="middle" class="svg-sub">KeepAlive true</text>
+            <path d="M100 68 L100 380" class="svg-muted-s" stroke-width="1.3" stroke-dasharray="4 4"/>
+
+            <rect x="260" y="16" width="160" height="52" rx="9" class="svg-card svg-stroke" stroke-width="1.6"/>
+            <text x="340" y="38" text-anchor="middle" class="svg-label">sshd</text>
+            <text x="340" y="57" text-anchor="middle" class="svg-sub">the tracked pid</text>
+            <path d="M340 68 L340 380" class="svg-muted-s" stroke-width="1.3" stroke-dasharray="4 4"/>
+
+            <rect x="710" y="16" width="160" height="52" rx="9" class="svg-card svg-stroke" stroke-width="1.6"/>
+            <text x="790" y="38" text-anchor="middle" class="svg-label">TCP :22</text>
+            <text x="790" y="57" text-anchor="middle" class="svg-sub">100.117.202.65</text>
+            <path d="M790 68 L790 380" class="svg-muted-s" stroke-width="1.3" stroke-dasharray="4 4"/>
+          </g>
+
+          <!-- the forked daemon only exists in the broken case -->
+          <g data-at="1+" data-scn="nod" data-poster class="sim-pop">
+            <rect x="480" y="16" width="160" height="52" rx="9" class="svg-card svg-warn-s" stroke-width="1.6"/>
+            <text x="560" y="38" text-anchor="middle" class="svg-label">sshd (forked)</text>
+            <text x="560" y="57" text-anchor="middle" class="svg-sub">launchd cannot see it</text>
+          </g>
+          <path data-at="1+" data-scn="nod" data-poster d="M560 68 L560 380" class="svg-muted-s" stroke-width="1.3" stroke-dasharray="4 4"/>
+
+          <!-- ============ 0 · bootstrap (both cases) ============ -->
+          <g data-at="0+">
+            <path d="M106 104 L334 104" fill="none" class="svg-muted-s" stroke-width="1.7" marker-end="url(#d1)"/>
+            <text x="116" y="96" class="svg-sub">bootstrap · exec /usr/sbin/sshd</text>
+          </g>
+          <path data-at="0" data-flow="muted" data-count="2" data-speed="0.3" data-r="4"
+                d="M106 104 L334 104" stroke="none" fill="none"/>
+
+          <!-- ============ without -D ============ -->
+          <g data-at="1+" data-scn="nod" data-poster>
+            <path d="M346 150 L554 150" fill="none" class="svg-warn-s" stroke-width="1.7" marker-end="url(#d1)"/>
+            <text x="356" y="142" class="svg-sub svg-warn">fork() · sshd detaches</text>
+            <path d="M566 186 L784 186" fill="none" class="svg-warn-s" stroke-width="1.7" marker-end="url(#d1)"/>
+            <text x="576" y="178" class="svg-sub">binds :22</text>
+            <g class="svg-danger-s" stroke-width="2.4">
+              <path d="M331 205 L349 223"/><path d="M349 205 L331 223"/>
+            </g>
+            <text x="358" y="218" class="svg-sub">the tracked pid exits</text>
+          </g>
+          <path data-at="1" data-scn="nod" data-flow="warn" data-count="2" data-speed="0.3" data-r="4"
+                d="M346 150 L554 150" stroke="none" fill="none"/>
+
+          <g data-at="2+" data-scn="nod" data-poster>
+            <path d="M334 250 L106 250" fill="none" class="svg-muted-s" stroke-width="1.7" marker-end="url(#d1)"/>
+            <text x="116" y="242" class="svg-sub">job died → KeepAlive restarts</text>
+            <text x="116" y="272" class="svg-sub">ThrottleInterval 10 · ten seconds</text>
+          </g>
+
+          <g data-at="3" data-scn="nod" data-poster>
+            <path d="M106 300 L334 300" fill="none" class="svg-danger-s" stroke-width="1.7" marker-end="url(#d3)"/>
+            <text x="116" y="292" class="svg-mono-danger">restart #147</text>
+            <path d="M346 336 L784 336" fill="none" class="svg-danger-s" stroke-width="1.6" stroke-dasharray="6 4"/>
+            <text x="356" y="328" class="svg-sub">bind 100.117.202.65:22</text>
+            <g class="svg-danger-s" stroke-width="2.4">
+              <path d="M691 327 L709 345"/><path d="M709 327 L691 345"/>
+            </g>
+            <text x="356" y="366" class="svg-mono-danger">Address already in use · exit 255</text>
+          </g>
+
+          <!-- ============ with -D ============ -->
+          <g data-at="1+" data-scn="d">
+            <path d="M346 150 L784 150" fill="none" class="svg-accent-s" stroke-width="1.8" marker-end="url(#d2)"/>
+            <text x="356" y="142" class="svg-sub svg-accent">binds :22 and stays in the foreground</text>
+          </g>
+          <path data-at="1" data-scn="d" data-flow="accent" data-count="3" data-speed="0.3" data-r="4"
+                d="M346 150 L784 150" stroke="none" fill="none"/>
+
+          <g data-at="2+" data-scn="d">
+            <path d="M106 214 L334 214" fill="none" class="svg-accent-s" stroke-width="1.5" stroke-dasharray="6 4"/>
+            <text x="116" y="206" class="svg-sub">still running · nothing to restart</text>
+          </g>
+
+          <g data-at="3" data-scn="d">
+            <rect x="480" y="258" width="160" height="52" rx="9" class="svg-card svg-accent-s" stroke-width="1.5"/>
+            <text x="560" y="280" text-anchor="middle" class="svg-label">session child</text>
+            <text x="560" y="298" text-anchor="middle" class="svg-sub">one per connection</text>
+            <path d="M346 284 L474 284" fill="none" class="svg-accent-s" stroke-width="1.7" marker-end="url(#d2)"/>
+            <text x="356" y="276" class="svg-sub">forks per session</text>
+            <text x="116" y="340" class="svg-mono-accent">the master never exits</text>
+          </g>
+        </svg>
+
+        <div class="sim-controls">
+          <button type="button" class="sim-btn" data-act="prev" aria-label="Previous step"><span class="sim-glyph">◀</span></button>
+          <button type="button" class="sim-btn sim-btn-play" data-act="play" aria-label="Play">
+            <span class="sim-glyph">▶</span><span class="sim-btn-text">Play</span>
+          </button>
+          <button type="button" class="sim-btn" data-act="next" aria-label="Next step"><span class="sim-glyph">▶</span></button>
+          <div class="sim-track" role="group" aria-label="Jump to step">
+            <button type="button" class="sim-dot" data-goto="0" aria-label="Step 0, launchd starts sshd">0</button>
+            <button type="button" class="sim-dot" data-goto="1" aria-label="Step 1, what sshd does next">1</button>
+            <button type="button" class="sim-dot" data-goto="2" aria-label="Step 2, what launchd concludes">2</button>
+            <button type="button" class="sim-dot" data-goto="3" aria-label="Step 3, the outcome">3</button>
+          </div>
+          <div class="sim-progress" aria-hidden="true"><span></span></div>
+        </div>
+
+        <div class="sim-term" aria-hidden="true">
+          <div data-at="0" data-scn="nod" data-poster><span class="tp">$</span> sudo launchctl print system/com.local.sshd<br>state = running &nbsp;&nbsp;runs = <span class="tok">1</span></div>
+          <div data-at="1" data-scn="nod" data-poster><span class="tp">$</span> sudo launchctl print system/com.local.sshd<br>state = running &nbsp;&nbsp;runs = <span class="tok">1</span> &nbsp;<span class="tdim">— watching a pid that already forked away</span></div>
+          <div data-at="2" data-scn="nod" data-poster><span class="tp">$</span> sudo launchctl print system/com.local.sshd<br>state = waiting &nbsp;&nbsp;runs = <span class="twarn">2</span> &nbsp;&nbsp;last exit code = 0</div>
+          <div data-at="3" data-scn="nod" data-poster><span class="tp">$</span> sudo launchctl print system/com.local.sshd<br>state = waiting &nbsp;&nbsp;runs = <span class="tdim">147</span> &nbsp;&nbsp;last exit code = <span class="tdim">255</span></div>
+          <div data-at="0" data-scn="d"><span class="tp">$</span> sudo launchctl print system/com.local.sshd<br>state = running &nbsp;&nbsp;runs = <span class="tok">1</span></div>
+          <div data-at="1" data-scn="d"><span class="tp">$</span> sudo launchctl print system/com.local.sshd<br>state = running &nbsp;&nbsp;runs = <span class="tok">1</span> &nbsp;<span class="tdim">— same pid, holding the port</span></div>
+          <div data-at="2" data-scn="d"><span class="tp">$</span> sudo launchctl print system/com.local.sshd<br>state = running &nbsp;&nbsp;runs = <span class="tok">1</span> &nbsp;&nbsp;<span class="tok">never exited</span></div>
+          <div data-at="3" data-scn="d"><span class="tp">$</span> sudo launchctl print system/com.local.sshd<br>state = running &nbsp;&nbsp;runs = <span class="tok">1</span> &nbsp;&nbsp;<span class="tok">never exited</span></div>
+        </div>
+
+        <ol class="sim-steps" aria-live="polite">
+          <li data-at="0" data-scn="nod" data-poster><b>launchd starts the job</b><code>RunAtLoad</code> fires and launchd executes <code>/usr/sbin/sshd</code>. It now has one pid it considers to <em>be</em> the job: if that pid exits, the job has ended, and <code>KeepAlive true</code> means start it again.</li>
+          <li data-at="0" data-scn="d"><b>launchd starts the job</b>Identical so far. The only difference is one flag in <code>ProgramArguments</code>, and it changes what the process does about a second from now.</li>
+
+          <li data-at="1" data-scn="nod" data-poster><b>1 · sshd daemonises</b>Left to itself, sshd does the traditional Unix thing: it forks a background copy and the original returns immediately. The background copy binds port 22 and works perfectly. The pid launchd is tracking, meanwhile, has exited.</li>
+          <li data-at="1" data-scn="d"><b>1 · sshd stays put</b><code>-D</code> tells sshd not to detach. The process launchd started is the one that binds the port and keeps running, which is exactly the contract every process supervisor expects.</li>
+
+          <li data-at="2" data-scn="nod" data-poster><b>2 · launchd concludes the job died</b>From launchd's side this is indistinguishable from a crash — it never learns about the fork. <code>KeepAlive</code> does its job and schedules a restart, throttled to one attempt every ten seconds.</li>
+          <li data-at="2" data-scn="d"><b>2 · launchd has nothing to do</b>The process is alive, so <code>KeepAlive</code> stays quiet. It only acts if sshd actually dies — which is what you wanted it for in the first place.</li>
+
+          <li data-at="3" data-scn="nod" data-poster><b>3 · The restart loop</b>The replacement tries to bind :22 and cannot: the orphaned daemon from the first launch still holds it. It exits 255, launchd waits ten seconds and tries again, forever. SSH keeps working — the orphan is serving it — so the only symptom is a restart counter in the hundreds and a log full of <em>"address already in use."</em></li>
+          <li data-at="3" data-scn="d"><b>3 · One process, one job</b>The master sshd forks a child per incoming connection, as it always has, but those children are session workers and come and go. The master itself never exits, so <code>runs</code> stays at 1 — which is the single number to check when you want to know whether this is set up correctly.</li>
+        </ol>
+
+        <figcaption>
+          <b>The failure is quiet, which is what makes it worth a diagram.</b> Without <code>-D</code>
+          you can still SSH in, because the orphan is answering. Nothing is obviously broken until you
+          look at <code>launchctl print</code> and find the job has restarted two hundred times, or you
+          reboot and get a different orphan holding the port than the one launchd thinks it started.
+        </figcaption>
+      </figure>
+
       <h3>The boot-time race, and why it is fine</h3>
       <p>
         <code>ListenAddress 100.117.202.65</code> refers to an address on <code>utun</code> that does not
@@ -257,6 +558,152 @@ AuthorizedKeysFile .ssh/authorized_keys</code></pre>
         tailnet address means the port genuinely does not exist elsewhere, which is worth a few seconds
         of self-healing retry after a reboot.
       </p>
+
+      <figure class="diagram sim" data-sim data-step-ms="3400" tabindex="0"
+              aria-label="Interactive walkthrough of the boot-time race: sshd cannot bind the Tailscale address until Tailscale creates the utun interface, and KeepAlive retries until it can. Use the left and right arrow keys to step through it.">
+
+        <svg viewBox="0 0 860 420" role="img" aria-label="At boot only lo0 and en0 exist, so sshd cannot bind 100.117.202.65 and exits. launchd retries every ten seconds. Once you log in, Tailscale creates utun3 with that address, and the next retry binds successfully.">
+          <defs>
+            <marker id="r1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="currentColor" opacity=".5"/>
+            </marker>
+            <marker id="r2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" class="svg-accent"/>
+            </marker>
+          </defs>
+
+          <text data-at="0+" x="24" y="30" class="svg-label">sshd is asked to bind an address that does not exist yet</text>
+
+          <!-- ============ interfaces ============ -->
+          <g data-at="0+">
+            <rect x="24" y="64" width="240" height="250" rx="10" class="svg-surface svg-stroke" stroke-width="1.4"/>
+            <text x="40" y="90" class="svg-sub">ifconfig</text>
+
+            <rect x="40" y="104" width="208" height="52" rx="8" class="svg-card svg-stroke" stroke-width="1.3"/>
+            <text x="56" y="128" class="svg-label">lo0</text>
+            <text x="56" y="146" class="svg-sub">127.0.0.1</text>
+
+            <rect x="40" y="168" width="208" height="52" rx="8" class="svg-card svg-stroke" stroke-width="1.3"/>
+            <text x="56" y="192" class="svg-label">en0</text>
+            <text x="56" y="210" class="svg-sub">192.168.1.42</text>
+
+            <rect x="40" y="232" width="208" height="66" rx="8" class="svg-surface svg-muted-s" stroke-width="1.3" stroke-dasharray="5 4"/>
+            <text x="56" y="254" class="svg-label">utun3</text>
+          </g>
+          <text data-at="0-2" x="56" y="272" class="svg-sub">Tailscale is not up yet</text>
+          <text data-at="3+" x="56" y="290" class="svg-mono-accent">100.117.202.65</text>
+          <rect data-at="3+" x="36" y="228" width="216" height="74" rx="11" fill="none" class="sim-pop svg-accent-s" stroke-width="2"/>
+
+          <!-- ============ sshd ============ -->
+          <g data-at="0+">
+            <rect x="330" y="90" width="210" height="200" rx="10" class="svg-card svg-stroke" stroke-width="1.6"/>
+            <text x="346" y="118" class="svg-label">sshd</text>
+            <text x="346" y="138" class="svg-sub">ListenAddress</text>
+            <text x="346" y="154" class="svg-sub">100.117.202.65</text>
+          </g>
+          <g data-at="1+">
+            <rect x="346" y="172" width="178" height="26" rx="13" fill="none" class="svg-danger-s" stroke-width="1.6"/>
+            <text x="358" y="189" class="svg-mono-danger">cannot assign address</text>
+          </g>
+          <g data-at="2+">
+            <rect x="346" y="206" width="178" height="26" rx="13" fill="none" class="svg-warn-s" stroke-width="1.6"/>
+            <text x="358" y="223" class="svg-sub svg-warn">KeepAlive · retry 10s</text>
+          </g>
+          <g data-at="4" class="sim-pop">
+            <rect x="346" y="240" width="178" height="26" rx="13" fill="none" class="svg-accent-s" stroke-width="1.8"/>
+            <text x="358" y="257" class="svg-mono-accent">LISTEN on :22</text>
+          </g>
+
+          <!-- ============ launchd ============ -->
+          <g data-at="0+">
+            <rect x="626" y="90" width="210" height="200" rx="10" class="svg-card svg-stroke" stroke-width="1.6"/>
+            <text x="642" y="118" class="svg-label">launchd</text>
+            <text x="642" y="138" class="svg-sub">RunAtLoad · KeepAlive</text>
+            <text x="642" y="154" class="svg-sub">ThrottleInterval 10</text>
+          </g>
+          <text data-at="1+" x="642" y="188" class="svg-sub">attempt 1 · failed</text>
+          <text data-at="2+" x="642" y="212" class="svg-sub">attempt 2 · failed</text>
+          <text data-at="2+" x="642" y="236" class="svg-sub">attempt 3 · failed</text>
+          <text data-at="4" x="642" y="260" class="svg-mono-accent">attempt 4 · running</text>
+
+          <!-- retry arrow, launchd → sshd -->
+          <g data-at="2+">
+            <path d="M620 190 L546 190" fill="none" class="svg-muted-s" stroke-width="1.7" marker-end="url(#r1)"/>
+            <text x="583" y="178" text-anchor="middle" class="svg-sub">retry</text>
+          </g>
+          <path data-at="2" data-flow="warn" data-count="2" data-speed="0.16" data-r="4"
+                d="M620 190 L546 190" stroke="none" fill="none"/>
+
+          <!-- bind arrow, sshd → utun3 -->
+          <g data-at="4">
+            <path d="M324 264 L272 264" fill="none" class="svg-accent-s" stroke-width="1.8" marker-end="url(#r2)"/>
+            <text x="298" y="252" text-anchor="middle" class="svg-sub svg-accent">bind</text>
+          </g>
+          <path data-at="4" data-flow="accent" data-count="2" data-speed="0.14" data-r="4"
+                d="M324 264 L272 264" stroke="none" fill="none"/>
+
+          <!-- ============ the clock ============ -->
+          <g data-at="0+">
+            <path d="M60 366 L800 366" fill="none" class="svg-muted-s" stroke-width="1.4"/>
+            <g class="svg-muted-s" stroke-width="1.4">
+              <path d="M100 358 L100 374"/><path d="M230 358 L230 374"/>
+              <path d="M360 358 L360 374"/><path d="M520 358 L520 374"/>
+              <path d="M680 358 L680 374"/>
+            </g>
+            <text x="100" y="396" text-anchor="middle" class="svg-sub">boot</text>
+            <text x="230" y="396" text-anchor="middle" class="svg-sub">t+10</text>
+            <text x="360" y="396" text-anchor="middle" class="svg-sub">t+20</text>
+            <text x="520" y="396" text-anchor="middle" class="svg-sub">you log in</text>
+            <text x="680" y="396" text-anchor="middle" class="svg-sub">bound</text>
+          </g>
+          <circle data-at="0-1" cx="100" cy="366" r="5" class="svg-warn"/>
+          <circle data-at="2" cx="230" cy="366" r="5" class="svg-warn"/>
+          <circle data-at="2" cx="360" cy="366" r="5" class="svg-warn"/>
+          <circle data-at="3" cx="520" cy="366" r="5" class="svg-accent"/>
+          <circle data-at="4" cx="680" cy="366" r="5" class="svg-accent"/>
+        </svg>
+
+        <div class="sim-controls">
+          <button type="button" class="sim-btn" data-act="prev" aria-label="Previous step"><span class="sim-glyph">◀</span></button>
+          <button type="button" class="sim-btn sim-btn-play" data-act="play" aria-label="Play">
+            <span class="sim-glyph">▶</span><span class="sim-btn-text">Play</span>
+          </button>
+          <button type="button" class="sim-btn" data-act="next" aria-label="Next step"><span class="sim-glyph">▶</span></button>
+          <div class="sim-track" role="group" aria-label="Jump to step">
+            <button type="button" class="sim-dot" data-goto="0" aria-label="Step 0, the machine boots">0</button>
+            <button type="button" class="sim-dot" data-goto="1" aria-label="Step 1, the bind fails">1</button>
+            <button type="button" class="sim-dot" data-goto="2" aria-label="Step 2, launchd retries">2</button>
+            <button type="button" class="sim-dot" data-goto="3" aria-label="Step 3, Tailscale comes up">3</button>
+            <button type="button" class="sim-dot" data-goto="4" aria-label="Step 4, sshd binds">4</button>
+          </div>
+          <div class="sim-progress" aria-hidden="true"><span></span></div>
+        </div>
+
+        <div class="sim-term" aria-hidden="true">
+          <div data-at="0"><span class="tp">$</span> tail -f /var/log/com.local.sshd.err<br><span class="tdim">…</span></div>
+          <div data-at="1"><span class="tp">$</span> tail -f /var/log/com.local.sshd.err<br><span class="tdim">error: Bind to port 22 on 100.117.202.65 failed: Cannot assign requested address.</span></div>
+          <div data-at="2"><span class="tp">$</span> tail -f /var/log/com.local.sshd.err<br><span class="tdim">error: Bind to port 22 … Cannot assign requested address. &nbsp;(×3, ten seconds apart)</span></div>
+          <div data-at="3"><span class="tp">$</span> tailscale status<br>100.117.202.65 &nbsp;macbook &nbsp;<span class="tok">active; direct</span></div>
+          <div data-at="4"><span class="tp">$</span> netstat -an -p tcp | grep '\.22 '<br>tcp4 &nbsp;0 &nbsp;0 &nbsp;<span class="tok">100.117.202.65.22</span> &nbsp;*.* &nbsp;LISTEN</div>
+        </div>
+
+        <ol class="sim-steps" aria-live="polite">
+          <li data-at="0"><b>The machine boots</b>launchd loads <code>com.local.sshd</code> because <code>RunAtLoad</code> says so. At this point the only interfaces that exist are loopback and the physical NIC. There is no <code>utun</code>, because Tailscale has not started — with the GUI app it starts after you log in.</li>
+          <li data-at="1"><b>1 · The bind fails</b>sshd asks the kernel for <code>100.117.202.65:22</code> and is told <em>Cannot assign requested address</em>, because no interface owns that address. It logs the error and exits. Nothing is broken; it was asked for something that is not there yet.</li>
+          <li data-at="2"><b>2 · launchd retries, patiently</b><code>KeepAlive true</code> restarts the job whenever it exits, and <code>ThrottleInterval 10</code> spaces those attempts ten seconds apart. So the log fills with the same line every ten seconds. This is the part that looks alarming the first time you see it and is entirely expected.</li>
+          <li data-at="3"><b>3 · Tailscale comes up</b>You log in, the Tailscale app starts, it brings up <code>utun3</code> and assigns your tailnet address to it. The address sshd has been asking for now exists.</li>
+          <li data-at="4"><b>4 · The next retry succeeds</b>Within ten seconds the job starts again, the bind works, and sshd is listening on the tailnet address and nowhere else. From here it stays up; the loop was self-healing and needed nothing from you.</li>
+        </ol>
+
+        <figcaption>
+          <b>This is a trade, not a bug.</b> You could make sshd start cleanly at boot by binding
+          <code>0.0.0.0</code> and filtering in software — and then the port would exist on every network
+          the laptop joins, protected by a rule you have to keep correct. Binding the tailnet address
+          means the port genuinely is not there, at the cost of a few seconds of retry after a reboot.
+          If you want it up before login, run Tailscale as a system daemon
+          (<code>tailscaled</code> via <code>tailscale install-system-daemon</code>) instead of the GUI app.
+        </figcaption>
+      </figure>
 
       <h3>Load and verify</h3>
       <pre><code>sudo sshd -t -f /etc/ssh/sshd_config          # validate FIRST, always
@@ -329,5 +776,6 @@ ssh macbook -t '/opt/homebrew/bin/tmux new -A -s phone'</code></pre>
 </div>
 <script src="../assets/nav.js"></script>
 <script src="../assets/app.js"></script>
+<script src="../assets/anim.js"></script>
 </body>
 </html>
