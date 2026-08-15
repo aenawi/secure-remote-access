@@ -297,6 +297,7 @@ td code { font-size: 12.5px; }
 .svg-accent   { fill: var(--accent); }
 .svg-accent-s { stroke: var(--accent); }
 .svg-danger   { fill: var(--danger); }
+.svg-warn     { fill: var(--warn); }
 .svg-mono-danger { fill: var(--danger); font-family: var(--mono); font-size: 11px; }
 .svg-mono-accent { fill: var(--accent); font-family: var(--mono); font-size: 11px; }
 .svg-danger-s { stroke: var(--danger); }

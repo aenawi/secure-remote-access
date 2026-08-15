@@ -32,10 +32,11 @@
               aria-label="Interactive SSH public key authentication walkthrough. Use the left and right arrow keys to step through it.">
 
         <div class="sim-bar">
-          <span class="sim-bar-label">Who is dialling</span>
+          <span class="sim-bar-label">Scenario</span>
           <button type="button" class="sim-scn is-on" data-scenario="ok" aria-pressed="true">You, with your key</button>
           <button type="button" class="sim-scn" data-scenario="nokey" aria-pressed="false">Key not on the server</button>
           <button type="button" class="sim-scn" data-scenario="replay" aria-pressed="false">Replayed signature</button>
+          <button type="button" class="sim-scn" data-scenario="mitm" aria-pressed="false">Man in the middle, first connect</button>
         </div>
 
         <svg viewBox="0 0 820 530" role="img" aria-label="SSH public key authentication sequence: key exchange derives a session ID, the client signs a challenge including that session ID, and the server verifies with the stored public key">
@@ -49,6 +50,9 @@
             <marker id="s3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
               <path d="M0 0 L10 5 L0 10 z" class="svg-danger"/>
             </marker>
+            <marker id="s4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" class="svg-warn"/>
+            </marker>
           </defs>
 
           <!-- actors -->
@@ -60,30 +64,44 @@
             <rect x="546" y="16" width="200" height="44" rx="8" class="svg-card svg-stroke" stroke-width="1.6"/>
             <text x="646" y="43" text-anchor="middle" class="svg-label">Server (sshd)</text>
           </g>
+          <!-- in the MITM scenario the right-hand lifeline is whoever answered,
+               which is the whole problem on a first connection -->
+          <g data-at="0+" data-scn="mitm">
+            <rect x="546" y="16" width="200" height="44" rx="8" fill="none" class="svg-warn-s" stroke-width="2.2"/>
+            <text x="812" y="80" text-anchor="end" class="svg-sub">…or whoever answered</text>
+          </g>
           <g data-at="0+">
             <path d="M176 60 L176 486" class="svg-muted-s" stroke-width="1.3" stroke-dasharray="4 4"/>
             <path d="M646 60 L646 486" class="svg-muted-s" stroke-width="1.3" stroke-dasharray="4 4"/>
           </g>
           <!-- data-scn lists every scenario: always on under JS, dropped from
                the no-JS poster where the later layers already fill this row. -->
-          <text data-at="0" data-scn="ok nokey replay" x="410" y="270" text-anchor="middle" class="svg-sub">TCP is open · nothing is authenticated yet</text>
+          <text data-at="0" data-scn="ok nokey replay mitm" x="410" y="270" text-anchor="middle" class="svg-sub">TCP is open · nothing is authenticated yet</text>
 
           <!-- 1 · version + algorithm exchange -->
           <g data-at="1+">
             <path d="M176 100 L640 100" class="svg-muted-s" stroke-width="1.7" fill="none" marker-end="url(#s2)"/>
             <text x="186" y="92" class="svg-sub">1 · version + algorithm exchange</text>
           </g>
-          <path data-at="1" data-scn="ok nokey replay" data-flow="info" data-count="2" data-speed="0.34"
+          <path data-at="1" data-scn="ok nokey replay mitm" data-flow="info" data-count="2" data-speed="0.34"
                 d="M176 100 L640 100" class="svg-accent-s" stroke-width="2" fill="none"/>
 
           <!-- 2 · host key + DH, then the session ID -->
           <g data-at="2+">
             <path d="M646 146 L182 146" class="svg-muted-s" stroke-width="1.7" fill="none" marker-end="url(#s2)"/>
             <text x="186" y="138" class="svg-sub">2 · host key + Diffie-Hellman share</text>
-            <text x="186" y="166" class="svg-sub">client compares it against ~/.ssh/known_hosts</text>
           </g>
+          <text data-at="2+" data-scn="ok nokey replay" data-poster x="186" y="166" class="svg-sub">client compares it against ~/.ssh/known_hosts</text>
           <path data-at="2" data-scn="ok nokey replay" data-flow="info" data-count="2" data-speed="0.34"
                 d="M646 146 L182 146" class="svg-accent-s" stroke-width="2" fill="none"/>
+
+          <!-- MITM: nothing is pinned yet, so the prompt is the only defence -->
+          <g data-at="2+" data-scn="mitm">
+            <path d="M646 146 L182 146" class="svg-warn-s" stroke-width="2" fill="none" marker-end="url(#s4)"/>
+            <text x="186" y="166" class="svg-sub">known_hosts is empty — SSH asks, and you type yes</text>
+          </g>
+          <path data-at="2" data-scn="mitm" data-flow="warn" data-count="2" data-speed="0.34"
+                d="M646 146 L182 146" stroke="none" fill="none"/>
 
           <g data-at="2+" class="sim-pop">
             <rect x="120" y="186" width="580" height="48" rx="9" class="svg-surface svg-accent-s" stroke-width="1.6"/>
@@ -96,22 +114,27 @@
             <path d="M176 274 L640 274" class="svg-muted-s" stroke-width="1.7" fill="none" marker-end="url(#s2)"/>
             <text x="186" y="266" class="svg-sub">3 · &ldquo;I intend to use this public key&rdquo;</text>
           </g>
-          <path data-at="3" data-scn="ok nokey replay" data-flow="info" data-count="2" data-speed="0.34"
+          <path data-at="3" data-scn="ok nokey replay mitm" data-flow="info" data-count="2" data-speed="0.34"
                 d="M176 274 L640 274" class="svg-accent-s" stroke-width="2" fill="none"/>
 
-          <g data-at="3+" class="sim-pop">
+          <g data-at="3+" data-scn="ok nokey replay" data-poster class="sim-pop">
             <rect x="546" y="292" width="200" height="50" rx="8" class="svg-card svg-stroke" stroke-width="1.4"/>
             <text x="646" y="313" text-anchor="middle" class="svg-sub">search ~/.ssh/authorized_keys</text>
           </g>
           <text data-at="3+" data-scn="ok replay" data-poster x="646" y="332" text-anchor="middle" class="svg-mono-accent">match · iphone-blink</text>
           <text data-at="3+" data-scn="nokey" x="646" y="332" text-anchor="middle" class="svg-mono-danger">no matching line</text>
+          <g data-at="3+" data-scn="mitm" class="sim-pop">
+            <rect x="546" y="292" width="200" height="50" rx="8" class="svg-card svg-warn-s" stroke-width="1.4"/>
+            <text x="646" y="313" text-anchor="middle" class="svg-sub">no real authorized_keys</text>
+            <text x="646" y="332" text-anchor="middle" class="svg-sub">accepts whatever you offer</text>
+          </g>
 
           <!-- 4 · the challenge (or the refusal) -->
-          <g data-at="4+" data-scn="ok replay" data-poster>
+          <g data-at="4+" data-scn="ok replay mitm" data-poster>
             <path d="M646 374 L182 374" class="svg-muted-s" stroke-width="1.7" fill="none" marker-end="url(#s2)"/>
             <text x="186" y="366" class="svg-sub">4 · &ldquo;prove you hold the private half&rdquo;</text>
           </g>
-          <path data-at="4" data-scn="ok replay" data-flow="info" data-count="2" data-speed="0.34"
+          <path data-at="4" data-scn="ok replay mitm" data-flow="info" data-count="2" data-speed="0.34"
                 d="M646 374 L182 374" class="svg-accent-s" stroke-width="2" fill="none"/>
 
           <g data-at="4+" data-scn="nokey">
@@ -122,7 +145,7 @@
                 d="M646 374 L182 374" stroke="none" fill="none"/>
 
           <!-- what the client does with the challenge -->
-          <g data-at="4+" data-scn="ok" data-poster class="sim-pop">
+          <g data-at="4+" data-scn="ok mitm" data-poster class="sim-pop">
             <rect x="76" y="392" width="200" height="50" rx="8" class="svg-card svg-accent-s" stroke-width="1.6"/>
             <text x="176" y="413" text-anchor="middle" class="svg-sub">sign(session ID + context)</text>
             <text x="176" y="430" text-anchor="middle" class="svg-sub">private key never leaves</text>
@@ -145,6 +168,16 @@
             <text x="410" y="512" text-anchor="middle" class="svg-mono-accent">verified → shell</text>
           </g>
           <path data-at="5" data-scn="ok" data-poster data-flow="accent" data-count="3" data-speed="0.4" data-r="4.5"
+                d="M176 470 L640 470" stroke="none" fill="none"/>
+
+          <!-- MITM: the signature is genuine and it verifies. That is the point —
+               the loss here is the session, not the key. -->
+          <g data-at="5" data-scn="mitm">
+            <path d="M176 470 L640 470" class="svg-warn-s" stroke-width="2.4" fill="none" marker-end="url(#s4)"/>
+            <text x="186" y="462" class="svg-sub">5 · a real signature, over a session with the wrong machine</text>
+            <text x="410" y="512" text-anchor="middle" class="svg-mono-danger">shell opened — on the attacker&rsquo;s box</text>
+          </g>
+          <path data-at="5" data-scn="mitm" data-flow="warn" data-count="3" data-speed="0.4" data-r="4.5"
                 d="M176 470 L640 470" stroke="none" fill="none"/>
 
           <g data-at="5" data-scn="replay">
@@ -187,42 +220,55 @@
           <li data-at="0" data-scn="ok" data-poster><b>Connection open</b>A TCP socket exists and nothing more. The server does not know who you are, and you do not yet know the server is the machine you meant to reach.</li>
           <li data-at="0" data-scn="nokey"><b>Connection open</b>Same start, but this device's public key was never added to <code>authorized_keys</code> on the server — a new phone, or one you already revoked.</li>
           <li data-at="0" data-scn="replay"><b>Connection open</b>An attacker who captured a signature from one of your earlier sessions is dialling. They hold the signature, not the private key.</li>
+          <li data-at="0" data-scn="mitm"><b>Connection open</b>Your very first connection to the VPS, over the open internet. Someone sits on the path between you. Your <code>known_hosts</code> has no entry for this machine yet, so there is nothing to compare against.</li>
 
           <li data-at="1"><b>1 · Agreeing on the rules</b>Both sides announce their protocol version and the ciphers, key-exchange methods and MACs they support, then pick the strongest they share. Nobody is authenticated yet.</li>
 
-          <li data-at="2"><b>2 · Key exchange, and the session ID</b>The server sends its host key and a Diffie-Hellman share; the client checks that host key against <code>known_hosts</code>. The shared secret they derive produces a <em>session ID</em> unique to this connection — remember it, it is the hinge of the whole thing.</li>
+          <li data-at="2" data-scn="ok nokey replay" data-poster><b>2 · Key exchange, and the session ID</b>The server sends its host key and a Diffie-Hellman share; the client checks that host key against <code>known_hosts</code>. The shared secret they derive produces a <em>session ID</em> unique to this connection — remember it, it is the hinge of the whole thing.</li>
+          <li data-at="2" data-scn="mitm"><b>2 · You are asked, and you say yes</b>The attacker presents <em>their</em> host key. With nothing in <code>known_hosts</code>, SSH cannot tell you anything useful — it just prints a fingerprint and asks. You type yes, and the attacker is now pinned as the VPS. <b>This is the only moment the attack can be caught</b>, and it is caught by you reading that fingerprint, not by SSH.</li>
 
           <li data-at="3" data-scn="ok replay" data-poster><b>3 · Offering a key</b>The client names the public key it wants to use. The server looks for that exact key in <code>~/.ssh/authorized_keys</code> and finds the <code>iphone-blink</code> line.</li>
           <li data-at="3" data-scn="nokey"><b>3 · Offering a key</b>The client names its public key. The server reads <code>~/.ssh/authorized_keys</code> line by line and finds nothing that matches.</li>
+          <li data-at="3" data-scn="mitm"><b>3 · Offering a key</b>The client names its public key. The attacker's sshd has no real <code>authorized_keys</code> to consult and no reason to be picky — it accepts anything you offer, because it wants you to carry on.</li>
 
           <li data-at="4" data-scn="ok" data-poster><b>4 · The challenge</b>The server asks for proof. The client signs a blob that <em>includes the session ID</em> using the private key. The private key itself never crosses the wire, and never leaves the device.</li>
+          <li data-at="4" data-scn="mitm"><b>4 · You sign, correctly</b>Nothing has gone wrong at this layer. Your client signs a genuine challenge with your genuine private key, and the key still never leaves the device. That is worth sitting with: every cryptographic step here is behaving exactly as designed.</li>
           <li data-at="4" data-scn="nokey"><b>4 · No challenge is issued</b>An unknown key gets no challenge at all — there is nothing to prove. The client offers its next key if it has one, otherwise it is finished.</li>
           <li data-at="4" data-scn="replay"><b>4 · Nothing to sign with</b>The challenge arrives, but the attacker holds no private key. All they have is a signature captured from an earlier session, so that is what they send.</li>
 
           <li data-at="5" data-scn="ok" data-poster><b>5 · Verified</b>The server checks the signature with the stored public key and confirms it covers <em>this</em> session ID. Proof accepted, shell granted.</li>
           <li data-at="5" data-scn="nokey"><b>5 · Permission denied</b><code>Permission denied (publickey)</code>. Note what did <em>not</em> happen: no password prompt, no partial access. With <code>PasswordAuthentication no</code> this is the only possible ending for an unknown key.</li>
           <li data-at="5" data-scn="replay"><b>5 · Replay refused</b>The signature is valid — for a different session. Its session ID does not match this one, so verification fails. This is why a signature is worth nothing outside the connection that produced it.</li>
+          <li data-at="5" data-scn="mitm"><b>5 · A shell, on the wrong machine</b>You get a prompt, and it looks normal. Now the good news and the bad news. The attacker <em>cannot</em> reuse your signature to log into the real VPS — it is bound to the session ID they share with you, exactly as the replay case showed. What they get instead is this session: every command you type and every file you touch. Your key survived; your session did not. Give them agent forwarding as well and even that first sentence stops being true.</li>
         </ol>
 
         <div class="sim-term" aria-hidden="true">
-          <div data-at="0"><span class="tp">$</span> ssh -v macbook<br><span class="tdim">debug1: Connecting to macbook port 22.</span></div>
-          <div data-at="1"><span class="tp">$</span> ssh -v macbook<br><span class="tdim">debug1: Remote protocol version 2.0, remote software version OpenSSH_9.6</span></div>
-          <div data-at="2"><span class="tp">$</span> ssh -v macbook<br>debug1: Server host key: ssh-ed25519 SHA256:9Y3gK…<br><span class="tok">debug1: Host 'macbook' is known and matches the ED25519 host key.</span></div>
-          <div data-at="3"><span class="tp">$</span> ssh -v macbook<br><span class="tdim">debug1: Offering public key: ~/.ssh/id_ed25519 ED25519 SHA256:tk7Qm…</span></div>
+          <div data-at="0" data-scn="ok nokey replay" data-poster><span class="tp">$</span> ssh -v macbook<br><span class="tdim">debug1: Connecting to macbook port 22.</span></div>
+          <div data-at="1" data-scn="ok nokey replay"><span class="tp">$</span> ssh -v macbook<br><span class="tdim">debug1: Remote protocol version 2.0, remote software version OpenSSH_9.6</span></div>
+          <div data-at="2" data-scn="ok nokey replay"><span class="tp">$</span> ssh -v macbook<br>debug1: Server host key: ssh-ed25519 SHA256:9Y3gK…<br><span class="tok">debug1: Host 'macbook' is known and matches the ED25519 host key.</span></div>
+          <div data-at="3" data-scn="ok nokey replay"><span class="tp">$</span> ssh -v macbook<br><span class="tdim">debug1: Offering public key: ~/.ssh/id_ed25519 ED25519 SHA256:tk7Qm…</span></div>
+
+          <div data-at="0" data-scn="mitm"><span class="tp">$</span> ssh -v vps<br><span class="tdim">debug1: Connecting to vps [203.0.113.9] port 22.</span></div>
+          <div data-at="1" data-scn="mitm"><span class="tp">$</span> ssh -v vps<br><span class="tdim">debug1: Remote protocol version 2.0, remote software version OpenSSH_9.6</span></div>
+          <div data-at="2" data-scn="mitm"><span class="tp">$</span> ssh -v vps<br><span class="twarn">The authenticity of host 'vps (203.0.113.9)' can't be established.</span><br>ED25519 key fingerprint is SHA256:Xr4pLd… &nbsp;Continue connecting? <span class="twarn">yes</span></div>
+          <div data-at="3" data-scn="mitm"><span class="tp">$</span> ssh -v vps<br><span class="tdim">Warning: Permanently added 'vps' (ED25519) to the list of known hosts.</span><br><span class="tdim">debug1: Offering public key: ~/.ssh/id_ed25519 ED25519 SHA256:tk7Qm…</span></div>
           <div data-at="4" data-scn="ok" data-poster><span class="tp">$</span> ssh -v macbook<br><span class="tok">debug1: Server accepts key: ~/.ssh/id_ed25519 ED25519 SHA256:tk7Qm…</span></div>
           <div data-at="4" data-scn="nokey"><span class="tp">$</span> ssh -v macbook<br><span class="twarn">debug1: Authentications that can continue: publickey</span></div>
           <div data-at="4" data-scn="replay"><span class="tp">$</span> ssh -v macbook<br><span class="tok">debug1: Server accepts key: ~/.ssh/id_ed25519 ED25519 SHA256:tk7Qm…</span></div>
           <div data-at="5" data-scn="ok" data-poster><span class="tp">$</span> ssh -v macbook<br><span class="tok">debug1: Authenticated to macbook ([100.117.202.65]:22) using "publickey".</span></div>
           <div data-at="5" data-scn="nokey"><span class="tp">$</span> ssh -v macbook<br><span class="tdim">debug1: No more authentication methods to try.</span><br>macbook: Permission denied (publickey).</div>
           <div data-at="5" data-scn="replay"><span class="tp">$</span> ssh -v macbook<br><span class="tdim">sshd[4412]: Failed publickey for yourname port 51402 ssh2: ED25519 SHA256:tk7Qm…</span><br>macbook: Permission denied (publickey).</div>
+          <div data-at="4" data-scn="mitm"><span class="tp">$</span> ssh -v vps<br><span class="tok">debug1: Server accepts key: ~/.ssh/id_ed25519 ED25519 SHA256:tk7Qm…</span></div>
+          <div data-at="5" data-scn="mitm"><span class="tp">$</span> ssh -v vps<br><span class="tok">debug1: Authenticated to vps ([203.0.113.9]:22) using "publickey".</span><br><span class="twarn">yourname@vps:~$ </span><span class="tdim"># looks exactly right. it is not.</span></div>
         </div>
 
         <figcaption>
           <b>The signature covers the session ID.</b> That is the whole trick. A signature captured from
           one connection is worthless on another, because the session ID differs. A malicious server
           you connect to cannot take your proof and replay it elsewhere — which is exactly what makes
-          agent forwarding (later) so much more dangerous than it looks. Switch the caller above to
-          watch each failure mode play out.
+          agent forwarding (below) so much more dangerous than it looks. Switch the scenario above to
+          watch each failure mode play out — including the one where every cryptographic step succeeds
+          and you still lose.
         </figcaption>
       </figure>
 
@@ -374,6 +420,179 @@ sudo sshd -T -f /etc/ssh/sshd_config | sort</code></pre>
         that host can use your agent socket to authenticate as you, to anywhere your key is trusted, for
         as long as you stay connected. You will not see it happen.
       </p>
+
+      <figure class="diagram sim" data-sim data-step-ms="4000" tabindex="0"
+              aria-label="Interactive comparison of agent forwarding and ProxyJump. Use the left and right arrow keys to step through it.">
+
+        <div class="sim-bar">
+          <span class="sim-bar-label">How you reach the private box</span>
+          <button type="button" class="sim-scn is-on" data-scenario="fwd" aria-pressed="true">ssh -A vps (agent forwarding)</button>
+          <button type="button" class="sim-scn" data-scenario="jump" aria-pressed="false">ProxyJump</button>
+        </div>
+
+        <svg viewBox="0 0 880 436" role="img" aria-label="Agent forwarding exposes a socket on the jump host that its root user can use to authenticate as you, whereas ProxyJump tunnels through the jump host and keeps every key on your laptop">
+          <defs>
+            <marker id="f1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" class="svg-accent"/>
+            </marker>
+            <marker id="f2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="currentColor" opacity=".45"/>
+            </marker>
+            <marker id="f3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" class="svg-danger"/>
+            </marker>
+          </defs>
+
+          <!-- the three hosts -->
+          <g data-at="0+" class="sim-pop">
+            <rect x="24" y="100" width="190" height="96" rx="10" class="svg-card svg-stroke" stroke-width="1.6"/>
+            <rect x="24" y="100" width="5" height="96" rx="2.5" class="svg-accent"/>
+            <text x="46" y="128" class="svg-label">Your laptop</text>
+            <text x="46" y="150" class="svg-sub">the only place your</text>
+            <text x="46" y="166" class="svg-sub">private key exists</text>
+          </g>
+          <g data-at="0+" class="sim-pop">
+            <rect x="345" y="100" width="190" height="96" rx="10" class="svg-surface svg-stroke" stroke-width="1.6"/>
+            <text x="367" y="128" class="svg-label">VPS (the hop)</text>
+            <text x="367" y="150" class="svg-sub">shared, exposed,</text>
+            <text x="367" y="166" class="svg-sub">not fully trusted</text>
+          </g>
+          <g data-at="0+" class="sim-pop">
+            <rect x="666" y="100" width="190" height="96" rx="10" class="svg-card svg-stroke" stroke-width="1.6"/>
+            <text x="688" y="128" class="svg-label">internal 10.0.0.5</text>
+            <text x="688" y="150" class="svg-sub">the machine you</text>
+            <text x="688" y="166" class="svg-sub">actually want</text>
+          </g>
+
+          <!-- your agent, always present, always on the laptop -->
+          <g data-at="0+" class="sim-pop">
+            <rect x="24" y="248" width="190" height="52" rx="9" class="svg-card svg-accent-s" stroke-width="1.6"/>
+            <text x="119" y="269" text-anchor="middle" class="svg-sub">ssh-agent</text>
+            <text x="119" y="286" text-anchor="middle" class="svg-sub">key unlocked in memory</text>
+          </g>
+          <!-- every scenario listed: always on under JS, dropped from the no-JS
+               poster, where the step-3 attacker card occupies this row -->
+          <text data-at="0" data-scn="fwd jump" x="440" y="356" text-anchor="middle" class="svg-sub">you typed your passphrase once · the agent holds the key</text>
+
+          <!-- 1 · the first hop. The gap between boxes is only 131px, so every
+               label that lives in one has to stay short. -->
+          <g data-at="1+">
+            <path d="M214 148 L339 148" class="svg-muted-s" stroke-width="1.8" fill="none" marker-end="url(#f2)"/>
+          </g>
+          <path data-at="1" data-scn="fwd jump" data-flow="info" data-count="2" data-speed="0.3"
+                d="M214 148 L339 148" class="svg-accent-s" stroke-width="2.2" fill="none"/>
+          <text data-at="1+" data-scn="fwd" data-poster x="218" y="140" class="svg-sub">1 · ssh -A vps</text>
+          <text data-at="1+" data-scn="jump" x="218" y="140" class="svg-sub">1 · ssh internal</text>
+
+          <!-- what the hop now holds -->
+          <g data-at="1+" data-scn="fwd" data-poster class="sim-pop">
+            <rect x="345" y="248" width="190" height="52" rx="9" class="svg-card svg-warn-s" stroke-width="1.8"/>
+            <text x="440" y="269" text-anchor="middle" class="svg-sub">$SSH_AUTH_SOCK</text>
+            <text x="440" y="286" text-anchor="middle" class="svg-sub">a live door to your agent</text>
+          </g>
+          <path data-at="1+" data-scn="fwd" data-poster d="M214 274 L341 274"
+                class="svg-warn-s" stroke-width="1.6" stroke-dasharray="5 4" fill="none"/>
+
+          <g data-at="1+" data-scn="jump" class="sim-pop">
+            <rect x="345" y="248" width="190" height="52" rx="9" class="svg-surface svg-stroke" stroke-width="1.4" stroke-dasharray="5 3"/>
+            <text x="440" y="269" text-anchor="middle" class="svg-sub">no socket, no keys</text>
+            <text x="440" y="286" text-anchor="middle" class="svg-sub">just a forwarded TCP stream</text>
+          </g>
+
+          <!-- 2 · reaching the private box. Captions sit in the empty band above
+               the hosts, where there is room for a full sentence. -->
+          <g data-at="2+" data-scn="fwd" data-poster>
+            <path d="M535 148 L660 148" class="svg-muted-s" stroke-width="1.8" fill="none" marker-end="url(#f2)"/>
+            <text x="600" y="70" text-anchor="middle" class="svg-sub">2 · the VPS authenticates as you</text>
+            <text x="600" y="86" text-anchor="middle" class="svg-sub">over the socket, not with a key it holds</text>
+          </g>
+          <path data-at="2" data-scn="fwd" data-flow="info" data-count="2" data-speed="0.3"
+                d="M535 148 L660 148" class="svg-accent-s" stroke-width="2.2" fill="none"/>
+
+          <g data-at="2+" data-scn="jump">
+            <path d="M440 196 L440 208" class="svg-muted-s" stroke-width="1.3" stroke-dasharray="3 3" fill="none"/>
+            <path d="M214 208 L660 208" class="svg-accent-s" stroke-width="2.4" fill="none" marker-end="url(#f1)"/>
+            <text x="440" y="228" text-anchor="middle" class="svg-sub">2 · sealed laptop → internal · the VPS only moves bytes it cannot read</text>
+          </g>
+          <path data-at="2" data-scn="jump" data-flow="accent" data-count="3" data-speed="0.3" data-r="4.5"
+                d="M214 208 L660 208" stroke="none" fill="none"/>
+
+          <!-- 3 · someone owns the hop. Identical in both scenarios, deliberately. -->
+          <g data-at="3+" class="sim-pop">
+            <rect x="345" y="336" width="190" height="52" rx="9" class="svg-card svg-danger-s" stroke-width="1.6" stroke-dasharray="5 3"/>
+            <text x="440" y="357" text-anchor="middle" class="svg-mono-danger">root on the VPS</text>
+            <text x="440" y="374" text-anchor="middle" class="svg-sub">or anyone who takes it</text>
+          </g>
+
+          <g data-at="3+" data-scn="fwd" data-poster>
+            <path d="M440 336 L440 306" class="svg-danger-s" stroke-width="1.8" fill="none" marker-end="url(#f3)"/>
+            <path d="M535 274 L660 274" class="svg-danger-s" stroke-width="1.8" stroke-dasharray="6 4" fill="none" marker-end="url(#f3)"/>
+            <text x="539" y="266" class="svg-sub">3 · signs as you — anywhere your key is trusted</text>
+            <text x="539" y="298" class="svg-mono-danger">you see nothing</text>
+          </g>
+          <path data-at="3" data-scn="fwd" data-flow="warn" data-count="3" data-speed="0.3"
+                d="M535 274 L660 274" stroke="none" fill="none"/>
+
+          <g data-at="3+" data-scn="jump">
+            <g class="svg-danger-s" stroke-width="2.6">
+              <path d="M429 326 L451 306"/><path d="M451 326 L429 306"/>
+            </g>
+            <text x="560" y="322" class="svg-sub">3 · nothing to borrow, nothing to read</text>
+          </g>
+
+          <!-- 4 · outcome -->
+          <text data-at="4" data-scn="fwd" data-poster x="440" y="418" text-anchor="middle" class="svg-mono-danger">your key opened a session you never opened</text>
+          <text data-at="4" data-scn="jump" x="440" y="418" text-anchor="middle" class="svg-mono-accent">the hop carried bytes it could not read or use</text>
+        </svg>
+
+        <div class="sim-controls">
+          <button type="button" class="sim-btn" data-act="prev" aria-label="Previous step"><span class="sim-glyph">◀</span></button>
+          <button type="button" class="sim-btn sim-btn-play" data-act="play" aria-label="Play">
+            <span class="sim-glyph">▶</span><span class="sim-btn-text">Play</span>
+          </button>
+          <button type="button" class="sim-btn" data-act="next" aria-label="Next step"><span class="sim-glyph">▶</span></button>
+          <div class="sim-track" role="group" aria-label="Jump to step">
+            <button type="button" class="sim-dot" data-goto="0" aria-label="Step 0, the agent holds your key">0</button>
+            <button type="button" class="sim-dot" data-goto="1" aria-label="Step 1, connecting to the hop">1</button>
+            <button type="button" class="sim-dot" data-goto="2" aria-label="Step 2, reaching the private box">2</button>
+            <button type="button" class="sim-dot" data-goto="3" aria-label="Step 3, the hop is compromised">3</button>
+            <button type="button" class="sim-dot" data-goto="4" aria-label="Step 4, outcome">4</button>
+          </div>
+          <div class="sim-progress" aria-hidden="true"><span></span></div>
+        </div>
+
+        <ol class="sim-steps" aria-live="polite">
+          <li data-at="0" data-scn="fwd" data-poster><b>Your key, in memory</b>You unlocked the key once and the agent is holding it. Everything that follows is about who else gets to ask that agent to sign things.</li>
+          <li data-at="0" data-scn="jump"><b>Your key, in memory</b>Same starting point: one agent, one unlocked key, on your laptop. The difference is entirely in how you make the hop.</li>
+
+          <li data-at="1" data-scn="fwd" data-poster><b>1 · <code>-A</code> opens a door</b>You log into the VPS with agent forwarding on. SSH creates a socket on the VPS and points <code>$SSH_AUTH_SOCK</code> at it. Anything that can reach that socket can ask <em>your</em> agent to sign — the agent does not know or care who is asking.</li>
+          <li data-at="1" data-scn="jump"><b>1 · No door is opened</b>You ask for <code>internal</code>, and SSH quietly opens a plain TCP connection through the VPS to get there. No socket is created on the VPS. There is no agent on it, and no key material of any kind.</li>
+
+          <li data-at="2" data-scn="fwd" data-poster><b>2 · The hop logs in as you</b>The VPS reaches <code>internal</code> and, when challenged, hands the challenge back down the socket to your agent. Your agent signs it. This is agent forwarding working <em>correctly</em> — that is the uncomfortable part.</li>
+          <li data-at="2" data-scn="jump"><b>2 · You log in, through the hop</b>Your laptop runs the whole handshake with <code>internal</code> itself. The VPS moves encrypted bytes between two sockets and never sees inside them. Same shell, same convenience, no trust extended.</li>
+
+          <li data-at="3" data-scn="fwd" data-poster><b>3 · Now the hop turns on you</b>Root on the VPS reads <code>$SSH_AUTH_SOCK</code> out of your process environment and starts using it. Your agent signs for them exactly as it signs for you. They can log in as you to <em>every</em> machine that trusts your key, for as long as your session stays open. No prompt fires and nothing appears in your terminal.</li>
+          <li data-at="3" data-scn="jump"><b>3 · The hop turns on you anyway</b>Same compromised host, same root, same intentions. There is no socket to find, so there is nothing to use. The traffic passing through is encrypted end to end between your laptop and <code>internal</code>, so there is nothing to read either.</li>
+
+          <li data-at="4" data-scn="fwd" data-poster><b>4 · The cost</b>Agent forwarding converts "I logged into a machine" into "I lent that machine my identity". The blast radius is not the VPS — it is everywhere your key is trusted. If you ever must use <code>-A</code>, scope it to one host in <code>~/.ssh/config</code> and prefer a hardware key that requires a physical touch per signature.</li>
+          <li data-at="4" data-scn="jump"><b>4 · The point</b><code>ProxyJump</code> gives you the same reachability with none of the delegation. This is why <code>AllowAgentForwarding no</code> is in the hardened config above: not because forwarding is broken, but because it does exactly what it says and that is more than you meant to offer.</li>
+        </ol>
+
+        <div class="sim-term" aria-hidden="true">
+          <div data-at="0-2" data-scn="fwd" data-poster><span class="tp">$</span> ssh -A vps<br><span class="tdim">yourname@vps:~$ echo $SSH_AUTH_SOCK</span><br>/tmp/ssh-XmQ4a1/agent.4412</div>
+          <div data-at="3-4" data-scn="fwd" data-poster><span class="tdim"># as root on the VPS, inside your session</span><br><span class="tp">#</span> SSH_AUTH_SOCK=/tmp/ssh-XmQ4a1/agent.4412 ssh-add -l<br><span class="twarn">256 SHA256:tk7Qm… iphone-blink (ED25519)</span></div>
+          <div data-at="0-2" data-scn="jump"><span class="tp">$</span> ssh internal<br><span class="tdim">yourname@internal:~$ echo $SSH_AUTH_SOCK</span><br><span class="tdim">(empty)</span></div>
+          <div data-at="3-4" data-scn="jump"><span class="tdim"># as root on the VPS, looking for something to steal</span><br><span class="tp">#</span> ls /tmp/ssh-*<br><span class="tok">ls: cannot access '/tmp/ssh-*': No such file or directory</span></div>
+        </div>
+
+        <figcaption>
+          <b>Forwarding lends your identity; jumping only borrows a route.</b> The danger in
+          <code>-A</code> is not a bug — the agent is doing precisely what it was asked to do, for
+          whoever asks. Notice that step 3 is identical in both scenarios: the hop is compromised
+          either way. All that changes is whether there was anything on it worth taking.
+        </figcaption>
+      </figure>
+
       <p>
         Use <code>ProxyJump</code> instead. It authenticates each hop from your local machine, and the
         intermediate host never gets access to your keys:
