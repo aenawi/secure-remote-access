@@ -63,73 +63,122 @@
         Synchronisation Protocol.
       </p>
 
-      <figure class="diagram">
-        <svg viewBox="0 0 860 430" role="img" aria-label="Comparison: an SSH TCP connection breaks when the client IP changes, whereas Mosh authenticates each datagram by session key and simply continues from the new address">
-          <!-- panel A -->
-          <rect x="16" y="14" width="396" height="400" rx="12" class="svg-surface svg-stroke" stroke-width="1.5"/>
+      <figure class="diagram sim" data-sim data-step-ms="3600" tabindex="0"
+              aria-label="Interactive comparison of what happens to an SSH session and a Mosh session when the phone changes IP address. Use the left and right arrow keys to step through it.">
+
+        <svg viewBox="0 0 860 400" role="img" aria-label="Comparison: an SSH TCP connection breaks when the client IP changes, whereas Mosh authenticates each datagram by session key and simply continues from the new address">
+          <defs>
+            <marker id="m1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" class="svg-accent"/>
+            </marker>
+          </defs>
+
+          <!-- ================= panel A · SSH over TCP ================= -->
+          <rect x="16" y="14" width="396" height="372" rx="12" class="svg-surface svg-stroke" stroke-width="1.5"/>
           <text x="38" y="42" class="svg-label">SSH over TCP</text>
-          <text x="38" y="60" class="svg-sub">connection = 4-tuple</text>
+          <text x="38" y="60" class="svg-sub">connection = the 4-tuple</text>
 
-          <rect x="40" y="80" width="130" height="46" rx="8" class="svg-card svg-stroke" stroke-width="1.4"/>
-          <text x="105" y="100" text-anchor="middle" class="svg-sub">phone</text>
-          <text x="105" y="116" text-anchor="middle" class="svg-sub">10.0.0.4:51200</text>
-          <rect x="258" y="80" width="130" height="46" rx="8" class="svg-card svg-stroke" stroke-width="1.4"/>
-          <text x="323" y="100" text-anchor="middle" class="svg-sub">server</text>
-          <text x="323" y="116" text-anchor="middle" class="svg-sub">:36742</text>
-          <path d="M170 103 L258 103" class="svg-accent-s" stroke-width="2" fill="none"/>
-          <text x="214" y="96" text-anchor="middle" class="svg-sub">ok</text>
+          <!-- 0 · established on home Wi-Fi -->
+          <g data-at="0+" class="sim-pop">
+            <rect x="40" y="84" width="124" height="46" rx="8" class="svg-card svg-stroke" stroke-width="1.4"/>
+            <text x="102" y="104" text-anchor="middle" class="svg-sub">phone</text>
+            <text x="102" y="120" text-anchor="middle" class="svg-sub">10.0.0.4:51200</text>
+            <rect x="264" y="84" width="124" height="46" rx="8" class="svg-card svg-stroke" stroke-width="1.4"/>
+            <text x="326" y="104" text-anchor="middle" class="svg-sub">sshd</text>
+            <text x="326" y="120" text-anchor="middle" class="svg-sub">:22</text>
+          </g>
+          <path data-at="0+" data-flow="accent" data-count="2" data-speed="0.16" data-r="3.5"
+                d="M164 107 L264 107" class="svg-accent-s" stroke-width="1.8" fill="none"/>
 
-          <text x="40" y="164" class="svg-sub">— walks outside, joins LTE —</text>
-
-          <rect x="40" y="180" width="130" height="46" rx="8" class="svg-card svg-danger-s" stroke-width="1.6"/>
-          <text x="105" y="200" text-anchor="middle" class="svg-sub">phone</text>
-          <text x="105" y="216" text-anchor="middle" class="svg-sub">100.82.7.9:44100</text>
-          <rect x="258" y="180" width="130" height="46" rx="8" class="svg-card svg-stroke" stroke-width="1.4"/>
-          <text x="323" y="203" text-anchor="middle" class="svg-sub">server</text>
-          <path d="M170 203 L226 203" class="svg-danger-s" stroke-width="1.8" stroke-dasharray="6 4" fill="none"/>
-          <g class="svg-danger-s" stroke-width="2.6">
-            <path d="M234 193 L252 211"/><path d="M252 193 L234 211"/>
+          <!-- 1 · the phone roams -->
+          <text data-at="1+" x="40" y="164" class="svg-sub">— you walk outside · Wi-Fi → LTE —</text>
+          <g data-at="1+" class="sim-pop">
+            <rect x="40" y="180" width="124" height="46" rx="8" class="svg-card svg-danger-s" stroke-width="1.6"/>
+            <text x="102" y="200" text-anchor="middle" class="svg-sub">phone</text>
+            <text x="102" y="216" text-anchor="middle" class="svg-sub">100.82.7.9:44100</text>
+            <rect x="264" y="180" width="124" height="46" rx="8" class="svg-card svg-stroke" stroke-width="1.4"/>
+            <text x="326" y="208" text-anchor="middle" class="svg-sub">sshd</text>
           </g>
 
-          <rect x="40" y="258" width="348" height="60" rx="9" class="svg-card svg-danger-s" stroke-width="1.6"/>
-          <text x="60" y="282" class="svg-label">connection destroyed</text>
-          <text x="60" y="300" class="svg-sub">shell killed · unsaved work gone</text>
+          <!-- 2 · the kernel has no idea who this is -->
+          <g data-at="2+">
+            <path d="M164 203 L228 203" class="svg-danger-s" stroke-width="1.8" stroke-dasharray="6 4" fill="none"/>
+            <g class="svg-danger-s" stroke-width="2.6">
+              <path d="M231 194 L249 212"/><path d="M249 194 L231 212"/>
+            </g>
+            <text x="40" y="244" class="svg-sub">unknown 4-tuple → not this connection</text>
+          </g>
 
-          <text x="40" y="348" class="svg-sub">Every byte must arrive, in order,</text>
-          <text x="40" y="366" class="svg-sub">so one lost packet stalls the screen.</text>
-          <text x="40" y="384" class="svg-sub">Typing lag = full round trip.</text>
+          <!-- 3 · outcome -->
+          <g data-at="3" class="sim-pop">
+            <rect x="40" y="262" width="348" height="58" rx="9" class="svg-card svg-danger-s" stroke-width="1.6"/>
+            <text x="60" y="286" class="svg-label">connection destroyed</text>
+            <text x="60" y="304" class="svg-sub">shell killed · unsaved work gone</text>
+          </g>
+          <text data-at="3" x="40" y="352" class="svg-mono-danger">client_loop: send disconnect: Broken pipe</text>
 
-          <!-- panel B -->
-          <rect x="448" y="14" width="396" height="400" rx="12" class="svg-surface svg-accent-s" stroke-width="1.6"/>
+          <!-- ================= panel B · Mosh over UDP ================= -->
+          <rect x="448" y="14" width="396" height="372" rx="12" class="svg-surface svg-accent-s" stroke-width="1.6"/>
           <text x="470" y="42" class="svg-label">Mosh over UDP</text>
-          <text x="470" y="60" class="svg-sub">session = shared secret + state</text>
+          <text x="470" y="60" class="svg-sub">session = shared key + screen state</text>
 
-          <rect x="472" y="80" width="130" height="46" rx="8" class="svg-card svg-stroke" stroke-width="1.4"/>
-          <text x="537" y="100" text-anchor="middle" class="svg-sub">phone</text>
-          <text x="537" y="116" text-anchor="middle" class="svg-sub">10.0.0.4</text>
-          <rect x="690" y="80" width="130" height="46" rx="8" class="svg-card svg-stroke" stroke-width="1.4"/>
-          <text x="755" y="100" text-anchor="middle" class="svg-sub">mosh-server</text>
-          <text x="755" y="116" text-anchor="middle" class="svg-sub">holds screen state</text>
-          <path d="M602 103 L690 103" class="svg-accent-s" stroke-width="2" fill="none"/>
+          <g data-at="0+" class="sim-pop">
+            <rect x="472" y="84" width="124" height="46" rx="8" class="svg-card svg-stroke" stroke-width="1.4"/>
+            <text x="534" y="104" text-anchor="middle" class="svg-sub">phone</text>
+            <text x="534" y="120" text-anchor="middle" class="svg-sub">10.0.0.4</text>
+            <rect x="696" y="84" width="124" height="46" rx="8" class="svg-card svg-stroke" stroke-width="1.4"/>
+            <text x="758" y="104" text-anchor="middle" class="svg-sub">mosh-server</text>
+            <text x="758" y="120" text-anchor="middle" class="svg-sub">holds the screen</text>
+          </g>
+          <path data-at="0+" data-flow="accent" data-count="2" data-speed="0.16" data-r="3.5"
+                d="M596 107 L696 107" class="svg-accent-s" stroke-width="1.8" fill="none"/>
 
-          <text x="472" y="164" class="svg-sub">— walks outside, joins LTE —</text>
+          <text data-at="1+" x="472" y="164" class="svg-sub">— you walk outside · Wi-Fi → LTE —</text>
+          <g data-at="1+" class="sim-pop">
+            <rect x="472" y="180" width="124" height="46" rx="8" class="svg-card svg-accent-s" stroke-width="1.6"/>
+            <text x="534" y="200" text-anchor="middle" class="svg-sub">phone</text>
+            <text x="534" y="216" text-anchor="middle" class="svg-sub">100.82.7.9</text>
+            <rect x="696" y="180" width="124" height="46" rx="8" class="svg-card svg-stroke" stroke-width="1.4"/>
+            <text x="758" y="208" text-anchor="middle" class="svg-sub">mosh-server</text>
+          </g>
 
-          <rect x="472" y="180" width="130" height="46" rx="8" class="svg-card svg-accent-s" stroke-width="1.6"/>
-          <text x="537" y="200" text-anchor="middle" class="svg-sub">phone</text>
-          <text x="537" y="216" text-anchor="middle" class="svg-sub">100.82.7.9</text>
-          <rect x="690" y="180" width="130" height="46" rx="8" class="svg-card svg-stroke" stroke-width="1.4"/>
-          <text x="755" y="203" text-anchor="middle" class="svg-sub">mosh-server</text>
-          <path d="M602 203 L690 203" class="svg-accent-s" stroke-width="2" fill="none"/>
-          <text x="646" y="196" text-anchor="middle" class="svg-sub">same key</text>
+          <g data-at="2+">
+            <path d="M596 203 L692 203" class="svg-accent-s" stroke-width="2" fill="none" marker-end="url(#m1)"/>
+            <text x="472" y="244" class="svg-sub">right key → same session, new address</text>
+          </g>
+          <path data-at="2+" data-flow="accent" data-count="2" data-speed="0.18" data-r="3.5"
+                d="M596 203 L692 203" stroke="none" fill="none"/>
 
-          <rect x="472" y="258" width="348" height="60" rx="9" class="svg-card svg-accent-s" stroke-width="1.6"/>
-          <text x="492" y="282" class="svg-label">session continues</text>
-          <text x="492" y="300" class="svg-sub">server just notes the new address</text>
-
-          <text x="472" y="348" class="svg-sub">Only the newest screen state matters,</text>
-          <text x="472" y="366" class="svg-sub">so lost packets are skipped, not resent.</text>
-          <text x="472" y="384" class="svg-sub">Typing echoes locally, instantly.</text>
+          <g data-at="3" class="sim-pop">
+            <rect x="472" y="262" width="348" height="58" rx="9" class="svg-card svg-accent-s" stroke-width="1.6"/>
+            <text x="492" y="286" class="svg-label">session continues</text>
+            <text x="492" y="304" class="svg-sub">server just notes the new address</text>
+          </g>
+          <text data-at="3" x="472" y="352" class="svg-mono-accent">the address changed · the session did not</text>
         </svg>
+
+        <div class="sim-controls">
+          <button type="button" class="sim-btn" data-act="prev" aria-label="Previous step"><span class="sim-glyph">◀</span></button>
+          <button type="button" class="sim-btn sim-btn-play" data-act="play" aria-label="Play">
+            <span class="sim-glyph">▶</span><span class="sim-btn-text">Play</span>
+          </button>
+          <button type="button" class="sim-btn" data-act="next" aria-label="Next step"><span class="sim-glyph">▶</span></button>
+          <div class="sim-track" role="group" aria-label="Jump to step">
+            <button type="button" class="sim-dot" data-goto="0" aria-label="Step 0, both sessions healthy">0</button>
+            <button type="button" class="sim-dot" data-goto="1" aria-label="Step 1, the phone roams">1</button>
+            <button type="button" class="sim-dot" data-goto="2" aria-label="Step 2, packets arrive from the new address">2</button>
+            <button type="button" class="sim-dot" data-goto="3" aria-label="Step 3, outcome">3</button>
+          </div>
+          <div class="sim-progress" aria-hidden="true"><span></span></div>
+        </div>
+
+        <ol class="sim-steps" aria-live="polite">
+          <li data-at="0"><b>Both are working</b>You are on home Wi-Fi with a shell open. Nothing here distinguishes the two — this is the state you spend most of your day in, and it is the only state where SSH and Mosh look the same.</li>
+          <li data-at="1"><b>1 · You leave the house</b>The phone drops Wi-Fi and joins LTE, so its source address changes from <code>10.0.0.4</code> to <code>100.82.7.9</code>. Nothing has broken <em>yet</em>. Both sides still believe they have a session.</li>
+          <li data-at="2"><b>2 · The next packet arrives</b>This is the moment the two protocols diverge. To the server's TCP stack the new 4-tuple is simply not the connection it is holding — it has no way to express "same conversation, new address," so the packet belongs to nothing. Mosh asks a different question: does this datagram carry the right AES-OCB session key? It does, so the packet is genuine, and the server updates its idea of where you are.</li>
+          <li data-at="3"><b>3 · What you see</b>SSH gives you <code>Broken pipe</code> and a dead shell. Mosh gives you nothing at all — no reconnect, no message, no pause, because from the protocol's point of view nothing notable happened. The address is not part of the session's identity, so changing it is not an event.</li>
+        </ol>
+
         <figcaption>
           <b>Authentication is per-datagram, not per-connection.</b> Every Mosh packet is encrypted and
           authenticated with AES-OCB under a session key that SSH delivered at startup. The server
@@ -153,6 +202,217 @@
         out wrong, it corrects on the next update.
       </p>
 
+      <figure class="diagram sim" data-sim data-step-ms="3800" tabindex="0"
+              aria-label="Interactive comparison of SSH and Mosh on a lossy, high-latency link, for a flood of output and for typing. Use the left and right arrow keys to step through it.">
+
+        <div class="sim-bar">
+          <span class="sim-bar-label">Situation</span>
+          <button type="button" class="sim-scn is-on" data-scenario="flood" aria-pressed="true">A flood of output, 20% loss</button>
+          <button type="button" class="sim-scn" data-scenario="type" aria-pressed="false">Typing on a 300 ms link</button>
+        </div>
+
+        <svg viewBox="0 0 860 470" role="img" aria-label="Two lanes: SSH over TCP must retransmit every lost byte in order, while Mosh synchronises only to the newest screen state and echoes typing locally">
+          <defs>
+            <marker id="l1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="currentColor" opacity=".5"/>
+            </marker>
+            <marker id="l2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" class="svg-accent"/>
+            </marker>
+          </defs>
+
+          <!-- ================= lane A · SSH over TCP ================= -->
+          <rect x="16" y="14" width="828" height="210" rx="12" class="svg-surface svg-stroke" stroke-width="1.5"/>
+          <text x="38" y="42" class="svg-label">SSH · a TCP byte stream</text>
+          <text x="230" y="42" class="svg-sub">every byte, in order, or nothing moves</text>
+          <rect x="36" y="58" width="320" height="146" rx="8" class="svg-card svg-stroke" stroke-width="1.4"/>
+          <g data-at="0+">
+            <rect x="690" y="110" width="134" height="52" rx="8" class="svg-card svg-stroke" stroke-width="1.4"/>
+            <text x="757" y="130" text-anchor="middle" class="svg-sub">server</text>
+          </g>
+          <text data-at="0+" data-scn="flood" data-poster x="757" y="146" text-anchor="middle" class="svg-sub">cat huge.log</text>
+          <text data-at="0+" data-scn="type" x="757" y="146" text-anchor="middle" class="svg-sub">bash</text>
+
+          <!-- lane A · flood -->
+          <path data-at="0+" data-scn="flood" data-poster data-flow="muted" data-count="3" data-speed="0.2" data-r="3.5"
+                d="M686 136 L364 136" class="svg-muted-s" stroke-width="1.6" fill="none" marker-end="url(#l1)"/>
+          <g data-at="1+" data-scn="flood" data-poster>
+            <path d="M523 106 L523 166" class="svg-danger-s" stroke-width="1.8" stroke-dasharray="5 4"/>
+            <text x="523" y="98" text-anchor="middle" class="svg-mono-danger">20% loss</text>
+          </g>
+          <text data-at="0+" data-scn="flood" data-poster x="52" y="84" class="svg-sub">$ cat huge.log</text>
+          <g data-at="0-1" data-scn="flood">
+            <text x="52" y="106" class="svg-sub">09:41:02 GET  /api/v1/items     200</text>
+            <text x="52" y="126" class="svg-sub">09:41:02 GET  /api/v1/items     200</text>
+            <text x="52" y="146" class="svg-sub">09:41:03 POST /api/v1/orders    201</text>
+            <text x="52" y="166" class="svg-sub">09:41:03 GET  /api/v1/items     200</text>
+            <text x="52" y="190" class="svg-sub">streaming · 240,000 lines to go</text>
+          </g>
+          <g data-at="2" data-scn="flood" data-poster>
+            <text x="52" y="106" class="svg-sub">09:41:03 POST /api/v1/orders    201</text>
+            <text x="52" y="126" class="svg-mono-danger">[ retransmitting segment 812 ]</text>
+            <text x="52" y="146" class="svg-sub">nothing new can be drawn until the</text>
+            <text x="52" y="166" class="svg-sub">missing bytes arrive, in order</text>
+            <text x="52" y="190" class="svg-mono-danger">the screen is ~40 s behind the file</text>
+          </g>
+          <text data-at="2" data-scn="flood" data-poster x="523" y="192" text-anchor="middle" class="svg-sub">the backlog only grows</text>
+          <g data-at="3" data-scn="flood">
+            <text x="52" y="106" class="svg-sub">^C</text>
+            <text x="52" y="126" class="svg-sub">( nothing happens )</text>
+            <text x="52" y="146" class="svg-sub">the interrupt is queued behind</text>
+            <text x="52" y="166" class="svg-sub">40 s of output you no longer want</text>
+            <text x="52" y="190" class="svg-mono-danger">Ctrl-C is not instant</text>
+          </g>
+
+          <!-- lane A · typing -->
+          <g data-at="0" data-scn="type">
+            <text x="52" y="84" class="svg-sub">$ ▌</text>
+            <text x="52" y="190" class="svg-sub">idle · every key will cost a round trip</text>
+          </g>
+          <g data-at="1+" data-scn="type">
+            <path d="M364 122 L686 122" class="svg-muted-s" stroke-width="1.6" fill="none" marker-end="url(#l1)"/>
+            <text x="523" y="114" text-anchor="middle" class="svg-sub">keystroke → server</text>
+          </g>
+          <path data-at="1" data-scn="type" data-flow="muted" data-count="2" data-speed="0.14" data-r="3.5"
+                d="M364 122 L686 122" stroke="none" fill="none"/>
+          <g data-at="1" data-scn="type">
+            <text x="52" y="84" class="svg-sub">$ ▌</text>
+            <text x="52" y="106" class="svg-sub">you typed: git status</text>
+            <text x="52" y="190" class="svg-sub">still blank · the keys are in flight</text>
+          </g>
+          <g data-at="2+" data-scn="type">
+            <path d="M686 152 L364 152" class="svg-muted-s" stroke-width="1.6" fill="none" marker-end="url(#l1)"/>
+            <text x="523" y="172" text-anchor="middle" class="svg-sub">← echo, one full round trip later</text>
+          </g>
+          <path data-at="2" data-scn="type" data-flow="muted" data-count="2" data-speed="0.14" data-r="3.5"
+                d="M686 152 L364 152" stroke="none" fill="none"/>
+          <g data-at="2" data-scn="type">
+            <text x="52" y="84" class="svg-sub">$ git status▌</text>
+            <text x="52" y="190" class="svg-sub">it appeared 300 ms after you typed it</text>
+          </g>
+          <g data-at="3" data-scn="type">
+            <text x="52" y="84" class="svg-sub">$ git status▌</text>
+            <text x="52" y="106" class="svg-sub">every character pays the same 300 ms</text>
+            <text x="52" y="190" class="svg-mono-danger">typing feels like wading</text>
+          </g>
+
+          <!-- ================= lane B · Mosh over SSP ================= -->
+          <rect x="16" y="244" width="828" height="210" rx="12" class="svg-surface svg-accent-s" stroke-width="1.6"/>
+          <text x="38" y="272" class="svg-label">Mosh · a synchronised screen</text>
+          <text x="260" y="272" class="svg-sub">only the newest state has to arrive</text>
+          <rect x="36" y="288" width="320" height="146" rx="8" class="svg-card svg-stroke" stroke-width="1.4"/>
+          <g data-at="0+">
+            <rect x="690" y="340" width="134" height="52" rx="8" class="svg-card svg-accent-s" stroke-width="1.5"/>
+            <text x="757" y="360" text-anchor="middle" class="svg-sub">mosh-server</text>
+          </g>
+          <text data-at="0+" data-scn="flood" data-poster x="757" y="376" text-anchor="middle" class="svg-sub">cat huge.log</text>
+          <text data-at="0+" data-scn="type" x="757" y="376" text-anchor="middle" class="svg-sub">bash</text>
+
+          <!-- lane B · flood -->
+          <path data-at="0+" data-scn="flood" data-poster data-flow="accent" data-count="3" data-speed="0.2" data-r="3.5"
+                d="M686 366 L364 366" class="svg-accent-s" stroke-width="1.8" fill="none" marker-end="url(#l2)"/>
+          <g data-at="1+" data-scn="flood" data-poster>
+            <path d="M523 336 L523 396" class="svg-danger-s" stroke-width="1.8" stroke-dasharray="5 4"/>
+            <text x="523" y="328" text-anchor="middle" class="svg-mono-danger">20% loss</text>
+          </g>
+          <text data-at="0+" data-scn="flood" data-poster x="52" y="314" class="svg-sub">$ cat huge.log</text>
+          <g data-at="0-1" data-scn="flood">
+            <text x="52" y="336" class="svg-sub">09:41:02 GET  /api/v1/items     200</text>
+            <text x="52" y="356" class="svg-sub">09:41:02 GET  /api/v1/items     200</text>
+            <text x="52" y="376" class="svg-sub">09:41:03 POST /api/v1/orders    201</text>
+            <text x="52" y="396" class="svg-sub">09:41:03 GET  /api/v1/items     200</text>
+            <text x="52" y="420" class="svg-sub">streaming · 240,000 lines to go</text>
+          </g>
+          <g data-at="2" data-scn="flood" data-poster>
+            <text x="52" y="336" class="svg-sub">09:47:55 GET  /api/v1/items     200</text>
+            <text x="52" y="356" class="svg-mono-accent">[ jumped to the newest screen ]</text>
+            <text x="52" y="376" class="svg-sub">the missed frames were never resent</text>
+            <text x="52" y="396" class="svg-sub">because no one wanted to read them</text>
+            <text x="52" y="420" class="svg-mono-accent">you are at the tail of the file</text>
+          </g>
+          <text data-at="2" data-scn="flood" data-poster x="523" y="422" text-anchor="middle" class="svg-sub">loss costs detail, never time</text>
+          <g data-at="3" data-scn="flood">
+            <text x="52" y="336" class="svg-sub">^C</text>
+            <text x="52" y="356" class="svg-sub">$ ▌</text>
+            <text x="52" y="376" class="svg-sub">the interrupt travelled in its own</text>
+            <text x="52" y="396" class="svg-sub">datagram, not behind the backlog</text>
+            <text x="52" y="420" class="svg-mono-accent">Ctrl-C is instant</text>
+          </g>
+
+          <!-- lane B · typing -->
+          <g data-at="0" data-scn="type">
+            <text x="52" y="314" class="svg-sub">$ ▌</text>
+            <text x="52" y="420" class="svg-sub">idle · the same 300 ms link</text>
+          </g>
+          <g data-at="1+" data-scn="type">
+            <path d="M364 352 L686 352" class="svg-accent-s" stroke-width="1.6" fill="none" marker-end="url(#l2)"/>
+            <text x="523" y="344" text-anchor="middle" class="svg-sub">keystroke → server</text>
+          </g>
+          <path data-at="1" data-scn="type" data-flow="accent" data-count="2" data-speed="0.14" data-r="3.5"
+                d="M364 352 L686 352" stroke="none" fill="none"/>
+          <g data-at="1" data-scn="type">
+            <text x="52" y="314" class="svg-sub">$ <tspan text-decoration="underline">git status</tspan>▌</text>
+            <text x="52" y="336" class="svg-mono-accent">echoed locally, at once</text>
+            <text x="52" y="356" class="svg-sub">underlined = predicted, not yet</text>
+            <text x="52" y="376" class="svg-sub">confirmed by the server</text>
+            <text x="52" y="420" class="svg-mono-accent">0 ms</text>
+          </g>
+          <g data-at="2+" data-scn="type">
+            <path d="M686 382 L364 382" class="svg-accent-s" stroke-width="1.6" fill="none" marker-end="url(#l2)"/>
+            <text x="523" y="402" text-anchor="middle" class="svg-sub">← confirmation, 300 ms later</text>
+          </g>
+          <path data-at="2" data-scn="type" data-flow="accent" data-count="2" data-speed="0.14" data-r="3.5"
+                d="M686 382 L364 382" stroke="none" fill="none"/>
+          <g data-at="2" data-scn="type">
+            <text x="52" y="314" class="svg-sub">$ git status▌</text>
+            <text x="52" y="336" class="svg-sub">the server agreed · the underline</text>
+            <text x="52" y="356" class="svg-sub">quietly goes away</text>
+            <text x="52" y="420" class="svg-mono-accent">you never waited</text>
+          </g>
+          <g data-at="3" data-scn="type">
+            <text x="52" y="314" class="svg-sub">$ git status▌</text>
+            <text x="52" y="336" class="svg-sub">a wrong guess is repainted on the</text>
+            <text x="52" y="356" class="svg-sub">next update — Mosh only predicts</text>
+            <text x="52" y="376" class="svg-sub">when it is confident</text>
+            <text x="52" y="420" class="svg-mono-accent">typing feels local</text>
+          </g>
+        </svg>
+
+        <div class="sim-controls">
+          <button type="button" class="sim-btn" data-act="prev" aria-label="Previous step"><span class="sim-glyph">◀</span></button>
+          <button type="button" class="sim-btn sim-btn-play" data-act="play" aria-label="Play">
+            <span class="sim-glyph">▶</span><span class="sim-btn-text">Play</span>
+          </button>
+          <button type="button" class="sim-btn" data-act="next" aria-label="Next step"><span class="sim-glyph">▶</span></button>
+          <div class="sim-track" role="group" aria-label="Jump to step">
+            <button type="button" class="sim-dot" data-goto="0" aria-label="Step 0">0</button>
+            <button type="button" class="sim-dot" data-goto="1" aria-label="Step 1">1</button>
+            <button type="button" class="sim-dot" data-goto="2" aria-label="Step 2">2</button>
+            <button type="button" class="sim-dot" data-goto="3" aria-label="Step 3">3</button>
+          </div>
+          <div class="sim-progress" aria-hidden="true"><span></span></div>
+        </div>
+
+        <ol class="sim-steps" aria-live="polite">
+          <li data-at="0" data-scn="flood"><b>Output is pouring out</b>You ran <code>cat</code> on a 240,000-line log by accident. Both sessions are drawing it as fast as the link allows, and so far they look identical.</li>
+          <li data-at="1" data-scn="flood"><b>1 · The link starts dropping</b>You step into a lift, or the satellite hop degrades. One packet in five never arrives. Both protocols now have to decide what a lost packet <em>means</em>.</li>
+          <li data-at="2" data-scn="flood" data-poster><b>2 · Retransmit, or skip</b>TCP's contract is that every byte is delivered in order, so SSH cannot draw line 813 until line 812 has been re-sent. The backlog grows faster than the link drains it and your screen falls further behind real time. Mosh's contract is different: it only promises the <em>current</em> screen. Frames that were superseded before they arrived are simply never sent again, so it jumps to the tail.</li>
+          <li data-at="3" data-scn="flood"><b>3 · You press Ctrl-C</b>Under SSH the interrupt is a byte in the same stream, so it waits behind everything already queued — which is why Ctrl-C feels broken mid-flood. Under Mosh it goes out immediately and the next screen state comes back showing a prompt. This is the difference you feel most often in practice.</li>
+
+          <li data-at="0" data-scn="type"><b>A slow link, and a prompt</b>Same two sessions, nothing running, 300 ms of round-trip time between you and the server — a satellite link, a bad train connection, or just a long way away.</li>
+          <li data-at="1" data-scn="type"><b>1 · You type <code>git status</code></b>SSH sends the keystrokes and shows you nothing, because in a terminal the <em>server</em> decides what your characters look like on screen — echo is a server-side decision. Mosh keeps its own model of the terminal, so when it is confident what a character will do it draws it straight away and underlines it to mean "not confirmed yet".</li>
+          <li data-at="2" data-scn="type"><b>2 · The round trip completes</b>SSH's echo arrives and the text appears, 300 ms after your finger moved. Mosh's confirmation arrives too, and all it does is remove the underline — you had already been reading the text for a third of a second.</li>
+          <li data-at="3" data-scn="type"><b>3 · When the guess is wrong</b>Mosh predicts only where it is confident, and a wrong prediction is overwritten by the authoritative screen on the very next update. The worst case is a character that flickers; the ordinary case is a shell that feels like it is running on your phone.</li>
+        </ol>
+
+        <figcaption>
+          <b>Both consequences come from the same design choice.</b> Because Mosh synchronises a screen
+          rather than a stream, a lost packet costs you a frame you no longer need instead of a delay,
+          and because the client keeps its own model of that screen it can render ahead of the server
+          and correct itself later. Neither trick is available to anything built on a byte stream.
+        </figcaption>
+      </figure>
+
       <div class="callout warn">
         <div class="ct">What Mosh does not do</div>
         <ul>
@@ -168,12 +428,102 @@
         Mosh is not a replacement for SSH — it uses SSH as its bootstrap, which is why all your SSH
         hardening still applies:
       </p>
-      <ol>
-        <li>The <code>mosh</code> client opens a normal SSH connection and authenticates exactly as usual.</li>
-        <li>Over that connection it runs <code>mosh-server</code>, which starts, picks a UDP port in the range 60000–61000, prints a one-time shared secret, and detaches.</li>
-        <li>The SSH connection closes. It has done its job.</li>
-        <li>The client begins speaking SSP over UDP using that secret.</li>
-      </ol>
+      <figure class="diagram sim" data-sim data-step-ms="3600" tabindex="0"
+              aria-label="Interactive walkthrough of the Mosh bootstrap: SSH authenticates, launches mosh-server, hands over a one-time key, and then closes. Use the left and right arrow keys to step through it.">
+
+        <svg viewBox="0 0 820 400" role="img" aria-label="Mosh bootstrap sequence: an ordinary SSH login starts mosh-server, which returns a UDP port and a one-time key, after which the SSH connection closes and the session continues over UDP">
+          <defs>
+            <marker id="b1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="currentColor" opacity=".5"/>
+            </marker>
+            <marker id="b2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" class="svg-accent"/>
+            </marker>
+          </defs>
+
+          <rect x="60" y="16" width="200" height="44" rx="8" class="svg-card svg-stroke" stroke-width="1.6"/>
+          <text x="160" y="43" text-anchor="middle" class="svg-label">Client (Blink)</text>
+          <rect x="560" y="16" width="200" height="44" rx="8" class="svg-card svg-stroke" stroke-width="1.6"/>
+          <text x="660" y="43" text-anchor="middle" class="svg-label">Server</text>
+          <path d="M160 60 L160 372" class="svg-muted-s" stroke-width="1.3" stroke-dasharray="4 4"/>
+          <path d="M660 60 L660 372" class="svg-muted-s" stroke-width="1.3" stroke-dasharray="4 4"/>
+
+          <!-- 1 · an ordinary SSH login -->
+          <g data-at="1+">
+            <path d="M166 108 L654 108" class="svg-muted-s" stroke-width="1.7" fill="none" marker-end="url(#b1)"/>
+            <text x="176" y="100" class="svg-sub">1 · ssh macbook · TCP 22 · publickey auth</text>
+          </g>
+          <path data-at="1" data-flow="info" data-count="2" data-speed="0.34" data-r="4"
+                d="M166 108 L654 108" stroke="none" fill="none"/>
+
+          <!-- 2 · mosh-server starts and reports back -->
+          <g data-at="2+" class="sim-pop">
+            <rect x="566" y="130" width="188" height="54" rx="8" class="svg-card svg-accent-s" stroke-width="1.6"/>
+            <text x="660" y="150" text-anchor="middle" class="svg-label">mosh-server starts</text>
+            <text x="660" y="168" text-anchor="middle" class="svg-sub">picks UDP 60001, detaches</text>
+          </g>
+          <g data-at="2+">
+            <path d="M654 210 L166 210" class="svg-accent-s" stroke-width="1.8" fill="none" marker-end="url(#b2)"/>
+            <text x="176" y="202" class="svg-sub">2 · returns the port + a one-time AES-OCB key</text>
+          </g>
+          <path data-at="2" data-flow="accent" data-count="2" data-speed="0.34" data-r="4"
+                d="M654 210 L166 210" stroke="none" fill="none"/>
+
+          <!-- 3 · SSH bows out -->
+          <g data-at="3+">
+            <text x="176" y="244" class="svg-sub">3 · the SSH connection closes — it has done its job</text>
+            <path d="M180 262 L398 262" class="svg-muted-s" stroke-width="1.6" stroke-dasharray="6 4" fill="none"/>
+            <path d="M422 262 L640 262" class="svg-muted-s" stroke-width="1.6" stroke-dasharray="6 4" fill="none"/>
+            <g class="svg-muted-s" stroke-width="2.4">
+              <path d="M401 251 L419 269"/><path d="M419 251 L401 269"/>
+            </g>
+          </g>
+
+          <!-- 4 · SSP over UDP -->
+          <g data-at="4">
+            <text x="176" y="300" class="svg-sub">4 · SSP over UDP · every datagram authenticated with that key</text>
+            <path d="M166 314 L654 314" class="svg-accent-s" stroke-width="1.8" fill="none" marker-end="url(#b2)"/>
+            <path d="M654 332 L166 332" class="svg-accent-s" stroke-width="1.8" fill="none" marker-end="url(#b2)"/>
+            <text x="176" y="364" class="svg-mono-accent">carried inside WireGuard · no public UDP port is opened</text>
+          </g>
+          <path data-at="4" data-flow="accent" data-count="3" data-speed="0.3" data-r="4"
+                d="M166 314 L654 314" stroke="none" fill="none"/>
+          <path data-at="4" data-flow="accent" data-count="3" data-speed="0.3" data-r="4"
+                d="M654 332 L166 332" stroke="none" fill="none"/>
+        </svg>
+
+        <div class="sim-controls">
+          <button type="button" class="sim-btn" data-act="prev" aria-label="Previous step"><span class="sim-glyph">◀</span></button>
+          <button type="button" class="sim-btn sim-btn-play" data-act="play" aria-label="Play">
+            <span class="sim-glyph">▶</span><span class="sim-btn-text">Play</span>
+          </button>
+          <button type="button" class="sim-btn" data-act="next" aria-label="Next step"><span class="sim-glyph">▶</span></button>
+          <div class="sim-track" role="group" aria-label="Jump to step">
+            <button type="button" class="sim-dot" data-goto="0" aria-label="Step 0, nothing running">0</button>
+            <button type="button" class="sim-dot" data-goto="1" aria-label="Step 1, SSH login">1</button>
+            <button type="button" class="sim-dot" data-goto="2" aria-label="Step 2, mosh-server starts">2</button>
+            <button type="button" class="sim-dot" data-goto="3" aria-label="Step 3, SSH closes">3</button>
+            <button type="button" class="sim-dot" data-goto="4" aria-label="Step 4, SSP over UDP">4</button>
+          </div>
+          <div class="sim-progress" aria-hidden="true"><span></span></div>
+        </div>
+
+        <ol class="sim-steps" aria-live="polite">
+          <li data-at="0"><b>You type <code>mosh macbook</code></b>Nothing is listening on UDP yet and no secret exists. Everything that follows is set up by SSH, which is the point — Mosh adds no new way to get in.</li>
+          <li data-at="1"><b>1 · An ordinary SSH login</b>The <code>mosh</code> client runs <code>ssh</code> for you and authenticates exactly as it always does: port 22, your public key, your <code>known_hosts</code> check. Every bit of SSH hardening you did in the last chapter applies here unchanged.</li>
+          <li data-at="2"><b>2 · <code>mosh-server</code> starts and reports back</b>Over that SSH connection the client launches <code>mosh-server</code>. It picks a free UDP port between 60000 and 61000, generates a one-time AES-OCB key, prints both to stdout, and detaches into the background. The key travels back down the already-encrypted SSH channel, so it is never exposed.</li>
+          <li data-at="3"><b>3 · SSH closes</b>Its job is finished. There is no long-lived SSH connection propping the session up, which is exactly why nothing breaks when your IP changes later — the fragile TCP connection is already gone by the time you leave the house.</li>
+          <li data-at="4"><b>4 · The session runs over UDP</b>The client starts speaking SSP to that port, authenticating every datagram with the shared key. From here on there is no TCP connection anywhere in the picture, and no server-side state that depends on your address.</li>
+        </ol>
+
+        <figcaption>
+          <b>SSH is the bootstrap, not the transport.</b> Mosh borrows SSH's authentication once, at the
+          start, to deliver a single shared secret — then gets out of the way. That is why Mosh adds no
+          new attack surface to reason about, and why the session survives things that would kill the
+          SSH connection that created it.
+        </figcaption>
+      </figure>
+
       <p>
         So the UDP range needs to be reachable between the two machines. On a tailnet this is
         automatic — WireGuard carries it, and the ports are exposed to your tailnet only, never to the
@@ -272,5 +622,6 @@ mosh macbook -- tmux new -A -s phone</code></pre>
 </div>
 <script src="../assets/nav.js"></script>
 <script src="../assets/app.js"></script>
+<script src="../assets/anim.js"></script>
 </body>
 </html>
