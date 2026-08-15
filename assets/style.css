@@ -302,6 +302,138 @@ td code { font-size: 12.5px; }
 .svg-danger-s { stroke: var(--danger); }
 .svg-warn-s   { stroke: var(--warn); }
 .svg-muted-s  { stroke: var(--text-faint); }
+.svg-ok-s     { stroke: var(--ok); }
+.svg-info-s   { stroke: var(--info); }
+
+/* ---------------- animated diagrams (sim) ---------------- */
+/* Without JS nothing below applies: every layer stays visible and the
+   figure reads as a normal static diagram. anim.js adds .sim-on. */
+.sim { padding-top: 16px; }
+.sim:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+/* No-JS (or pre-init) fallback: collapse to a single static picture by
+   keeping only the layers tagged data-poster out of each scenario's
+   alternatives, and drop the controls that would do nothing. */
+.sim:not(.sim-on) [data-scn]:not([data-poster]) { display: none; }
+.sim:not(.sim-on) .sim-bar,
+.sim:not(.sim-on) .sim-controls,
+.sim:not(.sim-on) .sim-term { display: none; }
+
+.sim-on [data-at] {
+  opacity: 0;
+  transition: opacity .45s ease, transform .45s ease;
+  pointer-events: none;
+}
+.sim-on [data-at].is-on { opacity: 1; pointer-events: auto; }
+/* Opt-in pop, only on cards. Flow paths must never be transformed —
+   anim.js samples them with getPointAtLength() in untransformed
+   user-space coordinates. */
+.sim-on svg .sim-pop { transform-box: fill-box; transform-origin: center; }
+.sim-on svg .sim-pop:not(.is-on) { transform: scale(.96); }
+.sim-on svg .sim-pop.is-on { transform: none; }
+
+/* scenario switcher */
+.sim-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  margin-bottom: 16px;
+}
+.sim-bar-label {
+  font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--text-faint); font-weight: 600; margin-right: 2px;
+}
+.sim-scn {
+  font: inherit; font-size: 12.5px; line-height: 1;
+  padding: 7px 12px; border-radius: 999px; cursor: pointer;
+  background: var(--bg-sunken); color: var(--text-muted);
+  border: 1px solid var(--border);
+  transition: background .18s, color .18s, border-color .18s;
+}
+.sim-scn:hover { color: var(--text); border-color: var(--border-strong); }
+.sim-scn.is-on {
+  background: var(--accent-soft); color: var(--accent-text);
+  border-color: var(--accent); font-weight: 600;
+}
+.sim-scn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* transport controls */
+.sim-controls {
+  display: flex; align-items: center; gap: 10px;
+  margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border);
+}
+.sim-btn {
+  font: inherit; font-size: 12.5px; line-height: 1;
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 8px 12px; border-radius: 8px; cursor: pointer;
+  background: var(--bg-sunken); color: var(--text);
+  border: 1px solid var(--border);
+}
+.sim-btn:hover { border-color: var(--border-strong); }
+.sim-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sim-btn-play { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+.sim-glyph { font-size: 10px; }
+
+/* step dots */
+.sim-track { display: flex; align-items: center; gap: 6px; margin-left: 4px; }
+.sim-dot {
+  font: inherit; font-size: 10px; font-family: var(--mono);
+  width: 24px; height: 24px; padding: 0; cursor: pointer;
+  border-radius: 50%; background: var(--bg-sunken); color: var(--text-faint);
+  border: 1px solid var(--border);
+  transition: background .2s, color .2s, border-color .2s;
+}
+.sim-dot:hover { color: var(--text); }
+.sim-dot.is-on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+.sim-dot:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.sim-progress {
+  flex: 1; height: 3px; min-width: 40px;
+  background: var(--bg-sunken); border-radius: 2px; overflow: hidden;
+}
+.sim-progress > span { display: block; height: 100%; width: 0; background: var(--accent); }
+.sim:not(.is-playing) .sim-progress > span { width: 0 !important; }
+
+/* narration */
+.sim-steps { list-style: none; margin: 14px 0 0; padding: 0; }
+.sim-on .sim-steps { position: relative; min-height: 62px; }
+.sim-on .sim-steps > li { position: absolute; inset: 0; }
+.sim-steps > li {
+  font-size: 13.5px; line-height: 1.55; color: var(--text-muted);
+  padding-left: 14px; border-left: 2px solid var(--accent);
+}
+.sim-steps > li b { color: var(--text); display: block; margin-bottom: 3px; font-size: 13px; }
+.sim-steps > li code { font-size: 12px; }
+
+/* live terminal readout */
+.sim-term {
+  margin-top: 14px; padding: 12px 14px; border-radius: 8px;
+  background: var(--bg-code); border: 1px solid var(--border);
+  font-family: var(--mono); font-size: 11.5px; line-height: 1.85;
+  min-height: 78px;
+}
+.sim-on .sim-term { position: relative; }
+.sim-on .sim-term > div[data-at] { position: absolute; left: 14px; right: 14px; }
+.sim-term .tp { color: var(--text-faint); }
+.sim-term .tok { color: var(--ok); }
+.sim-term .twarn { color: var(--warn); }
+.sim-term .tdim { color: var(--text-muted); }
+
+/* packets */
+.sim-packet { pointer-events: none; }
+.sim-packet-accent { fill: var(--accent); }
+.sim-packet-warn   { fill: var(--warn); }
+.sim-packet-muted  { fill: var(--text-faint); }
+.sim-packet-info   { fill: var(--info); }
+
+@media (prefers-reduced-motion: reduce) {
+  .sim-on [data-at] { transition: none; }
+  .sim-progress { display: none; }
+}
+
+@media (max-width: 620px) {
+  .sim-controls { flex-wrap: wrap; }
+  .sim-progress { order: 10; flex-basis: 100%; }
+  .sim-btn-text { display: none; }
+}
 
 /* ---------------- misc components ---------------- */
 .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px,1fr)); gap: 14px; margin-bottom: 18px; }

@@ -95,8 +95,17 @@
         explains the latency numbers you will see in <code>tailscale ping</code>.
       </p>
 
-      <figure class="diagram">
-        <svg viewBox="0 0 880 440" role="img" aria-label="NAT traversal: peers register endpoints with the coordination server, start relayed via DERP, attempt hole punching, then upgrade to a direct encrypted path">
+      <figure class="diagram sim" data-sim data-step-ms="4200" tabindex="0"
+              aria-label="Interactive NAT traversal walkthrough. Use the left and right arrow keys to step through it.">
+
+        <div class="sim-bar">
+          <span class="sim-bar-label">Network</span>
+          <button type="button" class="sim-scn is-on" data-scenario="home" aria-pressed="true">Home Wi-Fi + LTE</button>
+          <button type="button" class="sim-scn" data-scenario="blocked" aria-pressed="false">Corporate firewall</button>
+          <button type="button" class="sim-scn" data-scenario="lan" aria-pressed="false">Same Wi-Fi</button>
+        </div>
+
+        <svg viewBox="0 0 880 456" role="img" aria-label="NAT traversal: peers register endpoints with the coordination server, start relayed via DERP, attempt hole punching, then upgrade to a direct encrypted path">
           <defs>
             <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
               <path d="M0 0 L10 5 L0 10 z" class="svg-accent"/>
@@ -106,62 +115,173 @@
             </marker>
           </defs>
 
-          <!-- coordination -->
-          <rect x="326" y="14" width="228" height="52" rx="9" class="svg-card svg-stroke" stroke-width="1.5" stroke-dasharray="5 3"/>
-          <text x="440" y="36" text-anchor="middle" class="svg-label">Coordination server</text>
-          <text x="440" y="54" text-anchor="middle" class="svg-sub">public keys + candidate endpoints</text>
+          <!-- coordination server -->
+          <g data-at="0+" class="sim-pop">
+            <rect x="326" y="14" width="228" height="52" rx="9" class="svg-card svg-stroke" stroke-width="1.5" stroke-dasharray="5 3"/>
+            <text x="440" y="36" text-anchor="middle" class="svg-label">Coordination server</text>
+            <text x="440" y="54" text-anchor="middle" class="svg-sub">public keys + candidate endpoints</text>
+          </g>
 
           <!-- peers -->
-          <rect x="24" y="150" width="180" height="92" rx="10" class="svg-card svg-stroke" stroke-width="1.6"/>
-          <rect x="24" y="150" width="5" height="92" rx="2.5" class="svg-accent"/>
-          <text x="46" y="178" class="svg-label">iPhone</text>
-          <text x="46" y="197" class="svg-sub">carrier-grade NAT</text>
-          <text x="46" y="214" class="svg-sub">no inbound port</text>
-          <text x="46" y="231" class="svg-sub">100.126.245.94</text>
+          <g data-at="0+" class="sim-pop">
+            <rect x="24" y="150" width="180" height="92" rx="10" class="svg-card svg-stroke" stroke-width="1.6"/>
+            <rect x="24" y="150" width="5" height="92" rx="2.5" class="svg-accent"/>
+            <text x="46" y="178" class="svg-label">iPhone</text>
+            <text x="46" y="231" class="svg-sub">100.126.245.94</text>
+          </g>
+          <g data-at="0+" data-scn="home blocked" data-poster>
+            <text x="46" y="197" class="svg-sub">carrier-grade NAT</text>
+            <text x="46" y="214" class="svg-sub">no inbound port</text>
+          </g>
+          <g data-at="0+" data-scn="lan">
+            <text x="46" y="197" class="svg-sub">same Wi-Fi</text>
+            <text x="46" y="214" class="svg-sub">192.168.1.99</text>
+          </g>
 
-          <rect x="676" y="150" width="180" height="92" rx="10" class="svg-card svg-stroke" stroke-width="1.6"/>
-          <rect x="676" y="150" width="5" height="92" rx="2.5" class="svg-accent"/>
-          <text x="698" y="178" class="svg-label">MacBook Pro</text>
-          <text x="698" y="197" class="svg-sub">home router NAT</text>
-          <text x="698" y="214" class="svg-sub">no port forwarding</text>
-          <text x="698" y="231" class="svg-sub">100.117.202.65</text>
+          <g data-at="0+" class="sim-pop">
+            <rect x="676" y="150" width="180" height="92" rx="10" class="svg-card svg-stroke" stroke-width="1.6"/>
+            <rect x="676" y="150" width="5" height="92" rx="2.5" class="svg-accent"/>
+            <text x="698" y="178" class="svg-label">MacBook Pro</text>
+            <text x="698" y="231" class="svg-sub">100.117.202.65</text>
+          </g>
+          <g data-at="0+" data-scn="home" data-poster>
+            <text x="698" y="197" class="svg-sub">home router NAT</text>
+            <text x="698" y="214" class="svg-sub">no port forwarding</text>
+          </g>
+          <g data-at="0+" data-scn="blocked">
+            <text x="698" y="197" class="svg-sub">corporate firewall</text>
+            <text x="698" y="214" class="svg-sub">UDP egress blocked</text>
+          </g>
+          <g data-at="0+" data-scn="lan">
+            <text x="698" y="197" class="svg-sub">same Wi-Fi</text>
+            <text x="698" y="214" class="svg-sub">192.168.1.222</text>
+          </g>
 
-          <!-- step 1 registration -->
-          <path d="M150 150 C 190 100, 280 70, 326 52" class="svg-muted-s" stroke-width="1.5" stroke-dasharray="4 4" fill="none" marker-end="url(#a2)"/>
-          <path d="M730 150 C 690 100, 600 70, 554 52" class="svg-muted-s" stroke-width="1.5" stroke-dasharray="4 4" fill="none" marker-end="url(#a2)"/>
-          <circle cx="238" cy="98" r="11" class="svg-card svg-stroke" stroke-width="1.4"/>
-          <text x="238" y="102" text-anchor="middle" class="svg-sub">1</text>
-          <circle cx="642" cy="98" r="11" class="svg-card svg-stroke" stroke-width="1.4"/>
-          <text x="642" y="102" text-anchor="middle" class="svg-sub">1</text>
+          <!-- step 0 -->
+          <text data-at="0" x="440" y="212" text-anchor="middle" class="svg-sub">no path between them yet</text>
 
-          <!-- step 2 DERP -->
-          <rect x="336" y="330" width="208" height="60" rx="10" class="svg-surface svg-stroke" stroke-width="1.5"/>
-          <text x="440" y="354" text-anchor="middle" class="svg-label">DERP relay</text>
-          <text x="440" y="372" text-anchor="middle" class="svg-sub">encrypted blobs · cannot decrypt</text>
+          <!-- step 1: registration -->
+          <path data-at="1" data-flow="muted" data-count="3" data-speed="0.19"
+                d="M150 150 C 190 100, 280 70, 326 52"
+                class="svg-muted-s" stroke-width="1.5" stroke-dasharray="4 4" fill="none" marker-end="url(#a2)"/>
+          <path data-at="1" data-flow="muted" data-count="3" data-speed="0.19"
+                d="M730 150 C 690 100, 600 70, 554 52"
+                class="svg-muted-s" stroke-width="1.5" stroke-dasharray="4 4" fill="none" marker-end="url(#a2)"/>
+          <g data-at="1">
+            <circle cx="238" cy="98" r="11" class="svg-card svg-stroke" stroke-width="1.4"/>
+            <text x="238" y="102" text-anchor="middle" class="svg-sub">1</text>
+            <circle cx="642" cy="98" r="11" class="svg-card svg-stroke" stroke-width="1.4"/>
+            <text x="642" y="102" text-anchor="middle" class="svg-sub">1</text>
+            <text x="440" y="212" text-anchor="middle" class="svg-sub">public keys only — never private keys</text>
+          </g>
 
-          <path d="M114 242 C 140 320, 260 350, 336 358" class="svg-muted-s" stroke-width="1.8" fill="none" marker-end="url(#a2)"/>
-          <path d="M766 242 C 740 320, 620 350, 544 358" class="svg-muted-s" stroke-width="1.8" fill="none" marker-end="url(#a2)"/>
-          <circle cx="212" cy="322" r="11" class="svg-card svg-stroke" stroke-width="1.4"/>
-          <text x="212" y="326" text-anchor="middle" class="svg-sub">2</text>
-          <text x="150" y="418" class="svg-sub">works instantly · ~600 ms</text>
+          <!-- step 2+: DERP relay -->
+          <g data-at="2+" class="sim-pop">
+            <rect x="336" y="330" width="208" height="60" rx="10" class="svg-surface svg-stroke" stroke-width="1.5"/>
+            <text x="440" y="354" text-anchor="middle" class="svg-label">DERP relay</text>
+            <text x="440" y="372" text-anchor="middle" class="svg-sub">encrypted blobs · cannot decrypt</text>
+          </g>
 
-          <!-- step 3 hole punch -->
-          <path d="M204 206 L676 206" class="svg-warn-s" stroke-width="1.6" stroke-dasharray="7 5" fill="none"/>
-          <circle cx="440" cy="206" r="11" class="svg-card svg-stroke" stroke-width="1.4"/>
-          <text x="440" y="210" text-anchor="middle" class="svg-sub">3</text>
-          <text x="440" y="192" text-anchor="middle" class="svg-sub">simultaneous outbound probes</text>
+          <!-- relay traffic while it is the live path -->
+          <g data-at="2-3">
+            <path data-flow="info" data-count="3" data-speed="0.2"
+                  d="M114 242 C 140 320, 260 350, 336 358"
+                  class="svg-muted-s" stroke-width="1.8" fill="none" marker-end="url(#a2)"/>
+            <path data-flow="info" data-count="3" data-speed="0.2"
+                  d="M766 242 C 740 320, 620 350, 544 358"
+                  class="svg-muted-s" stroke-width="1.8" fill="none" marker-end="url(#a2)"/>
+            <circle cx="212" cy="322" r="11" class="svg-card svg-stroke" stroke-width="1.4"/>
+            <text x="212" y="326" text-anchor="middle" class="svg-sub">2</text>
+            <text x="112" y="424" class="svg-sub">works instantly · ~620 ms round trip</text>
+          </g>
 
-          <!-- step 4 direct -->
-          <path d="M204 258 C 340 300, 540 300, 676 258" class="svg-accent-s" stroke-width="2.4" fill="none" marker-end="url(#a1)"/>
-          <circle cx="440" cy="288" r="11" class="svg-card svg-accent-s" stroke-width="1.6"/>
-          <text x="440" y="292" text-anchor="middle" class="svg-sub">4</text>
-          <text x="612" y="418" class="svg-sub">upgraded · ~50 ms on LAN</text>
+          <!-- blocked: relay is still the path at step 4 -->
+          <g data-at="4" data-scn="blocked">
+            <path data-flow="warn" data-count="3" data-speed="0.2"
+                  d="M114 242 C 140 320, 260 350, 336 358"
+                  class="svg-warn-s" stroke-width="1.8" fill="none" marker-end="url(#a2)"/>
+            <path data-flow="warn" data-count="3" data-speed="0.2"
+                  d="M766 242 C 740 320, 620 350, 544 358"
+                  class="svg-warn-s" stroke-width="1.8" fill="none" marker-end="url(#a2)"/>
+            <text x="112" y="424" class="svg-sub">stays relayed · secure, just slower</text>
+          </g>
+
+          <!-- step 3: hole punching -->
+          <g data-at="3">
+            <path data-flow="warn" data-count="2" data-speed="0.34"
+                  d="M204 206 L676 206"
+                  class="svg-warn-s" stroke-width="1.6" stroke-dasharray="7 5" fill="none"/>
+            <path data-flow="warn" data-flow-rev data-count="2" data-speed="0.34"
+                  d="M204 218 L676 218"
+                  stroke="none" fill="none"/>
+            <circle cx="440" cy="182" r="11" class="svg-card svg-stroke" stroke-width="1.4"/>
+            <text x="440" y="186" text-anchor="middle" class="svg-sub">3</text>
+            <text x="440" y="164" text-anchor="middle" class="svg-sub">simultaneous outbound probes punch both NATs</text>
+          </g>
+
+          <!-- step 4: direct path succeeds -->
+          <g data-at="4" data-scn="home lan" data-poster>
+            <path data-flow="accent" data-count="4" data-speed="0.42" data-r="4.5"
+                  d="M204 258 C 340 300, 540 300, 676 258"
+                  class="svg-accent-s" stroke-width="2.4" fill="none" marker-end="url(#a1)"/>
+            <circle cx="440" cy="288" r="11" class="svg-card svg-accent-s" stroke-width="1.6"/>
+            <text x="440" y="292" text-anchor="middle" class="svg-sub">4</text>
+          </g>
+          <text data-at="4" data-scn="home" data-poster x="560" y="424" class="svg-sub">direct · encrypted end to end · ~48 ms</text>
+          <text data-at="4" data-scn="lan" x="560" y="424" class="svg-sub">direct across the LAN · ~2 ms</text>
+
+          <!-- step 4: hole punching failed -->
+          <g data-at="4" data-scn="blocked">
+            <path d="M204 206 L676 206" class="svg-danger-s" stroke-width="1.4" stroke-dasharray="3 6" fill="none" opacity=".55"/>
+            <g class="svg-danger-s" stroke-width="2.6">
+              <path d="M420 192 L440 212"/><path d="M440 192 L420 212"/>
+            </g>
+            <text x="430" y="234" class="svg-sub">UDP dropped — no direct path</text>
+          </g>
         </svg>
+
+        <div class="sim-controls">
+          <button type="button" class="sim-btn" data-act="prev" aria-label="Previous step"><span class="sim-glyph">◀</span></button>
+          <button type="button" class="sim-btn sim-btn-play" data-act="play" aria-label="Play">
+            <span class="sim-glyph">▶</span><span class="sim-btn-text">Play</span>
+          </button>
+          <button type="button" class="sim-btn" data-act="next" aria-label="Next step"><span class="sim-glyph">▶</span></button>
+          <div class="sim-track" role="group" aria-label="Jump to step">
+            <button type="button" class="sim-dot" data-goto="0" aria-label="Step 0, cold start">0</button>
+            <button type="button" class="sim-dot" data-goto="1" aria-label="Step 1, registration">1</button>
+            <button type="button" class="sim-dot" data-goto="2" aria-label="Step 2, relay">2</button>
+            <button type="button" class="sim-dot" data-goto="3" aria-label="Step 3, hole punching">3</button>
+            <button type="button" class="sim-dot" data-goto="4" aria-label="Step 4, outcome">4</button>
+          </div>
+          <div class="sim-progress" aria-hidden="true"><span></span></div>
+        </div>
+
+        <ol class="sim-steps" aria-live="polite">
+          <li data-at="0"><b>Cold start</b>Neither device has a reachable public port. Nothing on the open internet can initiate a connection to either of them — and that is the point.</li>
+          <li data-at="1"><b>1 · Registration</b>Each device sends its <em>public</em> key and a list of candidate endpoints to the coordination server. Private keys were generated on-device and never move.</li>
+          <li data-at="2"><b>2 · Relay first</b>Traffic starts flowing immediately through the nearest DERP relay. The relay forwards sealed packets it has no key to open. Slow, but working — right now.</li>
+          <li data-at="3"><b>3 · Hole punching</b>Both peers fire outbound UDP probes at each other's candidate endpoints at the same time. Each outbound packet opens a return hole in its own NAT.</li>
+          <li data-at="4" data-scn="home" data-poster><b>4 · Upgraded, silently</b>The probes met. The session moves to a direct encrypted path with no interruption — you never saw a reconnect. ~620 ms became ~48 ms.</li>
+          <li data-at="4" data-scn="blocked"><b>4 · No upgrade — and that is fine</b>The firewall drops outbound UDP, so the probes never meet. The connection stays on DERP: identical encryption, more latency. This is what a permanently relayed path looks like.</li>
+          <li data-at="4" data-scn="lan"><b>4 · Direct across the room</b>Both peers are on one subnet, so the direct path is found almost instantly. Your packets never leave the building even though the tailnet spans the internet.</li>
+        </ol>
+
+        <div class="sim-term" aria-hidden="true">
+          <div data-at="0"><span class="tp">$</span> tailscale ping iphone<br><span class="tdim">…</span></div>
+          <div data-at="1"><span class="tp">$</span> tailscale ping iphone<br><span class="tdim">exchanging keys via controlplane.tailscale.com</span></div>
+          <div data-at="2"><span class="tp">$</span> tailscale ping iphone<br>pong from iphone (100.126.245.94) via <span class="twarn">DERP(dbi)</span> in 618ms</div>
+          <div data-at="3"><span class="tp">$</span> tailscale ping iphone<br>pong from iphone (100.126.245.94) via <span class="twarn">DERP(dbi)</span> in 618ms<br><span class="tdim">probing 12 candidate endpoints…</span></div>
+          <div data-at="4" data-scn="home"><span class="tp">$</span> tailscale ping iphone<br>pong from iphone (100.126.245.94) via <span class="twarn">DERP(dbi)</span> in 618ms<br>pong from iphone (100.126.245.94) via <span class="tok">192.168.1.222:41641</span> in 48ms</div>
+          <div data-at="4" data-scn="blocked"><span class="tp">$</span> tailscale ping iphone<br>pong from iphone (100.126.245.94) via <span class="twarn">DERP(dbi)</span> in 618ms<br>pong from iphone (100.126.245.94) via <span class="twarn">DERP(dbi)</span> in 624ms</div>
+          <div data-at="4" data-scn="lan"><span class="tp">$</span> tailscale ping iphone<br>pong from iphone (100.126.245.94) via <span class="twarn">DERP(dbi)</span> in 96ms<br>pong from iphone (100.126.245.94) via <span class="tok">192.168.1.99:41641</span> in 2ms</div>
+        </div>
+
         <figcaption>
           <b>Connectivity first, speed second.</b> Tailscale does not make you wait for a direct path.
           It relays immediately through DERP so the connection works at once, attempts hole punching in
           the background, and silently upgrades when it succeeds. You may notice the first packet of a
           session being slow and everything after it being fast — that is this upgrade happening live.
+          Switch the network above to see why some connections never upgrade.
         </figcaption>
       </figure>
 
@@ -349,5 +469,6 @@ tailscale debug prefs | grep -i runssh</code></pre>
 </div>
 <script src="../assets/nav.js"></script>
 <script src="../assets/app.js"></script>
+<script src="../assets/anim.js"></script>
 </body>
 </html>
