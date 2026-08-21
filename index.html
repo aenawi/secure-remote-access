@@ -49,13 +49,14 @@
           </defs>
 
           <!-- control plane -->
-          <rect x="330" y="18" width="240" height="62" rx="10" class="svg-card svg-stroke" stroke-width="1.5" stroke-dasharray="5 3"/>
+          <rect x="330" y="18" width="240" height="76" rx="10" class="svg-card svg-stroke" stroke-width="1.5" stroke-dasharray="5 3"/>
           <text x="450" y="42" text-anchor="middle" class="svg-label">Tailscale coordination server</text>
-          <text x="450" y="60" text-anchor="middle" class="svg-sub">exchanges public keys · never sees traffic</text>
+          <text x="450" y="60" text-anchor="middle" class="svg-sub">exchanges public keys</text>
+          <text x="450" y="78" text-anchor="middle" class="svg-sub">never sees traffic</text>
 
           <!-- control lines -->
-          <path d="M450 80 L450 196" class="svg-muted-s" stroke-width="1.4" stroke-dasharray="4 4" fill="none"/>
-          <text x="462" y="140" class="svg-sub">control plane</text>
+          <path d="M450 94 L450 196" class="svg-muted-s" stroke-width="1.4" stroke-dasharray="4 4" fill="none"/>
+          <text x="462" y="147" class="svg-sub">control plane</text>
 
           <!-- tailnet hub -->
           <rect x="336" y="196" width="228" height="104" rx="12" class="svg-card svg-accent-s" stroke-width="2"/>
@@ -101,7 +102,7 @@
           <path d="M684 359 C 620 359, 600 306, 564 292" class="svg-accent-s" stroke-width="2" fill="none" marker-end="url(#ar)"/>
 
           <!-- DERP -->
-          <rect x="356" y="392" width="188" height="56" rx="10" class="svg-surface svg-stroke" stroke-width="1.4" stroke-dasharray="5 3"/>
+          <rect x="342" y="392" width="216" height="56" rx="10" class="svg-surface svg-stroke" stroke-width="1.4" stroke-dasharray="5 3"/>
           <text x="450" y="415" text-anchor="middle" class="svg-label">DERP relay</text>
           <text x="450" y="433" text-anchor="middle" class="svg-sub">fallback when NAT blocks direct</text>
           <path d="M450 300 L450 392" class="svg-muted-s" stroke-width="1.4" stroke-dasharray="4 4" fill="none"/>
