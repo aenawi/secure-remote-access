@@ -416,7 +416,7 @@
       <div class="callout warn">
         <div class="ct">What Mosh does not do</div>
         <ul>
-          <li>No port forwarding. Keep plain SSH around for tunnels — or reach the service directly over the tailnet, which is usually better anyway.</li>
+          <li>No port forwarding. Keep plain SSH around for tunnels — or publish the port to your tailnet with <code>tailscale serve</code>. <a href="05-macos.html">Chapter 05</a> works through both, because "my dev server is on loopback and I am holding a phone" is a problem this guide otherwise creates and does not solve.</li>
           <li>No native scrollback. It draws a screen, so scrolling is tmux's job, not the terminal's.</li>
           <li>It needs UDP. On the tailnet that is fine; WireGuard is UDP already.</li>
           <li>It does not survive a server reboot. Only tmux does that.</li>
