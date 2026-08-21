@@ -27,74 +27,272 @@
         authentication if the packet never arrives.
       </p>
 
-      <figure class="diagram">
-        <svg viewBox="0 0 820 480" role="img" aria-label="Diagnostic ladder with five rungs: tailnet membership, path, port reachability, authentication, and session stability, each with its failure symptom">
-          <text x="20" y="24" class="svg-sub">TEST</text>
-          <text x="470" y="24" class="svg-sub">IF IT FAILS, THE CAUSE IS</text>
+      <figure class="diagram sim" data-sim data-step-ms="3600" tabindex="0"
+              aria-label="Interactive diagnostic ladder. Pick a symptom, then climb the five rungs one at a time to see which one actually fails. Use the left and right arrow keys to step through it.">
 
-          <!-- 5 -->
-          <rect x="20" y="36" width="420" height="70" rx="9" class="svg-card svg-accent-s" stroke-width="1.7"/>
-          <text x="42" y="62" class="svg-label">5 · Does the session hold?</text>
-          <text x="42" y="82" class="svg-sub">ssh host 'sleep 15; echo ok'</text>
-          <text x="42" y="98" class="svg-sub">read /var/log or journalctl for the reason</text>
-          <path d="M440 71 L466 71" class="svg-muted-s" stroke-width="1.5"/>
-          <rect x="466" y="36" width="334" height="70" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
-          <text x="486" y="60" class="svg-sub">client killed (iOS suspend), or a</text>
-          <text x="486" y="78" class="svg-sub">restarting daemon killing its children.</text>
-          <text x="486" y="96" class="svg-sub">Fix with Mosh + tmux, not server tuning.</text>
+        <div class="sim-bar">
+          <span class="sim-bar-label">Symptom</span>
+          <button type="button" class="sim-scn is-on" data-scenario="denied" aria-pressed="true">Permission denied</button>
+          <button type="button" class="sim-scn" data-scenario="refused" aria-pressed="false">Connection refused</button>
+          <button type="button" class="sim-scn" data-scenario="timeout" aria-pressed="false">Connection timed out</button>
+          <button type="button" class="sim-scn" data-scenario="pipe" aria-pressed="false">Broken pipe</button>
+        </div>
 
-          <!-- 4 -->
-          <rect x="20" y="118" width="420" height="70" rx="9" class="svg-card svg-stroke" stroke-width="1.5"/>
-          <text x="42" y="144" class="svg-label">4 · Does authentication succeed?</text>
-          <text x="42" y="164" class="svg-sub">ssh -v host</text>
-          <text x="42" y="180" class="svg-sub">look for "Offering public key" / "Accepted"</text>
-          <path d="M440 153 L466 153" class="svg-muted-s" stroke-width="1.5"/>
-          <rect x="466" y="118" width="334" height="70" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
-          <text x="486" y="142" class="svg-sub">wrong key, bad file permissions,</text>
-          <text x="486" y="160" class="svg-sub">AllowUsers excluding you, or macOS</text>
-          <text x="486" y="178" class="svg-sub">SACL membership missing.</text>
+        <svg viewBox="0 0 820 480" role="img" aria-label="Diagnostic ladder with five rungs: tailnet membership, path, port reachability, authentication, and session stability. Climbing from the bottom, each rung reports pass or fail for the chosen symptom, and the rungs above the failing one are never run.">
+          <defs>
+            <marker id="t1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="currentColor" opacity=".45"/>
+            </marker>
+            <marker id="t2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" class="svg-accent"/>
+            </marker>
+          </defs>
 
-          <!-- 3 -->
-          <rect x="20" y="200" width="420" height="70" rx="9" class="svg-card svg-stroke" stroke-width="1.5"/>
-          <text x="42" y="226" class="svg-label">3 · Is the port open?</text>
-          <text x="42" y="246" class="svg-sub">nc -z -w 3 &lt;tailnet-ip&gt; 22</text>
-          <text x="42" y="262" class="svg-sub">test from the tailnet address, not localhost</text>
-          <path d="M440 235 L466 235" class="svg-muted-s" stroke-width="1.5"/>
-          <rect x="466" y="200" width="334" height="70" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
-          <text x="486" y="224" class="svg-sub">sshd down, bound to a different</text>
-          <text x="486" y="242" class="svg-sub">address, wrong port, or an ACL /</text>
-          <text x="486" y="260" class="svg-sub">firewall rule dropping it.</text>
+          <text x="20" y="22" class="svg-sub">TEST</text>
+          <text x="460" y="22" class="svg-sub">WHAT COMES BACK</text>
 
-          <!-- 2 -->
-          <rect x="20" y="282" width="420" height="70" rx="9" class="svg-card svg-stroke" stroke-width="1.5"/>
-          <text x="42" y="308" class="svg-label">2 · Is there a path?</text>
-          <text x="42" y="328" class="svg-sub">tailscale ping &lt;device&gt;</text>
-          <text x="42" y="344" class="svg-sub">note whether it says DERP or a direct IP</text>
-          <path d="M440 317 L466 317" class="svg-muted-s" stroke-width="1.5"/>
-          <rect x="466" y="282" width="334" height="70" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
-          <text x="486" y="306" class="svg-sub">peer asleep or offline. Persistent</text>
-          <text x="486" y="324" class="svg-sub">DERP means UDP is blocked —</text>
-          <text x="486" y="342" class="svg-sub">slow, but not broken.</text>
+          <!-- ============ the five rungs (always present) ============ -->
+          <g data-at="0+">
+            <!-- 5 -->
+            <rect x="20" y="34" width="380" height="72" rx="9" class="svg-card svg-stroke" stroke-width="1.5"/>
+            <text x="42" y="59" class="svg-label">5 · Does the session hold?</text>
+            <text x="42" y="78" class="svg-sub">ssh host 'sleep 15; echo ok'</text>
+            <text x="42" y="95" class="svg-sub">read journalctl or /var/log for the reason</text>
+            <path d="M404 70 L456 70" class="svg-muted-s" stroke-width="1.5" fill="none" marker-end="url(#t1)"/>
 
-          <!-- 1 -->
-          <rect x="20" y="364" width="420" height="70" rx="9" class="svg-card svg-stroke" stroke-width="1.5"/>
-          <text x="42" y="390" class="svg-label">1 · Are both on the tailnet?</text>
-          <text x="42" y="410" class="svg-sub">tailscale status</text>
-          <text x="42" y="426" class="svg-sub">check both ends, not just yours</text>
-          <path d="M440 399 L466 399" class="svg-muted-s" stroke-width="1.5"/>
-          <rect x="466" y="364" width="334" height="70" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
-          <text x="486" y="388" class="svg-sub">logged out, key expired, device</text>
-          <text x="486" y="406" class="svg-sub">not approved, or Tailscale simply</text>
-          <text x="486" y="424" class="svg-sub">not running.</text>
+            <!-- 4 -->
+            <rect x="20" y="118" width="380" height="72" rx="9" class="svg-card svg-stroke" stroke-width="1.5"/>
+            <text x="42" y="143" class="svg-label">4 · Does authentication succeed?</text>
+            <text x="42" y="162" class="svg-sub">ssh -v host</text>
+            <text x="42" y="179" class="svg-sub">look for &ldquo;Offering public key&rdquo; / &ldquo;Accepted&rdquo;</text>
+            <path d="M404 154 L456 154" class="svg-muted-s" stroke-width="1.5" fill="none" marker-end="url(#t1)"/>
 
-          <path d="M230 364 L230 352 M230 282 L230 270 M230 200 L230 188 M230 118 L230 106"
-                class="svg-accent-s" stroke-width="2" fill="none"/>
-          <text x="20" y="462" class="svg-sub">start here ↑ and climb</text>
+            <!-- 3 -->
+            <rect x="20" y="202" width="380" height="72" rx="9" class="svg-card svg-stroke" stroke-width="1.5"/>
+            <text x="42" y="227" class="svg-label">3 · Is the port open?</text>
+            <text x="42" y="246" class="svg-sub">nc -z -w 3 &lt;tailnet-ip&gt; 22</text>
+            <text x="42" y="263" class="svg-sub">test from the tailnet address, not localhost</text>
+            <path d="M404 238 L456 238" class="svg-muted-s" stroke-width="1.5" fill="none" marker-end="url(#t1)"/>
+
+            <!-- 2 -->
+            <rect x="20" y="286" width="380" height="72" rx="9" class="svg-card svg-stroke" stroke-width="1.5"/>
+            <text x="42" y="311" class="svg-label">2 · Is there a path?</text>
+            <text x="42" y="330" class="svg-sub">tailscale ping &lt;device&gt;</text>
+            <text x="42" y="347" class="svg-sub">note whether it says DERP or a direct IP</text>
+            <path d="M404 322 L456 322" class="svg-muted-s" stroke-width="1.5" fill="none" marker-end="url(#t1)"/>
+
+            <!-- 1 -->
+            <rect x="20" y="370" width="380" height="72" rx="9" class="svg-card svg-stroke" stroke-width="1.5"/>
+            <text x="42" y="395" class="svg-label">1 · Are both on the tailnet?</text>
+            <text x="42" y="414" class="svg-sub">tailscale status</text>
+            <text x="42" y="431" class="svg-sub">check both ends, not just yours</text>
+            <path d="M404 406 L456 406" class="svg-muted-s" stroke-width="1.5" fill="none" marker-end="url(#t1)"/>
+          </g>
+          <text x="20" y="466" class="svg-sub">start at the bottom and climb — each rung assumes the one below it passed</text>
+
+          <!-- ============ the climb ticks ============ -->
+          <path data-at="2+" d="M210 370 L210 358" class="svg-accent-s" stroke-width="2" fill="none" marker-end="url(#t2)"/>
+          <path data-at="3+" data-scn="refused denied pipe" data-poster d="M210 286 L210 274" class="svg-accent-s" stroke-width="2" fill="none" marker-end="url(#t2)"/>
+          <path data-at="4+" data-scn="denied pipe" data-poster d="M210 202 L210 190" class="svg-accent-s" stroke-width="2" fill="none" marker-end="url(#t2)"/>
+          <path data-at="5+" data-scn="pipe" d="M210 118 L210 106" class="svg-accent-s" stroke-width="2" fill="none" marker-end="url(#t2)"/>
+
+          <!-- ============ step 0 · the symptom you started from ============ -->
+          <g data-at="0" data-scn="denied refused timeout pipe">
+            <rect x="460" y="186" width="340" height="96" rx="9" class="svg-surface svg-stroke" stroke-width="1.3" stroke-dasharray="5 4"/>
+            <text x="478" y="212" class="svg-sub">the symptom you started from</text>
+          </g>
+          <g data-at="0" data-scn="denied">
+            <text x="478" y="240" class="svg-mono-danger">Permission denied (publickey).</text>
+            <text x="478" y="260" class="svg-sub">nothing above tells you which rung broke</text>
+          </g>
+          <g data-at="0" data-scn="refused">
+            <text x="478" y="240" class="svg-mono-danger">Connection refused</text>
+            <text x="478" y="260" class="svg-sub">something answered, and said no</text>
+          </g>
+          <g data-at="0" data-scn="timeout">
+            <text x="478" y="240" class="svg-mono-danger">Operation timed out</text>
+            <text x="478" y="260" class="svg-sub">nothing answered at all</text>
+          </g>
+          <g data-at="0" data-scn="pipe">
+            <text x="478" y="240" class="svg-mono-danger">client_loop: Broken pipe</text>
+            <text x="478" y="260" class="svg-sub">it worked, then stopped working</text>
+          </g>
+
+          <!-- ============ rung 1 ============ -->
+          <g data-at="1+" class="sim-pop">
+            <rect x="460" y="370" width="340" height="72" rx="9" class="svg-card svg-accent-s" stroke-width="1.5"/>
+            <text x="478" y="395" class="svg-mono-accent">pass · both ends up</text>
+            <text x="478" y="414" class="svg-sub">macbook 100.117.202.65 · active</text>
+            <text x="478" y="431" class="svg-sub">iphone 100.83.14.9 · active</text>
+          </g>
+          <rect data-at="1" data-scn="denied refused timeout pipe" x="20" y="370" width="380" height="72" rx="9"
+                fill="none" class="svg-accent-s" stroke-width="2.6"/>
+          <path data-at="1" data-flow="accent" data-count="2" data-speed="0.24"
+                d="M404 406 L456 406" stroke="none" fill="none"/>
+
+          <!-- ============ rung 2 ============ -->
+          <g data-at="2+" data-scn="refused denied pipe" data-poster class="sim-pop">
+            <rect x="460" y="286" width="340" height="72" rx="9" class="svg-card svg-accent-s" stroke-width="1.5"/>
+            <text x="478" y="311" class="svg-mono-accent">pass · direct path</text>
+            <text x="478" y="330" class="svg-sub">pong from 100.117.202.65 in 14ms</text>
+            <text x="478" y="347" class="svg-sub">no DERP relay in the middle</text>
+          </g>
+          <g data-at="2+" data-scn="timeout" class="sim-pop">
+            <rect x="460" y="286" width="340" height="72" rx="9" class="svg-card svg-danger-s" stroke-width="1.7"/>
+            <text x="478" y="311" class="svg-mono-danger">stop · this is your answer</text>
+            <text x="478" y="330" class="svg-sub">no reply. Peer asleep, offline, or</text>
+            <text x="478" y="347" class="svg-sub">an ACL is dropping the packets.</text>
+          </g>
+          <rect data-at="2" data-scn="refused denied pipe" x="20" y="286" width="380" height="72" rx="9"
+                fill="none" class="svg-accent-s" stroke-width="2.6"/>
+          <rect data-at="2+" data-scn="timeout" x="20" y="286" width="380" height="72" rx="9"
+                fill="none" class="svg-danger-s" stroke-width="2.6"/>
+          <path data-at="2" data-scn="refused denied pipe" data-flow="accent" data-count="2" data-speed="0.24"
+                d="M404 322 L456 322" stroke="none" fill="none"/>
+          <path data-at="2" data-scn="timeout" data-flow="warn" data-count="2" data-speed="0.24"
+                d="M404 322 L456 322" stroke="none" fill="none"/>
+
+          <!-- ============ rung 3 ============ -->
+          <g data-at="3+" data-scn="denied pipe" data-poster class="sim-pop">
+            <rect x="460" y="202" width="340" height="72" rx="9" class="svg-card svg-accent-s" stroke-width="1.5"/>
+            <text x="478" y="227" class="svg-mono-accent">pass · port answers</text>
+            <text x="478" y="246" class="svg-sub">nc succeeded against the tailnet</text>
+            <text x="478" y="263" class="svg-sub">address — not localhost</text>
+          </g>
+          <g data-at="3+" data-scn="refused" class="sim-pop">
+            <rect x="460" y="202" width="340" height="72" rx="9" class="svg-card svg-danger-s" stroke-width="1.7"/>
+            <text x="478" y="227" class="svg-mono-danger">stop · this is your answer</text>
+            <text x="478" y="246" class="svg-sub">sshd down, bound to another address,</text>
+            <text x="478" y="263" class="svg-sub">wrong port, or a firewall rule.</text>
+          </g>
+          <g data-at="3+" data-scn="timeout">
+            <rect x="460" y="202" width="340" height="72" rx="9" class="svg-surface svg-stroke" stroke-width="1.3" stroke-dasharray="5 4"/>
+            <text x="478" y="227" class="svg-sub">not run</text>
+            <text x="478" y="250" class="svg-sub">rung 2 already gave you the answer.</text>
+          </g>
+          <rect data-at="3" data-scn="denied pipe" x="20" y="202" width="380" height="72" rx="9"
+                fill="none" class="svg-accent-s" stroke-width="2.6"/>
+          <rect data-at="3+" data-scn="refused" x="20" y="202" width="380" height="72" rx="9"
+                fill="none" class="svg-danger-s" stroke-width="2.6"/>
+          <path data-at="3" data-scn="denied pipe" data-flow="accent" data-count="2" data-speed="0.24"
+                d="M404 238 L456 238" stroke="none" fill="none"/>
+          <path data-at="3" data-scn="refused" data-flow="warn" data-count="2" data-speed="0.24"
+                d="M404 238 L456 238" stroke="none" fill="none"/>
+
+          <!-- ============ rung 4 ============ -->
+          <g data-at="4+" data-scn="pipe" class="sim-pop">
+            <rect x="460" y="118" width="340" height="72" rx="9" class="svg-card svg-accent-s" stroke-width="1.5"/>
+            <text x="478" y="143" class="svg-mono-accent">pass · key accepted</text>
+            <text x="478" y="162" class="svg-sub">Offering public key … Accepted</text>
+            <text x="478" y="179" class="svg-sub">you land in a shell.</text>
+          </g>
+          <g data-at="4+" data-scn="denied" data-poster class="sim-pop">
+            <rect x="460" y="118" width="340" height="72" rx="9" class="svg-card svg-danger-s" stroke-width="1.7"/>
+            <text x="478" y="143" class="svg-mono-danger">stop · this is your answer</text>
+            <text x="478" y="162" class="svg-sub">wrong key, loose file permissions,</text>
+            <text x="478" y="179" class="svg-sub">AllowUsers, or macOS SACL missing.</text>
+          </g>
+          <g data-at="4+" data-scn="refused timeout">
+            <rect x="460" y="118" width="340" height="72" rx="9" class="svg-surface svg-stroke" stroke-width="1.3" stroke-dasharray="5 4"/>
+            <text x="478" y="143" class="svg-sub">not run</text>
+            <text x="478" y="162" class="svg-sub">where most people start — and it</text>
+            <text x="478" y="179" class="svg-sub">would fail here for the wrong reason.</text>
+          </g>
+          <rect data-at="4" data-scn="pipe" x="20" y="118" width="380" height="72" rx="9"
+                fill="none" class="svg-accent-s" stroke-width="2.6"/>
+          <rect data-at="4+" data-scn="denied" data-poster x="20" y="118" width="380" height="72" rx="9"
+                fill="none" class="svg-danger-s" stroke-width="2.6"/>
+          <path data-at="4" data-scn="pipe" data-flow="accent" data-count="2" data-speed="0.24"
+                d="M404 154 L456 154" stroke="none" fill="none"/>
+          <path data-at="4" data-scn="denied" data-flow="warn" data-count="2" data-speed="0.24"
+                d="M404 154 L456 154" stroke="none" fill="none"/>
+
+          <!-- ============ rung 5 ============ -->
+          <g data-at="5" data-scn="pipe" class="sim-pop">
+            <rect x="460" y="34" width="340" height="72" rx="9" class="svg-card svg-danger-s" stroke-width="1.7"/>
+            <text x="478" y="59" class="svg-mono-danger">stop · this is your answer</text>
+            <text x="478" y="78" class="svg-sub">client killed (iOS suspend), or a</text>
+            <text x="478" y="95" class="svg-sub">daemon restart taking its children.</text>
+          </g>
+          <g data-at="5" data-scn="refused timeout denied" data-poster>
+            <rect x="460" y="34" width="340" height="72" rx="9" class="svg-surface svg-stroke" stroke-width="1.3" stroke-dasharray="5 4"/>
+            <text x="478" y="59" class="svg-sub">not run</text>
+            <text x="478" y="82" class="svg-sub">you already have your answer below.</text>
+          </g>
+          <rect data-at="5" data-scn="pipe" x="20" y="34" width="380" height="72" rx="9"
+                fill="none" class="svg-danger-s" stroke-width="2.6"/>
+          <path data-at="5" data-scn="pipe" data-flow="warn" data-count="2" data-speed="0.24"
+                d="M404 70 L456 70" stroke="none" fill="none"/>
         </svg>
+
+        <div class="sim-controls">
+          <button type="button" class="sim-btn" data-act="prev" aria-label="Previous step"><span class="sim-glyph">◀</span></button>
+          <button type="button" class="sim-btn sim-btn-play" data-act="play" aria-label="Play">
+            <span class="sim-glyph">▶</span><span class="sim-btn-text">Play</span>
+          </button>
+          <button type="button" class="sim-btn" data-act="next" aria-label="Next step"><span class="sim-glyph">▶</span></button>
+          <div class="sim-track" role="group" aria-label="Jump to rung">
+            <button type="button" class="sim-dot" data-goto="0" aria-label="Step 0, the symptom">0</button>
+            <button type="button" class="sim-dot" data-goto="1" aria-label="Rung 1, tailnet membership">1</button>
+            <button type="button" class="sim-dot" data-goto="2" aria-label="Rung 2, is there a path">2</button>
+            <button type="button" class="sim-dot" data-goto="3" aria-label="Rung 3, is the port open">3</button>
+            <button type="button" class="sim-dot" data-goto="4" aria-label="Rung 4, does authentication succeed">4</button>
+            <button type="button" class="sim-dot" data-goto="5" aria-label="Rung 5, does the session hold">5</button>
+          </div>
+          <div class="sim-progress" aria-hidden="true"><span></span></div>
+        </div>
+
+        <div class="sim-term" aria-hidden="true">
+          <div data-at="0" data-scn="denied" data-poster><span class="tp">$</span> ssh macbook<br>macbook: <span class="twarn">Permission denied (publickey).</span></div>
+          <div data-at="0" data-scn="refused"><span class="tp">$</span> ssh macbook<br>ssh: connect to host macbook port 22: <span class="twarn">Connection refused</span></div>
+          <div data-at="0" data-scn="timeout"><span class="tp">$</span> ssh macbook<br>ssh: connect to host macbook port 22: <span class="twarn">Operation timed out</span></div>
+          <div data-at="0" data-scn="pipe"><span class="tp">$</span> ssh macbook<br><span class="twarn">client_loop: send disconnect: Broken pipe</span></div>
+
+          <div data-at="1"><span class="tp">$</span> tailscale status<br>100.117.202.65 macbook macos <span class="tok">active</span> · 100.83.14.9 iphone iOS <span class="tok">active</span></div>
+
+          <div data-at="2" data-scn="denied refused pipe" data-poster><span class="tp">$</span> tailscale ping macbook<br>pong from macbook (100.117.202.65) via <span class="tok">direct</span> in 14ms</div>
+          <div data-at="2" data-scn="timeout"><span class="tp">$</span> tailscale ping macbook<br><span class="twarn">no reply from macbook after 10 pings</span></div>
+
+          <div data-at="3" data-scn="denied pipe" data-poster><span class="tp">$</span> nc -z -w 3 100.117.202.65 22<br>Connection to 100.117.202.65 port 22 <span class="tok">succeeded!</span></div>
+          <div data-at="3" data-scn="refused"><span class="tp">$</span> nc -z -w 3 100.117.202.65 22<br>nc: connect to 100.117.202.65 port 22 failed: <span class="twarn">Connection refused</span></div>
+          <div data-at="3" data-scn="timeout"><span class="tdim"># not run — rung 2 already answered it</span><br><span class="tdim">climbing further only adds noise</span></div>
+
+          <div data-at="4" data-scn="pipe"><span class="tp">$</span> ssh -v macbook<br>debug1: Offering public key: iphone-blink … <span class="tok">Authenticated</span></div>
+          <div data-at="4" data-scn="denied" data-poster><span class="tp">$</span> ssh -v macbook<br>debug1: <span class="twarn">No more authentication methods to try.</span></div>
+          <div data-at="4" data-scn="refused timeout"><span class="tdim"># not run — the rung below already answered it</span><br><span class="tdim">this is the rung people reach for first</span></div>
+
+          <div data-at="5" data-scn="pipe"><span class="tp">$</span> sudo journalctl -u ssh -n 5 --no-pager<br>Read error from remote host: <span class="twarn">Connection reset by peer</span></div>
+          <div data-at="5" data-scn="refused timeout denied" data-poster><span class="tdim"># not run — you already have your answer</span><br><span class="tdim">stop climbing and go fix that rung</span></div>
+        </div>
+
+        <ol class="sim-steps" aria-live="polite">
+          <li data-at="0" data-scn="denied" data-poster><b>Permission denied (publickey)</b>The daemon is healthy — it completed a handshake and made a decision. That feels like an authentication problem, which is exactly why people jump straight to rung 4. Climb from the bottom anyway; it costs about ninety seconds.</li>
+          <li data-at="0" data-scn="refused"><b>Connection refused</b>Something answered and said no. The host is reachable and nothing is listening on that port — but you do not know that yet, so start at rung 1.</li>
+          <li data-at="0" data-scn="timeout"><b>Connection timed out</b>Nothing answered at all. This is a network-layer symptom, not an SSH one: a dropped packet, an ACL, or a peer that is asleep.</li>
+          <li data-at="0" data-scn="pipe"><b>client_loop: send disconnect: Broken pipe</b>It worked, and then it stopped. The connection died underneath you and the client only noticed on its next write. Everything below is still fine, which is what makes this one confusing.</li>
+
+          <li data-at="1"><b>1 · Are both on the tailnet?</b><code>tailscale status</code> on both ends. Logged out, an expired key, an unapproved device or Tailscale simply not running all show up here, and nothing above this rung can work without it. In all four of these symptoms it passes — which is fine. It is the cheapest test on the ladder and it takes three seconds.</li>
+
+          <li data-at="2" data-scn="denied refused pipe" data-poster><b>2 · Is there a path?</b><code>tailscale ping</code> answers directly and fast, so the two machines can genuinely reach each other. Note that it says <em>direct</em> rather than DERP — a relay would still work, just slower.</li>
+          <li data-at="2" data-scn="timeout"><b>2 · There is no path — stop here</b>No reply at all. The peer is asleep or offline, or an ACL is eating the packets. Persistent DERP instead of silence would be a different answer: slow, but not broken. Either way, <b>you are done climbing.</b> Nothing above this rung can pass while the packets never arrive.</li>
+
+          <li data-at="3" data-scn="denied pipe" data-poster><b>3 · Is the port open?</b><code>nc</code> against the <em>tailnet</em> address succeeds, so sshd is up and bound where you expect. Testing <code>localhost</code> here would prove nothing — a tailnet-only daemon refuses that on purpose.</li>
+          <li data-at="3" data-scn="refused"><b>3 · The port is shut — stop here</b>Nothing is listening on that port. sshd is down, bound to a different address, on a different port, or an ACL or firewall rule is dropping it. <b>This is your answer.</b> Run <code>ss -tulpn</code> or <code>netstat -an -p tcp</code> and compare what is actually bound against what you dialled.</li>
+          <li data-at="3" data-scn="timeout"><b>3 · Not run</b>Rung 2 already told you the packets never arrive. Testing the port from here would time out too, and you would learn nothing new from it.</li>
+
+          <li data-at="4" data-scn="pipe"><b>4 · Does authentication succeed?</b><code>ssh -v</code> shows the key being offered and accepted, and you land in a shell. So the credentials, the permissions and the <code>AllowUsers</code> list are all fine.</li>
+          <li data-at="4" data-scn="denied" data-poster><b>4 · Authentication fails — stop here</b>Only now does the message mean what it says. Rerun with <code>ssh -v</code> and read which keys were offered; the causes are listed by likelihood further down this page.</li>
+          <li data-at="4" data-scn="refused timeout"><b>4 · Not run — and this is the point</b>This is the rung people reach for first, because "denied" and "refused" both sound like permission words. It would have failed here too, for a reason that has nothing to do with authentication, and you would have spent an hour editing <code>sshd_config</code>.</li>
+
+          <li data-at="5" data-scn="pipe"><b>5 · The session does not hold — stop here</b>Everything below passed, so this is not a server problem to tune. The server log tells you which side caused it: a TCP reset means the client process was <b>killed</b> — iOS suspended the app — and no <code>ClientAlive</code> setting will help. The durable fix is Mosh plus tmux, so a dead client stops being an outage.</li>
+          <li data-at="5" data-scn="refused timeout denied" data-poster><b>5 · Not run</b>You already have your answer further down the ladder. Fix that rung, then re-run from the bottom — a second cause hiding above the first is common, and the ladder is cheap to climb twice.</li>
+        </ol>
+
         <figcaption>
           <b>Resist starting at rung 4.</b> "Permission denied" feels like an auth problem, so that is
           where people begin — but a wrong port or a stale ACL produces confusing symptoms further up
-          that vanish the moment you check the rung below.
+          that vanish the moment you check the rung below. Switch the symptom above and watch where the
+          climb actually stops.
         </figcaption>
       </figure>
 
@@ -302,5 +500,6 @@ ssh macbook -t 'zsh -lc "tmux new -A -s phone"'          # or force a login shel
 </div>
 <script src="../assets/nav.js"></script>
 <script src="../assets/app.js"></script>
+<script src="../assets/anim.js"></script>
 </body>
 </html>
