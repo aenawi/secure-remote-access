@@ -308,6 +308,86 @@
         </p>
       </div>
 
+      <h2>Creating the tailnet</h2>
+      <p>
+        Everything above is what the network does. This is how you get one. It is step one of the
+        <a href="10-runbooks.html">build order</a> for a reason: nothing else in this guide has an address
+        to bind to until the tailnet exists and every device has joined it.
+      </p>
+
+      <h3>1 · The account</h3>
+      <p>
+        Sign up at <code>login.tailscale.com</code> using an identity provider you already secure properly
+        — Google, Microsoft, GitHub, Apple or Okta. Tailscale has no password of its own, which has a
+        consequence worth stating plainly: <strong>the account that owns your tailnet is exactly as strong
+        as the SSO account behind it</strong>. Put a hardware security key, or at minimum a TOTP app, on
+        that account before you enroll a single device.
+      </p>
+      <div class="callout danger">
+        <div class="ct">Your identity provider is the root of trust</div>
+        <p>
+          Anyone who can log in as you can place a new device inside the tailnet, and a device inside the
+          tailnet is past the strongest control in this design. SMS second factors are not adequate here.
+          This is also the argument for device approval and tailnet lock below — they are what make stolen
+          SSO credentials, on their own, insufficient.
+        </p>
+      </div>
+
+      <h3>2 · Install on each device</h3>
+      <p>
+        Sign in with the same account everywhere. The install differs per platform, and macOS is the one
+        that catches people:
+      </p>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Device</th><th>How</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><b>VPS · Ubuntu laptop</b></td>
+            <td>
+              <code>curl -fsSL https://tailscale.com/install.sh | sh</code>, then
+              <code>sudo tailscale up</code>. Installs a real system daemon, so the tailnet is up at boot
+              without anyone logging in. Details in <a href="07-vps.html">chapter 07</a> and
+              <a href="08-ubuntu.html">chapter 08</a>.
+            </td>
+          </tr>
+          <tr>
+            <td><b>MacBook</b></td>
+            <td>
+              Three different builds exist and they are <em>not</em> interchangeable — which one you pick
+              decides whether the tailnet is up before login and whether Tailscale SSH works at all.
+              <a href="05-macos.html">Chapter 05</a> covers the choice. Short version: the App Store app
+              is the right default here, because the Mac uses OpenSSH rather than Tailscale SSH.
+            </td>
+          </tr>
+          <tr>
+            <td><b>iPhone</b></td>
+            <td>
+              App Store, sign in, and leave connect-on-demand enabled so the tunnel is up before you open
+              a terminal. Details in <a href="06-iphone.html">chapter 06</a>.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      </div>
+      <p>Then confirm the tailnet actually formed, from any machine:</p>
+      <pre><code>tailscale status     # every device listed, and whether each is online
+tailscale ip -4      # this machine's tailnet address — chapter 05 needs the Mac's</code></pre>
+      <div class="callout tip">
+        <div class="ct">Approve the devices if approval is already on</div>
+        <p>
+          If you enable device approval before enrolling (recommended, and covered below), each machine
+          joins in a pending state and reaches nothing until you approve it in the admin console. A device
+          that installed cleanly, signed in successfully and still cannot ping anything is almost always
+          sitting unapproved.
+        </p>
+      </div>
+      <p>
+        With every device online, the remaining work is policy rather than installation: an access control
+        list that is default-deny, and the three tailnet settings that decide who can add a device at all.
+        Both are below.
+      </p>
+
       <h2>Access control: the single most valuable setting</h2>
       <p>
         By default, a tailnet is permissive: every device can reach every port on every other device.
@@ -547,6 +627,7 @@ tailscale debug prefs | grep -i runssh</code></pre>
 
       <h2>Verify before moving on</h2>
       <ul class="checklist">
+        <li>The identity provider behind the Tailscale account has a hardware key or TOTP on it — not SMS.</li>
         <li>All devices appear in <code>tailscale status</code> and show as online.</li>
         <li><code>tailscale ping &lt;device&gt;</code> succeeds, and you know whether you are direct or relayed.</li>
         <li>MagicDNS is enabled and <code>ping macbook</code> resolves.</li>

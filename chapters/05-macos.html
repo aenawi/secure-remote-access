@@ -273,6 +273,74 @@ sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setstealthmode on</code><
         </p>
       </div>
 
+      <h2>Getting Tailscale onto the Mac</h2>
+      <p>
+        Everything from here binds sshd to a Tailscale address, so Tailscale has to exist first. macOS is
+        the one platform where <em>which</em> Tailscale you install changes what the machine can do, and
+        the download page does not make the differences obvious.
+      </p>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Build</th><th>Up before login?</th><th>Can be a Tailscale SSH server?</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><b>Mac App Store</b><br>the one most people have</td>
+            <td>No — sandboxed, starts when you log in</td>
+            <td>No</td>
+          </tr>
+          <tr>
+            <td><b>Standalone <code>.pkg</code></b><br>from pkgs.tailscale.com</td>
+            <td>No</td>
+            <td>No</td>
+          </tr>
+          <tr>
+            <td><b>Open-source CLI</b><br><code>tailscale</code> + <code>tailscaled</code></td>
+            <td>Yes — a real system daemon</td>
+            <td>Yes</td>
+          </tr>
+        </tbody>
+      </table>
+      </div>
+      <p>
+        For this guide, <strong>the App Store app is the right default</strong>. The Mac runs OpenSSH
+        rather than Tailscale SSH (<a href="01-tailscale.html">chapter 01</a> explains why), so the only
+        thing the App Store build costs you is that the tailnet comes up after login rather than at boot.
+        That is precisely the boot-time race described later in this chapter, and it self-heals.
+      </p>
+      <pre><code># The default path: install Tailscale from the Mac App Store,
+# then sign in with the same account as your other machines.
+
+# The App Store app ships its CLI inside the bundle, not on PATH.
+# Add this to ~/.zshrc:
+alias tailscale="/Applications/Tailscale.app/Contents/MacOS/Tailscale"</code></pre>
+      <p>
+        If you would rather the tailnet be up at boot — so the Mac is reachable after a power cut without
+        someone typing a login password — install the open-source daemon instead:
+      </p>
+      <pre><code>brew install tailscale                 # the FORMULA, not the cask
+sudo brew services start tailscale     # runs tailscaled as a system daemon
+sudo tailscale up</code></pre>
+      <div class="callout warn">
+        <div class="ct">The Homebrew formula and the Homebrew cask are different things</div>
+        <p>
+          <code>brew install tailscale</code> gives you the open-source CLI daemon.
+          <code>brew install --cask tailscale</code> gives you the GUI app. They are not the same package
+          and installing both leaves two daemons contending for the same interface. Pick one; if you
+          switch later, remove the other first.
+        </p>
+      </div>
+      <p>Whichever you chose, get the address the rest of this chapter needs:</p>
+      <pre><code>tailscale status     # this Mac should be listed and online
+tailscale ip -4      # e.g. 100.117.202.65 — this is your ListenAddress below</code></pre>
+      <div class="callout tip">
+        <div class="ct">Write that address down before you continue</div>
+        <p>
+          It goes into <code>sshd_config</code>, and a typo there produces a job that fails to bind and
+          retries forever — which looks identical to the perfectly normal boot-time race described later.
+          Two very different problems with one symptom, so start from a correct address.
+        </p>
+      </div>
+
       <h2>Choosing how to run sshd</h2>
       <p>
         macOS gives you Remote Login in System Settings, which loads Apple's socket-activated
@@ -302,7 +370,7 @@ launchctl print system/com.openssh.sshd 2&gt;&amp;1 | head -3
       <div class="filename">/etc/ssh/sshd_config.d/tailscale.conf</div>
       <pre><code># --- exposure: tailnet only ---
 Port 22
-ListenAddress 100.117.202.65        # your Tailscale IPv4
+ListenAddress 100.x.y.z             # THIS Mac's tailnet IPv4 — `tailscale ip -4`
 
 # --- authentication ---
 # UsePAM yes is required on macOS: it runs /etc/pam.d/sshd, which contains
@@ -700,8 +768,9 @@ AuthorizedKeysFile .ssh/authorized_keys</code></pre>
           <code>0.0.0.0</code> and filtering in software — and then the port would exist on every network
           the laptop joins, protected by a rule you have to keep correct. Binding the tailnet address
           means the port genuinely is not there, at the cost of a few seconds of retry after a reboot.
-          If you want it up before login, run Tailscale as a system daemon
-          (<code>tailscaled</code> via <code>tailscale install-system-daemon</code>) instead of the GUI app.
+          If you want it up before login, install the open-source <code>tailscaled</code> daemon
+          (<code>brew install tailscale</code> — the formula) instead of the GUI app, as described at the
+          top of this chapter.
         </figcaption>
       </figure>
 
@@ -761,6 +830,7 @@ ssh macbook -t '/opt/homebrew/bin/tmux new -A -s phone'</code></pre>
         <li>Screen lock requires the password immediately.</li>
         <li>Every listening service audited; databases and caches moved to <code>127.0.0.1</code>.</li>
         <li>Application firewall on.</li>
+        <li>Tailscale installed and signed in; exactly one build, and you know which. <code>tailscale ip -4</code> returns this Mac's address.</li>
         <li>Remote Login <em>off</em>; exactly one sshd daemon running.</li>
         <li><code>ListenAddress</code> set to the Tailscale IP, verified refused on the LAN address.</li>
         <li><code>UsePAM yes</code>, and membership of <code>com.apple.access_ssh</code> confirmed.</li>
