@@ -331,13 +331,19 @@ sudo tailscale up</code></pre>
       </div>
       <p>Whichever you chose, get the address the rest of this chapter needs:</p>
       <pre><code>tailscale status     # this Mac should be listed and online
-tailscale ip -4      # e.g. 100.117.202.65 — this is your ListenAddress below</code></pre>
+tailscale ip -4      # e.g. 100.117.202.65
+tailscale ip -6      # e.g. fd7a:115c:a1e0:ab12:4843:cd96:6475:ca41</code></pre>
+      <p>
+        You need <strong>both</strong>. Tailscale gives every device an address in each family, and
+        MagicDNS publishes both, so a client resolving <code>macbook</code> may well try the IPv6 one
+        first.
+      </p>
       <div class="callout tip">
-        <div class="ct">Write that address down before you continue</div>
+        <div class="ct">Write both addresses down before you continue</div>
         <p>
-          It goes into <code>sshd_config</code>, and a typo there produces a job that fails to bind and
+          They go into <code>sshd_config</code>, and a typo there produces a job that fails to bind and
           retries forever — which looks identical to the perfectly normal boot-time race described later.
-          Two very different problems with one symptom, so start from a correct address.
+          Two very different problems with one symptom, so start from correct addresses.
         </p>
       </div>
 
@@ -369,8 +375,10 @@ launchctl print system/com.openssh.sshd 2&gt;&amp;1 | head -3
       </p>
       <div class="filename">/etc/ssh/sshd_config.d/tailscale.conf</div>
       <pre><code># --- exposure: tailnet only ---
+# Both families, or half your clients get "connection refused".
 Port 22
-ListenAddress 100.x.y.z             # THIS Mac's tailnet IPv4 — `tailscale ip -4`
+ListenAddress 100.x.y.z                                  # `tailscale ip -4`
+ListenAddress fd7a:115c:a1e0:ab12:4843:cd96:6475:ca41    # `tailscale ip -6`
 
 # --- authentication ---
 # UsePAM yes is required on macOS: it runs /etc/pam.d/sshd, which contains
@@ -405,6 +413,29 @@ AuthorizedKeysFile .ssh/authorized_keys</code></pre>
       </p>
       <pre><code>dseditgroup -o checkmember -m "$(whoami)" com.apple.access_ssh
 # "yes ... is a member of com.apple.access_ssh"</code></pre>
+
+      <div class="callout danger">
+        <div class="ct">One <code>ListenAddress</code> line is a trap</div>
+        <p>
+          With no <code>ListenAddress</code> at all, sshd listens on every address in both families. The
+          moment you add <em>one</em>, that stops — sshd now listens on exactly what you listed and
+          nothing else, and "nothing else" includes the whole of IPv6.
+        </p>
+        <p>
+          That matters because MagicDNS publishes an <code>AAAA</code> record alongside the
+          <code>A</code> record, and a client resolving <code>macbook</code> will often try the IPv6
+          address first. It reaches the host, finds no listener, and returns
+          <code>Connection refused</code> — from a machine you can ping, on a tailnet that is working
+          perfectly. The diagnostic ladder in <a href="11-troubleshooting.html">chapter 11</a> will not
+          catch it either, because testing the port with <code>nc</code> against the
+          <code>100.x</code> address succeeds.
+        </p>
+        <p>
+          Bind both, as above. If you have some reason to stay on IPv4 only, make it explicit on the
+          client side with <code>AddressFamily inet</code> in <code>~/.ssh/config</code> — never leave the
+          two ends disagreeing about which family to use.
+        </p>
+      </div>
 
       <h3>The launchd daemon</h3>
       <p>
@@ -778,8 +809,11 @@ AuthorizedKeysFile .ssh/authorized_keys</code></pre>
       <pre><code>sudo sshd -t -f /etc/ssh/sshd_config          # validate FIRST, always
 sudo launchctl bootstrap system /Library/LaunchDaemons/com.local.sshd.plist
 
-# Must be the tailnet IP, NOT *.22
+# Expect TWO lines — the tailnet IPv4 and the tailnet IPv6. Never *.22
 netstat -an -p tcp | grep '\.22 ' | grep LISTEN
+
+# And prove the v6 path end to end, not just that something is bound
+ssh -6 macbook 'echo ipv6 ok'
 
 # Healthy job: runs = 1, "never exited"
 sudo launchctl print system/com.local.sshd | grep -E 'state|runs|last exit'
@@ -832,7 +866,7 @@ ssh macbook -t '/opt/homebrew/bin/tmux new -A -s phone'</code></pre>
         <li>Application firewall on.</li>
         <li>Tailscale installed and signed in; exactly one build, and you know which. <code>tailscale ip -4</code> returns this Mac's address.</li>
         <li>Remote Login <em>off</em>; exactly one sshd daemon running.</li>
-        <li><code>ListenAddress</code> set to the Tailscale IP, verified refused on the LAN address.</li>
+        <li><code>ListenAddress</code> set for <em>both</em> the Tailscale IPv4 and IPv6 address; <code>ssh -6</code> proven working, and the port verified refused on the LAN address.</li>
         <li><code>UsePAM yes</code>, and membership of <code>com.apple.access_ssh</code> confirmed.</li>
         <li>Plist includes <code>-D</code> and <code>-e</code>; <code>runs</code> stays at 1.</li>
         <li><code>sshd -t</code> passes and a held session was proven to survive.</li>

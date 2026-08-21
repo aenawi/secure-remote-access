@@ -126,7 +126,11 @@ tailscale ip -4</code></pre>
         If you prefer OpenSSH, bind it to the tailnet address as on the Mac:
       </p>
       <div class="filename">/etc/ssh/sshd_config.d/99-tailnet.conf</div>
-      <pre><code>ListenAddress 100.x.y.z
+      <pre><code># Both families — `tailscale ip -4` and `tailscale ip -6`.
+# One ListenAddress line stops sshd listening on everything else,
+# and MagicDNS hands clients the IPv6 record too. See chapter 05.
+ListenAddress 100.x.y.z
+ListenAddress fd7a:115c:a1e0:ab12:4843:cd96:6475:ca41
 PasswordAuthentication no
 PermitRootLogin no
 AllowUsers yourname
@@ -191,7 +195,7 @@ curl -fsSL https://herdr.dev/install.sh | sh
         <li>Screen locks immediately on blank, idle timeout at five minutes or less.</li>
         <li>UFW default-deny inbound, with no public SSH rule.</li>
         <li>MAC address randomisation configured.</li>
-        <li>Tailscale joined; <code>tailscale up --ssh</code> or sshd bound to the tailnet address.</li>
+        <li>Tailscale joined; <code>tailscale up --ssh</code> or sshd bound to the tailnet address in <em>both</em> families.</li>
         <li>AppArmor enforcing.</li>
         <li>unattended-upgrades on, automatic reboot off.</li>
         <li>tmux, mosh and Herdr installed with configs matching your other machines.</li>

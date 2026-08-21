@@ -182,7 +182,11 @@ sudo ufw status verbose</code></pre>
       <p>
         If you prefer OpenSSH to Tailscale SSH, bind it to the tailnet interface instead:
       </p>
-      <pre><code>ListenAddress 100.x.y.z        # the VPS's Tailscale address</code></pre>
+      <pre><code># Both families. One ListenAddress line stops sshd listening on
+# everything else — including all of IPv6, which MagicDNS still
+# hands out. Chapter 05 explains the failure this causes.
+ListenAddress 100.x.y.z                                  # tailscale ip -4
+ListenAddress fd7a:115c:a1e0:ab12:4843:cd96:6475:ca41    # tailscale ip -6</code></pre>
       <div class="callout warn">
         <div class="ct">Do not disable key expiry casually</div>
         <p>
