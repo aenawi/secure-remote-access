@@ -57,17 +57,17 @@
 
           <!-- actors -->
           <g data-at="0+" class="sim-pop">
-            <rect x="76" y="16" width="200" height="44" rx="8" class="svg-card svg-stroke" stroke-width="1.6"/>
+            <rect x="68" y="16" width="216" height="44" rx="8" class="svg-card svg-stroke" stroke-width="1.6"/>
             <text x="176" y="43" text-anchor="middle" class="svg-label">Client (your phone)</text>
           </g>
           <g data-at="0+" class="sim-pop">
-            <rect x="546" y="16" width="200" height="44" rx="8" class="svg-card svg-stroke" stroke-width="1.6"/>
+            <rect x="538" y="16" width="216" height="44" rx="8" class="svg-card svg-stroke" stroke-width="1.6"/>
             <text x="646" y="43" text-anchor="middle" class="svg-label">Server (sshd)</text>
           </g>
           <!-- in the MITM scenario the right-hand lifeline is whoever answered,
                which is the whole problem on a first connection -->
           <g data-at="0+" data-scn="mitm">
-            <rect x="546" y="16" width="200" height="44" rx="8" fill="none" class="svg-warn-s" stroke-width="2.2"/>
+            <rect x="538" y="16" width="216" height="44" rx="8" fill="none" class="svg-warn-s" stroke-width="2.2"/>
             <text x="812" y="80" text-anchor="end" class="svg-sub">…or whoever answered</text>
           </g>
           <g data-at="0+">
@@ -118,13 +118,13 @@
                 d="M176 274 L640 274" class="svg-accent-s" stroke-width="2" fill="none"/>
 
           <g data-at="3+" data-scn="ok nokey replay" data-poster class="sim-pop">
-            <rect x="546" y="292" width="200" height="50" rx="8" class="svg-card svg-stroke" stroke-width="1.4"/>
+            <rect x="538" y="292" width="216" height="50" rx="8" class="svg-card svg-stroke" stroke-width="1.4"/>
             <text x="646" y="313" text-anchor="middle" class="svg-sub">search ~/.ssh/authorized_keys</text>
           </g>
           <text data-at="3+" data-scn="ok replay" data-poster x="646" y="332" text-anchor="middle" class="svg-mono-accent">match · iphone-blink</text>
           <text data-at="3+" data-scn="nokey" x="646" y="332" text-anchor="middle" class="svg-mono-danger">no matching line</text>
           <g data-at="3+" data-scn="mitm" class="sim-pop">
-            <rect x="546" y="292" width="200" height="50" rx="8" class="svg-card svg-warn-s" stroke-width="1.4"/>
+            <rect x="538" y="292" width="216" height="50" rx="8" class="svg-card svg-warn-s" stroke-width="1.4"/>
             <text x="646" y="313" text-anchor="middle" class="svg-sub">no real authorized_keys</text>
             <text x="646" y="332" text-anchor="middle" class="svg-sub">accepts whatever you offer</text>
           </g>
@@ -146,17 +146,17 @@
 
           <!-- what the client does with the challenge -->
           <g data-at="4+" data-scn="ok mitm" data-poster class="sim-pop">
-            <rect x="76" y="392" width="200" height="50" rx="8" class="svg-card svg-accent-s" stroke-width="1.6"/>
+            <rect x="68" y="392" width="216" height="50" rx="8" class="svg-card svg-accent-s" stroke-width="1.6"/>
             <text x="176" y="413" text-anchor="middle" class="svg-sub">sign(session ID + context)</text>
             <text x="176" y="430" text-anchor="middle" class="svg-sub">private key never leaves</text>
           </g>
           <g data-at="4+" data-scn="replay" class="sim-pop">
-            <rect x="76" y="392" width="200" height="50" rx="8" class="svg-card svg-warn-s" stroke-width="1.6"/>
+            <rect x="68" y="392" width="216" height="50" rx="8" class="svg-card svg-warn-s" stroke-width="1.6"/>
             <text x="176" y="413" text-anchor="middle" class="svg-sub">replays a captured signature</text>
             <text x="176" y="430" text-anchor="middle" class="svg-sub">from session 4a91… — no key held</text>
           </g>
           <g data-at="4+" data-scn="nokey" class="sim-pop">
-            <rect x="76" y="392" width="200" height="50" rx="8" class="svg-card svg-stroke" stroke-width="1.4" stroke-dasharray="5 3"/>
+            <rect x="68" y="392" width="216" height="50" rx="8" class="svg-card svg-stroke" stroke-width="1.4" stroke-dasharray="5 3"/>
             <text x="176" y="413" text-anchor="middle" class="svg-sub">nothing to sign</text>
             <text x="176" y="430" text-anchor="middle" class="svg-sub">no challenge ever came</text>
           </g>
