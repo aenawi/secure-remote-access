@@ -370,6 +370,34 @@
         </tbody>
       </table>
       </div>
+      <div class="callout info">
+        <div class="ct">On <code>curl … | sh</code>, since this guide uses it</div>
+        <p>
+          Piping a downloaded script straight into a shell sits oddly in a guide about not trusting
+          things, so it is worth being explicit rather than quiet. What you are trusting is Tailscale —
+          their domain, their TLS certificate, their build pipeline. You are about to let that same
+          company into your private network, so this is not a <em>new</em> party in your trust model. What
+          it does skip is a signature you could verify independently of TLS, and any chance to read what
+          you are about to run as root.
+        </p>
+        <p>
+          Two ways to keep the convenience and lose the blind spot:
+        </p>
+        <pre><code># Read it first — the whole point is that you can
+curl -fsSL https://tailscale.com/install.sh -o install.sh
+less install.sh
+sh install.sh
+
+# Or skip the script and use the signed apt repository,
+# which the script itself is mostly a wrapper around.
+# See tailscale.com/download/linux for the current keyring steps.</code></pre>
+        <p>
+          Apply the same judgement to the Herdr installer in later chapters, and apply it harder: Herdr
+          is a young project, and the trust you extend to a one-line installer should scale with how much
+          you know about who is on the other end.
+        </p>
+      </div>
+
       <p>Then confirm the tailnet actually formed, from any machine:</p>
       <pre><code>tailscale status     # every device listed, and whether each is online
 tailscale ip -4      # this machine's tailnet address — chapter 05 needs the Mac's</code></pre>
@@ -405,11 +433,14 @@ tailscale ip -4      # this machine's tailnet address — chapter 05 needs the M
   },
 
   "acls": [
-    // Phone may reach ONLY the SSH port on tagged machines.
+    // Your devices may reach SSH and Mosh on the tagged machines. Nothing else.
     {
       "action": "accept",
       "src":    ["autogroup:member"],
-      "dst":    ["tag:server:22", "tag:laptop:22"]
+      "dst":    [
+        "tag:server:22",           "tag:laptop:22",
+        "tag:server:60000-61000",  "tag:laptop:60000-61000"
+      ]
     }
   ],
 
@@ -418,7 +449,7 @@ tailscale ip -4      # this machine's tailnet address — chapter 05 needs the M
     {
       "action":      "check",
       "src":         ["autogroup:member"],
-      "dst":         ["autogroup:self"],
+      "dst":         ["tag:server", "tag:laptop"],
       "users":       ["autogroup:nonroot"],
       "checkPeriod": "12h"
     }
@@ -426,10 +457,63 @@ tailscale ip -4      # this machine's tailnet address — chapter 05 needs the M
 }</code></pre>
       <p>
         Anything not matched by an <code>accept</code> rule is denied. With the above, a compromised
-        phone can reach port 22 and nothing else — not Redis on 6379, not Postgres on 5432, not an
+        phone can reach SSH and Mosh and nothing else — not Redis on 6379, not Postgres on 5432, not an
         unauthenticated dev server on 8000. This is enforced in the tailnet itself, above the host,
         so it holds even if a machine is misconfigured.
       </p>
+
+      <div class="callout danger">
+        <div class="ct">Grant the Mosh port range, or Mosh will never connect</div>
+        <p>
+          <code>60000-61000</code> is the range <code>mosh-server</code> picks a UDP port from
+          (<a href="03-mosh-blink.html">chapter 03</a>). A policy that grants only <code>:22</code> lets
+          <em>SSH</em> in — so the login works, and it looks like everything is fine — and then silently
+          discards every Mosh datagram. You get a session that authenticates and then hangs, which sends
+          people debugging <code>mosh-server</code> for an hour. The packets are being dropped in the
+          tailnet, before the host is ever asked.
+        </p>
+        <p>
+          Rules with no <code>proto</code> field cover TCP, UDP and ICMP together, so one entry per range
+          is enough. If you never use Mosh, leave the range out deliberately rather than by accident.
+        </p>
+      </div>
+
+      <h3>Apply the tags to the machines</h3>
+      <p>
+        <code>tagOwners</code> above only declares that these tags may exist and who may apply them.
+        Nothing is tagged yet. Until each machine actually advertises its tag, it matches no rule in the
+        policy — and a default-deny policy means <em>nothing works at all</em>. This is the step people
+        skip, and the symptom is a tailnet where every device is online and none of them can reach each
+        other.
+      </p>
+      <pre><code># On the VPS
+sudo tailscale up --advertise-tags=tag:server
+
+# On the Ubuntu laptop and the MacBook
+sudo tailscale up --advertise-tags=tag:laptop
+
+# Confirm — the tag should appear next to the machine
+tailscale status</code></pre>
+      <p>
+        The phone stays untagged. It is the <code>src</code> in every rule above, and
+        <code>autogroup:member</code> already covers it.
+      </p>
+      <div class="callout warn">
+        <div class="ct">Tagging transfers ownership away from you</div>
+        <p>
+          A tagged device is owned by the tag, not by your user account. Three consequences worth knowing
+          before you type the command:
+        </p>
+        <ul>
+          <li>Re-running <code>tailscale up</code> with a new tag requires re-authenticating that device.</li>
+          <li><strong>Tagged devices do not expire.</strong> Key expiry, which the tailnet-hardening
+            section below recommends leaving on, does not apply to them — so the tailnet device list is
+            the only place a retired tagged machine gets removed.</li>
+          <li><code>autogroup:self</code> no longer matches them, which is why the <code>ssh</code> block
+            above targets the tags directly. A rule written against <code>autogroup:self</code> will
+            silently match nothing once you tag a machine.</li>
+        </ul>
+      </div>
 
       <figure class="diagram sim" data-sim data-step-ms="3000" tabindex="0"
               aria-label="Interactive ACL walkthrough. Pick a destination port, then step through what the tailnet does with the packet.">
@@ -617,6 +701,58 @@ tailscale debug prefs | grep -i runssh</code></pre>
       </table>
       </div>
 
+      <h3>Enabling tailnet lock</h3>
+      <p>
+        Key expiry and device approval are toggles in the admin console. Tailnet lock is not — it is a
+        set of signing keys held by your own devices, so it has to be set up from the command line, and
+        the order matters.
+      </p>
+      <p>
+        The idea: you nominate some devices as <strong>trusted signers</strong>. From then on, a new node
+        cannot join the tailnet until one of them signs it. The coordination server can still distribute
+        keys, but it can no longer invent a node of its own — which is exactly the property the threat
+        model in <a href="09-threat-model.html">chapter 09</a> wants.
+      </p>
+      <pre><code># 1. On EACH device you want as a signer, read its tailnet lock key
+tailscale lock status
+#    Note the tlpub:... key it prints for this node.
+
+# 2. On any one of them, initialise with the FULL list of signers
+sudo tailscale lock init tlpub:aaa... tlpub:bbb...
+
+# 3. Read the output carefully — the disablement secret is shown once.
+
+# 4. From now on, a new device waits for a signature
+tailscale lock status            # shows nodes awaiting signing
+sudo tailscale lock sign &lt;node-key&gt;
+
+# 5. Audit what has been signed, and by whom
+tailscale lock log</code></pre>
+      <div class="callout danger">
+        <div class="ct">Two things to get right before you run <code>lock init</code></div>
+        <p>
+          <strong>Nominate at least two signers.</strong> Signing needs a device that can run the
+          <code>tailscale</code> CLI, so your MacBook, VPS and Ubuntu laptop are candidates and the phone
+          may not be — check what <code>tailscale lock status</code> reports on each before deciding. If
+          your single signer is lost or wiped, you cannot add another device to your own tailnet, and the
+          only way out is disabling lock entirely.
+        </p>
+        <p>
+          <strong>Store the disablement secret like a recovery key.</strong> It is printed once, at init,
+          and it is the escape hatch for exactly the situation above. It belongs in the same place as your
+          FileVault and LUKS recovery keys — a password manager you can reach from a device that is not
+          part of the tailnet.
+        </p>
+      </div>
+      <div class="callout tip">
+        <div class="ct">Turn it on after every device has joined</div>
+        <p>
+          Enrolling four machines is easier before signing is required than after. Do the whole build,
+          confirm every device is online, then initialise lock — and treat the signing step as part of
+          the onboarding runbook in <a href="10-runbooks.html">chapter 10</a> from then on.
+        </p>
+      </div>
+
       <h3>MagicDNS</h3>
       <p>
         With MagicDNS on, devices are reachable by name — <code>macbook</code>, or the fully qualified
@@ -632,9 +768,11 @@ tailscale debug prefs | grep -i runssh</code></pre>
         <li><code>tailscale ping &lt;device&gt;</code> succeeds, and you know whether you are direct or relayed.</li>
         <li>MagicDNS is enabled and <code>ping macbook</code> resolves.</li>
         <li>An ACL policy is in place that is default-deny rather than allow-all.</li>
-        <li>Key expiry is on for laptops and phones; deliberately considered for servers.</li>
+        <li>Each machine advertises its tag, and <code>tailscale status</code> shows the tag next to it.</li>
+        <li>The policy grants <strong>both</strong> <code>:22</code> and <code>:60000-61000</code>, or you have decided not to use Mosh.</li>
+        <li>Key expiry is on for laptops and phones; deliberately considered for servers, and you know it does not apply to tagged devices.</li>
         <li>Device approval is enabled.</li>
-        <li>Tailnet lock is enabled, with recovery keys stored somewhere you can actually reach.</li>
+        <li>Tailnet lock is enabled with at least two signing devices, and the disablement secret is stored off-device.</li>
       </ul>
 
       <nav class="pager"></nav>

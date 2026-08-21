@@ -331,13 +331,19 @@ sudo tailscale up</code></pre>
       </div>
       <p>Whichever you chose, get the address the rest of this chapter needs:</p>
       <pre><code>tailscale status     # this Mac should be listed and online
-tailscale ip -4      # e.g. 100.117.202.65 — this is your ListenAddress below</code></pre>
+tailscale ip -4      # e.g. 100.117.202.65
+tailscale ip -6      # e.g. fd7a:115c:a1e0:ab12:4843:cd96:6475:ca41</code></pre>
+      <p>
+        You need <strong>both</strong>. Tailscale gives every device an address in each family, and
+        MagicDNS publishes both, so a client resolving <code>macbook</code> may well try the IPv6 one
+        first.
+      </p>
       <div class="callout tip">
-        <div class="ct">Write that address down before you continue</div>
+        <div class="ct">Write both addresses down before you continue</div>
         <p>
-          It goes into <code>sshd_config</code>, and a typo there produces a job that fails to bind and
+          They go into <code>sshd_config</code>, and a typo there produces a job that fails to bind and
           retries forever — which looks identical to the perfectly normal boot-time race described later.
-          Two very different problems with one symptom, so start from a correct address.
+          Two very different problems with one symptom, so start from correct addresses.
         </p>
       </div>
 
@@ -369,8 +375,10 @@ launchctl print system/com.openssh.sshd 2&gt;&amp;1 | head -3
       </p>
       <div class="filename">/etc/ssh/sshd_config.d/tailscale.conf</div>
       <pre><code># --- exposure: tailnet only ---
+# Both families, or half your clients get "connection refused".
 Port 22
-ListenAddress 100.x.y.z             # THIS Mac's tailnet IPv4 — `tailscale ip -4`
+ListenAddress 100.x.y.z                                  # `tailscale ip -4`
+ListenAddress fd7a:115c:a1e0:ab12:4843:cd96:6475:ca41    # `tailscale ip -6`
 
 # --- authentication ---
 # UsePAM yes is required on macOS: it runs /etc/pam.d/sshd, which contains
@@ -405,6 +413,29 @@ AuthorizedKeysFile .ssh/authorized_keys</code></pre>
       </p>
       <pre><code>dseditgroup -o checkmember -m "$(whoami)" com.apple.access_ssh
 # "yes ... is a member of com.apple.access_ssh"</code></pre>
+
+      <div class="callout danger">
+        <div class="ct">One <code>ListenAddress</code> line is a trap</div>
+        <p>
+          With no <code>ListenAddress</code> at all, sshd listens on every address in both families. The
+          moment you add <em>one</em>, that stops — sshd now listens on exactly what you listed and
+          nothing else, and "nothing else" includes the whole of IPv6.
+        </p>
+        <p>
+          That matters because MagicDNS publishes an <code>AAAA</code> record alongside the
+          <code>A</code> record, and a client resolving <code>macbook</code> will often try the IPv6
+          address first. It reaches the host, finds no listener, and returns
+          <code>Connection refused</code> — from a machine you can ping, on a tailnet that is working
+          perfectly. The diagnostic ladder in <a href="11-troubleshooting.html">chapter 11</a> will not
+          catch it either, because testing the port with <code>nc</code> against the
+          <code>100.x</code> address succeeds.
+        </p>
+        <p>
+          Bind both, as above. If you have some reason to stay on IPv4 only, make it explicit on the
+          client side with <code>AddressFamily inet</code> in <code>~/.ssh/config</code> — never leave the
+          two ends disagreeing about which family to use.
+        </p>
+      </div>
 
       <h3>The launchd daemon</h3>
       <p>
@@ -778,8 +809,11 @@ AuthorizedKeysFile .ssh/authorized_keys</code></pre>
       <pre><code>sudo sshd -t -f /etc/ssh/sshd_config          # validate FIRST, always
 sudo launchctl bootstrap system /Library/LaunchDaemons/com.local.sshd.plist
 
-# Must be the tailnet IP, NOT *.22
+# Expect TWO lines — the tailnet IPv4 and the tailnet IPv6. Never *.22
 netstat -an -p tcp | grep '\.22 ' | grep LISTEN
+
+# And prove the v6 path end to end, not just that something is bound
+ssh -6 macbook 'echo ipv6 ok'
 
 # Healthy job: runs = 1, "never exited"
 sudo launchctl print system/com.local.sshd | grep -E 'state|runs|last exit'
@@ -823,6 +857,98 @@ ssh macbook -t '/opt/homebrew/bin/tmux new -A -s phone'</code></pre>
         <code>~/.zshenv</code>; login shells read <code>~/.zprofile</code> and <code>~/.zshrc</code>.
       </p>
 
+      <h2>Reaching a dev server from your phone</h2>
+      <p>
+        This chapter told you to bind every service to <code>127.0.0.1</code>, and
+        <a href="03-mosh-blink.html">chapter 03</a> told you Mosh cannot forward ports. Put those together
+        and there is an obvious question left hanging: you have a Vite server running on
+        <code>localhost:5173</code>, you are holding a phone, and there is no path between them. A shell
+        is not the only thing you want remotely.
+      </p>
+      <p>
+        Three answers, best first. Note that none of them involves widening the bind address and hoping.
+      </p>
+
+      <h3>1 · <code>tailscale serve</code> — the clean one</h3>
+      <p>
+        Tailscale can publish a loopback port to your tailnet, over HTTPS, with a real certificate and no
+        browser warning. The dev server itself does not move — it stays on <code>127.0.0.1</code>, exactly
+        where the audit above wanted it.
+      </p>
+      <pre><code># The dev server is unchanged, still bound to loopback
+npm run dev                     # 127.0.0.1:5173
+
+# Publish it — to the tailnet, and only the tailnet
+tailscale serve --bg 5173
+
+# Check what you have published, and take it all down again
+tailscale serve status
+tailscale serve reset</code></pre>
+      <p>
+        Then open <code>https://macbook.your-tailnet.ts.net</code> on the phone. This needs HTTPS
+        certificates enabled once for the tailnet, under <span class="kbd">Admin console → DNS →
+        HTTPS Certificates</span>.
+      </p>
+      <div class="callout danger">
+        <div class="ct"><code>serve</code> is private · <code>funnel</code> is the public internet</div>
+        <p>
+          <code>tailscale funnel</code> is the same command family with one critical difference: it
+          publishes to the whole internet rather than to your tailnet. The two are one word apart and the
+          blast radius is not remotely comparable. If you have spent this chapter making sure a port
+          exists nowhere but the tailnet, do not hand it to Funnel by muscle memory. Run
+          <code>tailscale serve status</code> when unsure — it tells you which one is active.
+        </p>
+      </div>
+      <div class="callout info">
+        <div class="ct">The syntax moved</div>
+        <p>
+          <code>serve</code> was reworked and older write-ups show a longer
+          <code>tailscale serve https / http://127.0.0.1:5173</code> form. Check
+          <code>tailscale serve --help</code> on your installed version rather than trusting the shape
+          above.
+        </p>
+      </div>
+
+      <h3>2 · <code>ssh -L</code> — works for anything, not just HTTP</h3>
+      <p>
+        A plain SSH tunnel needs no Tailscale features and does not care what protocol is on the other
+        end, which makes it the right tool for a database client or anything that is not a web page:
+      </p>
+      <pre><code># From the phone, in a second Blink session
+ssh -L 5173:127.0.0.1:5173 macbook</code></pre>
+      <p>
+        Then <code>http://localhost:5173</code> in the phone's browser. The catch is the one chapter 03
+        named: <strong>Mosh cannot carry this</strong>, so it has to be a plain SSH session running
+        alongside your Mosh one. That is fine — a tunnel does not need to survive the train tunnel. When
+        it drops, you reopen it, and your actual work is still sitting in tmux.
+      </p>
+      <p>
+        This also needs <code>AllowTcpForwarding yes</code>, which the config earlier in this chapter sets
+        deliberately. If you tighten that to <code>no</code> later, this option and
+        <code>ProxyJump</code> both stop working.
+      </p>
+
+      <h3>3 · Bind to the tailnet address — deliberately, or not at all</h3>
+      <p>
+        The last resort, for a service that genuinely must be reachable with no tunnel in the way:
+      </p>
+      <pre><code>npm run dev -- --host 100.117.202.65</code></pre>
+      <p>
+        Two costs, both easy to forget. It needs an <code>accept</code> rule for that port in your ACL
+        policy (<a href="01-tailscale.html">chapter 01</a>) or the tailnet drops the packets before the
+        Mac sees them. And anything hard-coded to <code>localhost</code> — your test runner, a sibling
+        service, a proxy config — stops resolving. Bind both addresses or neither.
+      </p>
+      <div class="callout tip">
+        <div class="ct">The rule of thumb</div>
+        <p>
+          HTTP that you want to look at on the phone: <code>tailscale serve</code>. Anything else, or
+          anything short-lived: <code>ssh -L</code>. Widening the bind address is for services you have
+          decided are part of your tailnet's surface on purpose — and that decision belongs in the ACL
+          policy, where you can see it next year.
+        </p>
+      </div>
+
       <h2>Checklist</h2>
       <ul class="checklist">
         <li>FileVault on, recovery key stored off the machine.</li>
@@ -832,7 +958,7 @@ ssh macbook -t '/opt/homebrew/bin/tmux new -A -s phone'</code></pre>
         <li>Application firewall on.</li>
         <li>Tailscale installed and signed in; exactly one build, and you know which. <code>tailscale ip -4</code> returns this Mac's address.</li>
         <li>Remote Login <em>off</em>; exactly one sshd daemon running.</li>
-        <li><code>ListenAddress</code> set to the Tailscale IP, verified refused on the LAN address.</li>
+        <li><code>ListenAddress</code> set for <em>both</em> the Tailscale IPv4 and IPv6 address; <code>ssh -6</code> proven working, and the port verified refused on the LAN address.</li>
         <li><code>UsePAM yes</code>, and membership of <code>com.apple.access_ssh</code> confirmed.</li>
         <li>Plist includes <code>-D</code> and <code>-e</code>; <code>runs</code> stays at 1.</li>
         <li><code>sshd -t</code> passes and a held session was proven to survive.</li>
