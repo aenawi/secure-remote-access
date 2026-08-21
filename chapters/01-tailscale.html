@@ -466,21 +466,21 @@ tailscale ip -4      # this machine's tailnet address — chapter 05 needs the M
 
           <!-- destinations, always drawn, dim -->
           <g data-at="0+">
-            <rect x="632" y="36" width="164" height="54" rx="9" class="svg-surface svg-stroke" stroke-width="1.4" stroke-dasharray="4 3"/>
+            <rect x="632" y="36" width="176" height="54" rx="9" class="svg-surface svg-stroke" stroke-width="1.4" stroke-dasharray="4 3"/>
             <text x="652" y="60" class="svg-label">:22 sshd</text>
-            <rect x="632" y="104" width="164" height="54" rx="9" class="svg-surface svg-stroke" stroke-width="1.4" stroke-dasharray="4 3"/>
+            <rect x="632" y="104" width="176" height="54" rx="9" class="svg-surface svg-stroke" stroke-width="1.4" stroke-dasharray="4 3"/>
             <text x="652" y="128" class="svg-label">:6379 redis</text>
-            <rect x="632" y="172" width="164" height="54" rx="9" class="svg-surface svg-stroke" stroke-width="1.4" stroke-dasharray="4 3"/>
+            <rect x="632" y="172" width="176" height="54" rx="9" class="svg-surface svg-stroke" stroke-width="1.4" stroke-dasharray="4 3"/>
             <text x="652" y="196" class="svg-label">:5432 postgres</text>
-            <rect x="632" y="240" width="164" height="54" rx="9" class="svg-surface svg-stroke" stroke-width="1.4" stroke-dasharray="4 3"/>
+            <rect x="632" y="240" width="176" height="54" rx="9" class="svg-surface svg-stroke" stroke-width="1.4" stroke-dasharray="4 3"/>
             <text x="652" y="264" class="svg-label">:8000 dev server</text>
           </g>
 
           <!-- which one we are aiming at -->
-          <rect data-at="0+" data-scn="ssh" data-poster x="632" y="36" width="164" height="54" rx="9" fill="none" class="svg-stroke" stroke-width="2.4"/>
-          <rect data-at="0+" data-scn="redis" x="632" y="104" width="164" height="54" rx="9" fill="none" class="svg-stroke" stroke-width="2.4"/>
-          <rect data-at="0+" data-scn="pg" x="632" y="172" width="164" height="54" rx="9" fill="none" class="svg-stroke" stroke-width="2.4"/>
-          <rect data-at="0+" data-scn="dev" x="632" y="240" width="164" height="54" rx="9" fill="none" class="svg-stroke" stroke-width="2.4"/>
+          <rect data-at="0+" data-scn="ssh" data-poster x="632" y="36" width="176" height="54" rx="9" fill="none" class="svg-stroke" stroke-width="2.4"/>
+          <rect data-at="0+" data-scn="redis" x="632" y="104" width="176" height="54" rx="9" fill="none" class="svg-stroke" stroke-width="2.4"/>
+          <rect data-at="0+" data-scn="pg" x="632" y="172" width="176" height="54" rx="9" fill="none" class="svg-stroke" stroke-width="2.4"/>
+          <rect data-at="0+" data-scn="dev" x="632" y="240" width="176" height="54" rx="9" fill="none" class="svg-stroke" stroke-width="2.4"/>
 
           <!-- step 1-2: packet travels to the gate -->
           <path data-at="1-2" data-flow="info" data-count="3" data-speed="0.22"
@@ -504,7 +504,7 @@ tailscale ip -4      # this machine's tailnet address — chapter 05 needs the M
             <path data-flow="accent" data-count="3" data-speed="0.26"
                   d="M494 173 C 548 173, 574 63, 628 63"
                   class="svg-accent-s" stroke-width="2.2" fill="none" marker-end="url(#b1)"/>
-            <rect x="632" y="36" width="164" height="54" rx="9" fill="none" class="svg-accent-s" stroke-width="2"/>
+            <rect x="632" y="36" width="176" height="54" rx="9" fill="none" class="svg-accent-s" stroke-width="2"/>
             <text x="652" y="78" class="svg-sub">sshd sees the connection</text>
           </g>
 
