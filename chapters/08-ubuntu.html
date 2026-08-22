@@ -30,6 +30,347 @@
         </p>
       </div>
 
+      <p>
+        The whole chapter is one question, asked from the other side: someone is holding your laptop,
+        and you are not. What they get depends almost entirely on what state the machine was in when
+        they picked it up.
+      </p>
+
+      <figure class="diagram sim" data-sim data-step-ms="3800" tabindex="0"
+              aria-label="Interactive walkthrough of a stolen laptop. Pick the state the machine was in when it was taken, then climb the four things a thief tries in order and watch which control stops them. Use the left and right arrow keys to step through it.">
+
+        <div class="sim-bar">
+          <span class="sim-bar-label">How it was taken</span>
+          <button type="button" class="sim-scn is-on" data-scenario="off" aria-pressed="true">Powered down</button>
+          <button type="button" class="sim-scn" data-scenario="lid" aria-pressed="false">Lid closed, asleep</button>
+          <button type="button" class="sim-scn" data-scenario="open" aria-pressed="false">Open and unlocked</button>
+        </div>
+
+        <svg viewBox="0 0 880 368" role="img" aria-label="A ladder of the four things someone does with a laptop that is not theirs — open the lid, reboot from a USB stick, pull the SSD out, and brute-force the passphrase — each showing the control it meets and whether it held. Beside it, a panel reporting what the thief has at that point, a list of what is on the disk, and a bar showing how much of it they end up with.">
+          <defs>
+            <marker id="u1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="currentColor" opacity=".4"/>
+            </marker>
+          </defs>
+
+          <text x="16" y="22" class="svg-sub">WHAT THEY TRY, IN ORDER</text>
+          <text x="470" y="22" class="svg-sub">WHAT THEY HAVE AT THIS POINT</text>
+
+          <!-- ============ the ladder frame (always present) ============ -->
+          <g data-at="0+">
+            <path d="M26 32 L26 252" class="svg-muted-s" stroke-width="1.4" stroke-dasharray="4 4" fill="none"/>
+
+            <rect x="40" y="34" width="412" height="56" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
+            <path d="M26 62 L40 62" class="svg-muted-s" stroke-width="1.3" fill="none"/>
+            <text x="56" y="56" class="svg-label">1 · Open the lid and look</text>
+            <text x="56" y="74" class="svg-sub">met by: the lock screen</text>
+
+            <rect x="40" y="96" width="412" height="56" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
+            <path d="M26 124 L40 124" class="svg-muted-s" stroke-width="1.3" fill="none"/>
+            <text x="56" y="118" class="svg-label">2 · Reboot onto a USB stick</text>
+            <text x="56" y="136" class="svg-sub">met by: UEFI password, Secure Boot</text>
+
+            <rect x="40" y="158" width="412" height="56" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
+            <path d="M26 186 L40 186" class="svg-muted-s" stroke-width="1.3" fill="none"/>
+            <text x="56" y="180" class="svg-label">3 · Pull the SSD and mount it</text>
+            <text x="56" y="198" class="svg-sub">met by: LUKS full-disk encryption</text>
+
+            <rect x="40" y="220" width="412" height="56" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
+            <path d="M26 248 L40 248" class="svg-muted-s" stroke-width="1.3" fill="none"/>
+            <text x="56" y="242" class="svg-label">4 · Brute-force the passphrase</text>
+            <text x="56" y="260" class="svg-sub">met by: its length, and only that</text>
+
+            <text x="16" y="302" class="svg-sub">HOW MUCH OF YOUR DATA THEY GET</text>
+            <rect x="16" y="310" width="436" height="14" rx="7" class="svg-surface svg-stroke" stroke-width="1.2"/>
+
+            <text x="470" y="172" class="svg-sub">WHAT IS ON THIS DISK</text>
+            <rect x="470" y="182" width="394" height="94" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
+            <text x="486" y="206" class="svg-sub">~/.ssh/id_ed25519 · the private key, and its passphrase</text>
+            <text x="486" y="224" class="svg-sub">browser profiles · live session cookies, saved logins</text>
+            <text x="486" y="242" class="svg-sub">~/.bash_history · every command, every hostname</text>
+            <text x="486" y="260" class="svg-sub">~/.aws ~/.kube ~/.config · long-lived cloud credentials</text>
+          </g>
+
+          <text x="16" y="352" class="svg-sub">every control below the lock screen assumes the machine is off — the lock screen and the idle timeout are what get it there</text>
+
+          <!-- ============ the descent down the ladder ============ -->
+          <path data-at="1" data-flow="warn" data-count="1" data-speed="0.16" data-r="3.5"
+                d="M26 32 L26 62" stroke="none" fill="none"/>
+          <path data-at="2" data-flow="warn" data-count="2" data-speed="0.16" data-r="3.5"
+                d="M26 32 L26 124" stroke="none" fill="none"/>
+          <path data-at="3" data-flow="warn" data-count="3" data-speed="0.16" data-r="3.5"
+                d="M26 32 L26 186" stroke="none" fill="none"/>
+          <path data-at="4" data-flow="warn" data-count="3" data-speed="0.16" data-r="3.5"
+                d="M26 32 L26 248" stroke="none" fill="none"/>
+
+          <!-- ============ rung verdict chips · powered down ============ -->
+          <g data-at="1+" data-scn="off" data-poster class="sim-pop">
+            <rect x="290" y="49" width="148" height="26" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="364" y="66" text-anchor="middle" class="svg-mono-accent">a LUKS prompt</text>
+          </g>
+          <g data-at="2+" data-scn="off" data-poster class="sim-pop">
+            <rect x="290" y="111" width="148" height="26" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="364" y="128" text-anchor="middle" class="svg-mono-accent">boot order locked</text>
+          </g>
+          <g data-at="3+" data-scn="off" data-poster class="sim-pop">
+            <rect x="290" y="173" width="148" height="26" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="364" y="190" text-anchor="middle" class="svg-mono-accent">ciphertext only</text>
+          </g>
+          <g data-at="4+" data-scn="off" data-poster class="sim-pop">
+            <rect x="290" y="235" width="148" height="26" rx="6" class="svg-card svg-warn-s" stroke-width="1.4"/>
+            <text x="364" y="252" text-anchor="middle" class="svg-mono-warn">no rate limit</text>
+          </g>
+
+          <!-- ============ rung verdict chips · asleep ============ -->
+          <g data-at="1+" data-scn="lid" class="sim-pop">
+            <rect x="290" y="49" width="148" height="26" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="364" y="66" text-anchor="middle" class="svg-mono-accent">locked, no grace</text>
+          </g>
+          <g data-at="2+" data-scn="lid" class="sim-pop">
+            <rect x="290" y="111" width="148" height="26" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="364" y="128" text-anchor="middle" class="svg-mono-accent">reboot loses RAM</text>
+          </g>
+          <g data-at="3+" data-scn="lid" class="sim-pop">
+            <rect x="290" y="173" width="148" height="26" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="364" y="190" text-anchor="middle" class="svg-mono-accent">ciphertext only</text>
+          </g>
+          <g data-at="4+" data-scn="lid" class="sim-pop">
+            <rect x="290" y="235" width="148" height="26" rx="6" class="svg-card svg-warn-s" stroke-width="1.4"/>
+            <text x="364" y="252" text-anchor="middle" class="svg-mono-warn">no rate limit</text>
+          </g>
+
+          <!-- ============ rung verdict chips · open and unlocked ============ -->
+          <g data-at="1+" data-scn="open" class="sim-pop">
+            <rect x="290" y="49" width="148" height="26" rx="6" class="svg-card svg-danger-s" stroke-width="1.6"/>
+            <text x="364" y="66" text-anchor="middle" class="svg-mono-danger">in · nothing asked</text>
+          </g>
+          <g data-at="2+" data-scn="open" class="sim-pop">
+            <rect x="290" y="111" width="148" height="26" rx="6" class="svg-surface svg-stroke" stroke-width="1.2" stroke-dasharray="4 3"/>
+            <text x="364" y="128" text-anchor="middle" class="svg-sub">not needed</text>
+          </g>
+          <g data-at="3+" data-scn="open" class="sim-pop">
+            <rect x="290" y="173" width="148" height="26" rx="6" class="svg-card svg-danger-s" stroke-width="1.6"/>
+            <text x="364" y="190" text-anchor="middle" class="svg-mono-danger">already mounted</text>
+          </g>
+          <g data-at="4+" data-scn="open" class="sim-pop">
+            <rect x="290" y="235" width="148" height="26" rx="6" class="svg-surface svg-stroke" stroke-width="1.2" stroke-dasharray="4 3"/>
+            <text x="364" y="252" text-anchor="middle" class="svg-sub">not needed</text>
+          </g>
+
+          <!-- ============ which rung this step is on ============ -->
+          <rect data-at="1" data-scn="off lid" x="40" y="34" width="412" height="56" rx="9" fill="none" class="svg-accent-s" stroke-width="2.6"/>
+          <rect data-at="1" data-scn="open"    x="40" y="34" width="412" height="56" rx="9" fill="none" class="svg-danger-s" stroke-width="2.6"/>
+          <rect data-at="2" data-scn="off lid" x="40" y="96" width="412" height="56" rx="9" fill="none" class="svg-accent-s" stroke-width="2.6"/>
+          <rect data-at="2" data-scn="open"    x="40" y="96" width="412" height="56" rx="9" fill="none" class="svg-muted-s" stroke-width="2.2" stroke-dasharray="6 4"/>
+          <rect data-at="3" data-scn="off lid" x="40" y="158" width="412" height="56" rx="9" fill="none" class="svg-accent-s" stroke-width="2.6"/>
+          <rect data-at="3" data-scn="open"    x="40" y="158" width="412" height="56" rx="9" fill="none" class="svg-danger-s" stroke-width="2.6"/>
+          <rect data-at="4" data-scn="off lid" x="40" y="220" width="412" height="56" rx="9" fill="none" class="svg-warn-s" stroke-width="2.6"/>
+          <rect data-at="4" data-scn="open"    x="40" y="220" width="412" height="56" rx="9" fill="none" class="svg-muted-s" stroke-width="2.2" stroke-dasharray="6 4"/>
+
+          <!-- ============ the data-exposure meter ============ -->
+          <!-- each fill and readout carries its own opaque chip so two never
+               bleed through one another while one fades out and the next in -->
+          <g data-at="0+" data-scn="off" data-poster>
+            <rect x="18" y="312" width="12" height="10" rx="5" class="svg-accent"/>
+            <rect x="470" y="302" width="394" height="24" rx="6" class="svg-card svg-stroke" stroke-width="1.2"/>
+            <text x="484" y="318" class="svg-mono-accent">nothing — a header, a salt, and 512 GB of noise</text>
+          </g>
+          <g data-at="0+" data-scn="lid">
+            <rect x="18" y="312" width="46" height="10" rx="5" class="svg-warn"/>
+            <rect x="470" y="302" width="394" height="24" rx="6" class="svg-card svg-stroke" stroke-width="1.2"/>
+            <text x="484" y="318" class="svg-mono-warn">nothing a thief gets · a lab is another matter</text>
+          </g>
+          <g data-at="0+" data-scn="open">
+            <rect x="18" y="312" width="432" height="10" rx="5" class="svg-danger"/>
+            <rect x="470" y="302" width="394" height="24" rx="6" class="svg-card svg-stroke" stroke-width="1.2"/>
+            <text x="484" y="318" class="svg-mono-danger">everything this account can reach, immediately</text>
+          </g>
+
+          <!-- ============ step 0 · the moment it is gone ============ -->
+          <g data-at="0" data-scn="off" class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-accent-s" stroke-width="1.6"/>
+            <text x="488" y="64" class="svg-mono-accent">powered down · LUKS is armed</text>
+            <text x="488" y="88" class="svg-sub">the volume key exists nowhere in this machine</text>
+            <text x="488" y="106" class="svg-sub">it is derived from your passphrase at boot</text>
+            <text x="488" y="124" class="svg-sub">this is the only state where the disk is safe</text>
+          </g>
+          <g data-at="0" data-scn="lid" class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-warn-s" stroke-width="1.6"/>
+            <text x="488" y="64" class="svg-mono-warn">asleep · the volume key is live in RAM</text>
+            <text x="488" y="88" class="svg-sub">the disk was unlocked before the lid closed</text>
+            <text x="488" y="106" class="svg-sub">suspend does not undo that, it just hides it</text>
+            <text x="488" y="124" class="svg-sub">the lock screen is what stands in front of it</text>
+          </g>
+          <g data-at="0" data-scn="open" class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-danger-s" stroke-width="1.7"/>
+            <text x="488" y="64" class="svg-mono-danger">open and unlocked · nothing is guarding it</text>
+            <text x="488" y="88" class="svg-sub">two minutes on a café table is long enough</text>
+            <text x="488" y="106" class="svg-sub">the disk is mounted, the agent may be loaded</text>
+            <text x="488" y="124" class="svg-sub">and this machine is a tailnet member</text>
+          </g>
+
+          <!-- ============ step 1 · they open the lid ============ -->
+          <g data-at="1" data-scn="off" class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-accent-s" stroke-width="1.6"/>
+            <text x="488" y="64" class="svg-mono-accent">a passphrase prompt, and nothing else</text>
+            <text x="488" y="88" class="svg-sub">no desktop, no filenames, no hostname to read</text>
+            <text x="488" y="106" class="svg-sub">the initramfs asks, and then it waits</text>
+            <text x="488" y="124" class="svg-sub">there is not even anything here to look at</text>
+          </g>
+          <g data-at="1" data-scn="lid" class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-accent-s" stroke-width="1.6"/>
+            <text x="488" y="64" class="svg-mono-accent">the lock screen, with no grace period</text>
+            <text x="488" y="88" class="svg-sub">lock-delay 0 locks the instant the screen blanks</text>
+            <text x="488" y="106" class="svg-sub">a grace period is a window someone else can use</text>
+            <text x="488" y="124" class="svg-sub">idle-delay 300 shuts it while you walk away</text>
+          </g>
+          <g data-at="1" data-scn="open" class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-danger-s" stroke-width="1.7"/>
+            <text x="488" y="64" class="svg-mono-danger">your desktop, exactly as you left it</text>
+            <text x="488" y="88" class="svg-sub">mail, chat, and the terminal you were typing in</text>
+            <text x="488" y="106" class="svg-sub">not one control in this chapter has run yet</text>
+            <text x="488" y="124" class="svg-sub">this is the failure the idle timeout prevents</text>
+          </g>
+
+          <!-- ============ step 2 · reboot onto a USB stick ============ -->
+          <g data-at="2" data-scn="off" class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-accent-s" stroke-width="1.6"/>
+            <text x="488" y="64" class="svg-mono-accent">the firmware will not change boot order</text>
+            <text x="488" y="88" class="svg-sub">a UEFI supervisor password blocks the menu</text>
+            <text x="488" y="106" class="svg-sub">USB and network boot are disabled outright</text>
+            <text x="488" y="124" class="svg-sub">Secure Boot rejects the unsigned kernel anyway</text>
+          </g>
+          <g data-at="2" data-scn="lid" class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-accent-s" stroke-width="1.6"/>
+            <text x="488" y="64" class="svg-mono-accent">a reboot throws away the key in RAM</text>
+            <text x="488" y="88" class="svg-sub">whatever was in memory goes with the power</text>
+            <text x="488" y="106" class="svg-sub">so this move drops them into the cold case</text>
+            <text x="488" y="124" class="svg-sub">which is exactly where you want them</text>
+          </g>
+          <g data-at="2" data-scn="open" class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-stroke" stroke-width="1.4"/>
+            <text x="488" y="64" class="svg-sub">not needed — they are already logged in</text>
+            <text x="488" y="88" class="svg-sub">booting anything else would lose the session</text>
+            <text x="488" y="106" class="svg-sub">a running system is worth more than the disk</text>
+            <text x="488" y="124" class="svg-sub">this rung only matters for a machine that is off</text>
+          </g>
+
+          <!-- ============ step 3 · pull the SSD ============ -->
+          <g data-at="3" data-scn="off" class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-accent-s" stroke-width="1.6"/>
+            <text x="488" y="64" class="svg-mono-accent">lsblk on their machine says crypto_LUKS</text>
+            <text x="488" y="88" class="svg-sub">a header, a salt, and an awful lot of noise</text>
+            <text x="488" y="106" class="svg-sub">no filenames, no sizes, no directory tree</text>
+            <text x="488" y="124" class="svg-sub">nothing to carve and nothing to grep</text>
+          </g>
+          <g data-at="3" data-scn="lid" class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-warn-s" stroke-width="1.6"/>
+            <text x="488" y="64" class="svg-mono-warn">the same ciphertext — RAM did not travel</text>
+            <text x="488" y="88" class="svg-sub">pulling the disk powers the machine down first</text>
+            <text x="488" y="106" class="svg-sub">the honest risk here is the memory, not the disk</text>
+            <text x="488" y="124" class="svg-sub">cold-boot and DMA attacks are a lab's job</text>
+          </g>
+          <g data-at="3" data-scn="open" class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-danger-s" stroke-width="1.7"/>
+            <text x="488" y="64" class="svg-mono-danger">the filesystem is already mounted and open</text>
+            <text x="488" y="88" class="svg-sub">they do not have to remove anything at all</text>
+            <text x="488" y="106" class="svg-sub">~/.ssh, the browser profile, the shell history</text>
+            <text x="488" y="124" class="svg-sub">all of it readable as you, right now</text>
+          </g>
+
+          <!-- ============ step 4 · brute force ============ -->
+          <g data-at="4" data-scn="off" data-poster class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-warn-s" stroke-width="1.7"/>
+            <text x="488" y="64" class="svg-mono-warn">an encrypted brick, and unlimited patience</text>
+            <text x="488" y="88" class="svg-sub">no hardware rate limiting here, unlike a phone</text>
+            <text x="488" y="106" class="svg-sub">no lockout, no attempt counter, no remote wipe</text>
+            <text x="488" y="124" class="svg-sub">passphrase length is the whole remaining control</text>
+          </g>
+          <g data-at="4" data-scn="lid" class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-warn-s" stroke-width="1.7"/>
+            <text x="488" y="64" class="svg-mono-warn">identical to the powered-off case now</text>
+            <text x="488" y="88" class="svg-sub">the machine is cold, whatever state it left in</text>
+            <text x="488" y="106" class="svg-sub">check crypttab if you ever hibernate</text>
+            <text x="488" y="124" class="svg-sub">plain swap would hold that key in the clear</text>
+          </g>
+          <g data-at="4" data-scn="open" class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-danger-s" stroke-width="1.7"/>
+            <text x="488" y="64" class="svg-mono-danger">not needed — it was never locked to them</text>
+            <text x="488" y="88" class="svg-sub">they had it decrypted from the first second</text>
+            <text x="488" y="106" class="svg-sub">LUKS protects data at rest, and only at rest</text>
+            <text x="488" y="124" class="svg-sub">an unlocked laptop has no data at rest</text>
+          </g>
+        </svg>
+
+        <div class="sim-controls">
+          <button type="button" class="sim-btn" data-act="prev" aria-label="Previous step"><span class="sim-glyph">◀</span></button>
+          <button type="button" class="sim-btn sim-btn-play" data-act="play" aria-label="Play">
+            <span class="sim-glyph">▶</span><span class="sim-btn-text">Play</span>
+          </button>
+          <button type="button" class="sim-btn" data-act="next" aria-label="Next step"><span class="sim-glyph">▶</span></button>
+          <div class="sim-track" role="group" aria-label="Jump to step">
+            <button type="button" class="sim-dot" data-goto="0" aria-label="Step 0, the moment it is gone">0</button>
+            <button type="button" class="sim-dot" data-goto="1" aria-label="Rung 1, they open the lid">1</button>
+            <button type="button" class="sim-dot" data-goto="2" aria-label="Rung 2, they reboot onto a USB stick">2</button>
+            <button type="button" class="sim-dot" data-goto="3" aria-label="Rung 3, they pull the SSD out">3</button>
+            <button type="button" class="sim-dot" data-goto="4" aria-label="Rung 4, they brute-force the passphrase">4</button>
+          </div>
+          <div class="sim-progress" aria-hidden="true"><span></span></div>
+        </div>
+
+        <div class="sim-term" aria-hidden="true">
+          <div data-at="0" data-scn="off" data-poster><span class="tp">$</span> lsblk -o NAME,FSTYPE,MOUNTPOINT<br>nvme0n1p3 <span class="tok">crypto_LUKS</span> <span class="tdim">— the one line you want to see</span></div>
+          <div data-at="0" data-scn="lid"><span class="tp">$</span> gsettings get org.gnome.desktop.screensaver lock-delay<br>uint32 <span class="tok">0</span> <span class="tdim">— locked the instant the screen blanked</span></div>
+          <div data-at="0" data-scn="open"><span class="tp">$</span> w<br>you tty2 :0 <span class="twarn">still logged in</span> <span class="tdim">— the lid was never closed</span></div>
+
+          <div data-at="1" data-scn="off" data-poster><span class="tp">#</span> the initramfs, on a cold boot<br>Please unlock disk nvme0n1p3_crypt: <span class="tdim">— nothing else on screen</span></div>
+          <div data-at="1" data-scn="lid"><span class="tp">#</span> the lock screen, on wake<br>Password: <span class="tdim">— and the volume key is still live in RAM</span></div>
+          <div data-at="1" data-scn="open"><span class="tp">$</span> ls ~/.ssh<br><span class="twarn">id_ed25519</span> id_ed25519.pub known_hosts config</div>
+
+          <div data-at="2" data-scn="off" data-poster><span class="tp">#</span> their USB stick, in the boot menu<br>Enter Supervisor Password: <span class="tdim">— the menu never opens</span></div>
+          <div data-at="2" data-scn="lid"><span class="tp">#</span> they hold the power button down<br>RAM contents gone <span class="tok">— this is the powered-off case now</span></div>
+          <div data-at="2" data-scn="open"><span class="tp">#</span> nobody reboots a machine they already own<br><span class="tdim">the running session is worth more than the disk</span></div>
+
+          <div data-at="3" data-scn="off" data-poster><span class="tp">$</span> sudo cryptsetup luksDump /dev/nvme0n1p3<br>Version: 2 Cipher: aes-xts-plain64 <span class="tdim">— a header, and noise</span></div>
+          <div data-at="3" data-scn="lid"><span class="tp">$</span> lsblk -o NAME,FSTYPE <span class="tdim">(their machine, your SSD)</span><br><span class="tok">crypto_LUKS</span> <span class="tdim">— identical to the cold case</span></div>
+          <div data-at="3" data-scn="open"><span class="tp">$</span> mount | grep dm-0<br>/dev/mapper/nvme0n1p3_crypt on / type ext4 <span class="twarn">(rw)</span></div>
+
+          <div data-at="4" data-scn="off" data-poster><span class="tp">#</span> offline, on their hardware, for as long as they like<br>no lockout, no attempt counter <span class="twarn">— only your passphrase</span></div>
+          <div data-at="4" data-scn="lid"><span class="tp">$</span> cat /etc/crypttab<br>cryptswap /dev/urandom <span class="tok">— hibernate has nowhere to leak to</span></div>
+          <div data-at="4" data-scn="open"><span class="tp">$</span> ssh-add -l<br>256 SHA256:… (ED25519) <span class="twarn">— the agent is loaded and will sign</span></div>
+        </div>
+
+        <ol class="sim-steps" aria-live="polite">
+          <li data-at="0" data-scn="off" data-poster><b>0 · It is gone, and it was off</b>The volume key does not exist anywhere in the machine — it is derived from your passphrase during boot and lives only in RAM afterwards. A powered-down laptop is the one state where the disk is genuinely protected, and every control further down this ladder is really about getting the machine into it.</li>
+          <li data-at="0" data-scn="lid"><b>0 · It is gone, and it was asleep</b>This is the common case: lid closed, bag over the shoulder. The disk was unlocked before the lid came down, so the volume key is sitting in RAM right now. Suspend does not undo that — it hides it behind the lock screen. That is why <code>lock-delay 0</code> matters more here than anywhere else.</li>
+          <li data-at="0" data-scn="open"><b>0 · It is gone, and it was open</b>Two minutes at a café counter. The disk is mounted, your SSH agent may hold a loaded key, your browser is signed in to everything, and the machine is a member of your tailnet. Nothing in this chapter has any effect on this case except the idle timeout that should have fired.</li>
+
+          <li data-at="1" data-scn="off" data-poster><b>1 · They open the lid — and get a prompt</b>A cold boot lands in the initramfs, which asks for the passphrase and then waits. No desktop, no hostname, no filenames, not even a username to try. There is nothing to look at, which is a surprisingly large part of the value.</li>
+          <li data-at="1" data-scn="lid"><b>1 · They open the lid — and get the lock screen</b><code>lock-enabled true</code> with <code>lock-delay 0</code> means the screen locked the instant it blanked. A grace period exists so that <em>you</em> can wake the machine without typing; on a laptop that leaves the house it is a window someone else uses. Pair it with <code>idle-delay 300</code> so the screen blanks while you are still walking away.</li>
+          <li data-at="1" data-scn="open"><b>1 · They open the lid — and it is your desktop</b>Mail, chat, the terminal you were mid-command in. Disk encryption, Secure Boot and the UEFI password have all been bypassed without being attacked, because none of them apply to a running, unlocked session. This one rung is the difference between an expensive inconvenience and an incident.</li>
+
+          <li data-at="2" data-scn="off" data-poster><b>2 · They try to boot their own OS</b>The classic evil-maid shortcut: boot a live USB and read the disk as an ordinary volume. A UEFI supervisor password stops the boot menu opening, disabling USB and network boot removes the target, and Secure Boot refuses the unsigned kernel even if they get that far. Check the last one with <code>mokutil --sb-state</code>.</li>
+          <li data-at="2" data-scn="lid"><b>2 · A reboot is the best thing they could do for you</b>Cutting power throws away everything in RAM, including the volume key. From here the sleeping case and the cold case are the same case — and the firmware controls above now apply. The thief has just moved themselves into the harder problem.</li>
+          <li data-at="2" data-scn="open"><b>2 · There is no reason to reboot</b>Rebooting would cost them the unlocked session and gain them a LUKS prompt. A live, logged-in system is strictly more valuable than its disk. This rung only exists for a machine that was off — which is the argument for making sure yours is.</li>
+
+          <li data-at="3" data-scn="off" data-poster><b>3 · They take the SSD out</b>Unscrew it, put it in an enclosure, plug it into a machine they control — and <code>lsblk</code> says <code>crypto_LUKS</code>. A header, a salt, and several hundred gigabytes of noise. No filenames, no sizes, no directory structure to work from. This is the single control the whole chapter rests on.</li>
+          <li data-at="3" data-scn="lid"><b>3 · Pulling the disk means powering it off</b>The same ciphertext as the cold case — the RAM does not come with the drive. The honest risk in the sleeping state is not the disk at all, it is the memory: cold-boot and DMA attacks against a suspended machine are real, and they are a lab's job rather than an opportunist's. If you hibernate rather than suspend, that key gets written to swap, which is why <code>/etc/crypttab</code> matters.</li>
+          <li data-at="3" data-scn="open"><b>3 · The filesystem is already open</b><code>/dev/mapper/nvme0n1p3_crypt</code> is mounted read-write and they are inside it. <code>~/.ssh</code>, the browser profile, <code>~/.bash_history</code>, every cloud credential in <code>~/.config</code> — readable as you, immediately, with no attack of any kind involved.</li>
+
+          <li data-at="4" data-scn="off" data-poster><b>4 · All that is left is the passphrase</b>They can copy the encrypted image and grind at it offline, on their own hardware, for as long as they care to. There is no hardware rate limiting the way a phone has, no lockout, no attempt counter, no remote wipe. <b>Your passphrase length is the entire remaining control</b> — pick it accordingly, and keep it in a password manager you can reach from another device.</li>
+          <li data-at="4" data-scn="lid"><b>4 · The same passphrase problem, one step later</b>Whatever state it left in, the machine is cold by now and the maths is identical. The extra thing to check for a laptop that sleeps is hibernation: hibernating writes RAM — including the decrypted volume key — to swap. <code>lsblk -o NAME,FSTYPE | grep -i swap</code> and <code>cat /etc/crypttab</code> tell you whether that landing spot is encrypted.</li>
+          <li data-at="4" data-scn="open"><b>4 · There was never anything to brute-force</b>The disk was decrypted from the moment they picked it up. LUKS protects data at rest, and an unlocked laptop has no data at rest. Every strong-passphrase argument on this rung applies to the other two scenarios and to none of this one.</li>
+        </ol>
+
+        <figcaption>
+          <b>Full-disk encryption only ever protects a machine that is off.</b> Step through
+          <b>Open and unlocked</b> and watch all four rungs collapse: LUKS, Secure Boot and the UEFI
+          password are bypassed without being attacked, because none of them apply to a running
+          session. The lock screen and the idle timeout are not minor settings next to disk
+          encryption — they are what puts the disk into the state disk encryption defends.
+        </figcaption>
+      </figure>
+
       <h2>Disk encryption is the whole game</h2>
       <p>
         Every other control on a laptop assumes the attacker does not have the disk. Without full-disk
@@ -208,5 +549,6 @@ curl -fsSL https://herdr.dev/install.sh | sh
 </div>
 <script src="../assets/nav.js"></script>
 <script src="../assets/app.js"></script>
+<script src="../assets/anim.js"></script>
 </body>
 </html>
