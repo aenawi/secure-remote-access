@@ -21,6 +21,359 @@
         entirely on one question: where does the private key live?
       </p>
 
+      <p>
+        Everything in this chapter exists to make one gesture work: you tap a saved host and a live
+        pane appears. Five things have to happen in order before that keystroke lands, and each one
+        has a phone-shaped way of going wrong.
+      </p>
+
+      <figure class="diagram sim" data-sim data-step-ms="3800" tabindex="0"
+              aria-label="Interactive walkthrough of one connection from an iPhone. Pick how the phone is set up, then step through the five things that have to happen before a keystroke reaches tmux, and what each one costs you. Use the left and right arrow keys to step through it.">
+
+        <div class="sim-bar">
+          <span class="sim-bar-label">How the phone is set up</span>
+          <button type="button" class="sim-scn is-on" data-scenario="se" aria-pressed="true">Blink + Secure Enclave key</button>
+          <button type="button" class="sim-scn" data-scenario="file" aria-pressed="false">Blink + a key file</button>
+          <button type="button" class="sim-scn" data-scenario="ish" aria-pressed="false">iSH + plain ssh</button>
+        </div>
+
+        <svg viewBox="0 0 880 384" role="img" aria-label="A chain of the five things that have to happen between tapping a saved host on an iPhone and typing into tmux — bring the tunnel up, resolve the name, sign the handshake, start the session, and survive twenty minutes in a pocket — each showing how it went. Beside it, a panel describing what the phone is doing at that point, a list of what actually lives on the phone, and a bar showing what losing the phone would cost you.">
+
+          <text x="16" y="22" class="svg-sub">WHAT HAS TO HAPPEN, IN ORDER</text>
+          <text x="470" y="22" class="svg-sub">WHAT THE PHONE IS DOING</text>
+
+          <!-- ============ the chain frame (always present) ============ -->
+          <g data-at="0+">
+            <path d="M26 24 L26 272" class="svg-muted-s" stroke-width="1.4" stroke-dasharray="4 4" fill="none"/>
+
+            <rect x="40" y="32" width="412" height="48" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
+            <path d="M26 56 L40 56" class="svg-muted-s" stroke-width="1.3" fill="none"/>
+            <text x="56" y="52" class="svg-label">1 · Bring the tunnel up</text>
+            <text x="56" y="70" class="svg-sub">the Tailscale Network Extension</text>
+
+            <rect x="40" y="86" width="412" height="48" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
+            <path d="M26 110 L40 110" class="svg-muted-s" stroke-width="1.3" fill="none"/>
+            <text x="56" y="106" class="svg-label">2 · Resolve the name</text>
+            <text x="56" y="124" class="svg-sub">MagicDNS, inside the tunnel</text>
+
+            <rect x="40" y="140" width="412" height="48" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
+            <path d="M26 164 L40 164" class="svg-muted-s" stroke-width="1.3" fill="none"/>
+            <text x="56" y="160" class="svg-label">3 · Sign the handshake</text>
+            <text x="56" y="178" class="svg-sub">where the private key actually is</text>
+
+            <rect x="40" y="194" width="412" height="48" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
+            <path d="M26 218 L40 218" class="svg-muted-s" stroke-width="1.3" fill="none"/>
+            <text x="56" y="214" class="svg-label">4 · Start the session</text>
+            <text x="56" y="232" class="svg-sub">mosh over UDP, or ssh over TCP</text>
+
+            <rect x="40" y="248" width="412" height="48" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
+            <path d="M26 272 L40 272" class="svg-muted-s" stroke-width="1.3" fill="none"/>
+            <text x="56" y="268" class="svg-label">5 · Twenty minutes in a pocket</text>
+            <text x="56" y="286" class="svg-sub">iOS suspends whatever is running</text>
+
+            <text x="16" y="322" class="svg-sub">IF THIS PHONE IS LOST TONIGHT</text>
+            <rect x="16" y="330" width="436" height="14" rx="7" class="svg-surface svg-stroke" stroke-width="1.2"/>
+
+            <text x="470" y="172" class="svg-sub">WHAT LIVES ON THIS PHONE</text>
+            <rect x="470" y="182" width="394" height="118" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
+            <text x="486" y="204" class="svg-sub">Tailscale · a WireGuard node key, in the keychain</text>
+            <text x="486" y="226" class="svg-sub">Blink · saved hosts, ports, users, and key names</text>
+            <text x="486" y="248" class="svg-sub">the SSH key · enclave-bound, or a file you can copy</text>
+            <text x="486" y="270" class="svg-sub">known_hosts · the fingerprints you accepted on day one</text>
+            <text x="486" y="290" class="svg-sub">nothing listening · no port is open on this device</text>
+          </g>
+
+          <text x="16" y="368" class="svg-sub">the phone is a pure client — nothing listens on it, and that is most of why its security story is short</text>
+
+          <!-- ============ progress down the chain ============ -->
+          <path data-at="1" data-flow="accent" data-count="1" data-speed="0.16" data-r="3.5"
+                d="M26 24 L26 56" stroke="none" fill="none"/>
+          <path data-at="2" data-flow="accent" data-count="2" data-speed="0.16" data-r="3.5"
+                d="M26 24 L26 110" stroke="none" fill="none"/>
+          <path data-at="3" data-flow="accent" data-count="2" data-speed="0.16" data-r="3.5"
+                d="M26 24 L26 164" stroke="none" fill="none"/>
+          <path data-at="4" data-flow="accent" data-count="3" data-speed="0.16" data-r="3.5"
+                d="M26 24 L26 218" stroke="none" fill="none"/>
+          <path data-at="5" data-flow="accent" data-count="3" data-speed="0.16" data-r="3.5"
+                d="M26 24 L26 272" stroke="none" fill="none"/>
+
+          <!-- ============ rung verdict chips · Secure Enclave ============ -->
+          <g data-at="1+" data-scn="se" data-poster class="sim-pop">
+            <rect x="294" y="44" width="150" height="24" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="369" y="60" text-anchor="middle" class="svg-mono-accent">up before you type</text>
+          </g>
+          <g data-at="2+" data-scn="se" data-poster class="sim-pop">
+            <rect x="294" y="98" width="150" height="24" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="369" y="114" text-anchor="middle" class="svg-mono-accent">one word: macbook</text>
+          </g>
+          <g data-at="3+" data-scn="se" data-poster class="sim-pop">
+            <rect x="294" y="152" width="150" height="24" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="369" y="168" text-anchor="middle" class="svg-mono-accent">Face ID, in-chip</text>
+          </g>
+          <g data-at="4+" data-scn="se" data-poster class="sim-pop">
+            <rect x="294" y="206" width="150" height="24" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="369" y="222" text-anchor="middle" class="svg-mono-accent">mosh · UDP 60001</text>
+          </g>
+          <g data-at="5+" data-scn="se" data-poster class="sim-pop">
+            <rect x="294" y="260" width="150" height="24" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="369" y="276" text-anchor="middle" class="svg-mono-accent">still attached</text>
+          </g>
+
+          <!-- ============ rung verdict chips · a key file ============ -->
+          <g data-at="1+" data-scn="file" class="sim-pop">
+            <rect x="294" y="44" width="150" height="24" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="369" y="60" text-anchor="middle" class="svg-mono-accent">up before you type</text>
+          </g>
+          <g data-at="2+" data-scn="file" class="sim-pop">
+            <rect x="294" y="98" width="150" height="24" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="369" y="114" text-anchor="middle" class="svg-mono-accent">one word: macbook</text>
+          </g>
+          <g data-at="3+" data-scn="file" class="sim-pop">
+            <rect x="294" y="152" width="150" height="24" rx="6" class="svg-card svg-warn-s" stroke-width="1.4"/>
+            <text x="369" y="168" text-anchor="middle" class="svg-mono-warn">a file, in memory</text>
+          </g>
+          <g data-at="4+" data-scn="file" class="sim-pop">
+            <rect x="294" y="206" width="150" height="24" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="369" y="222" text-anchor="middle" class="svg-mono-accent">mosh · UDP 60001</text>
+          </g>
+          <g data-at="5+" data-scn="file" class="sim-pop">
+            <rect x="294" y="260" width="150" height="24" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="369" y="276" text-anchor="middle" class="svg-mono-accent">still attached</text>
+          </g>
+
+          <!-- ============ rung verdict chips · iSH and plain ssh ============ -->
+          <g data-at="1+" data-scn="ish" class="sim-pop">
+            <rect x="294" y="44" width="150" height="24" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="369" y="60" text-anchor="middle" class="svg-mono-accent">same tunnel, fine</text>
+          </g>
+          <g data-at="2+" data-scn="ish" class="sim-pop">
+            <rect x="294" y="98" width="150" height="24" rx="6" class="svg-surface svg-stroke" stroke-width="1.2" stroke-dasharray="4 3"/>
+            <text x="369" y="114" text-anchor="middle" class="svg-sub">you type it in full</text>
+          </g>
+          <g data-at="3+" data-scn="ish" class="sim-pop">
+            <rect x="294" y="152" width="150" height="24" rx="6" class="svg-card svg-warn-s" stroke-width="1.4"/>
+            <text x="369" y="168" text-anchor="middle" class="svg-mono-warn">a file, in the VM</text>
+          </g>
+          <g data-at="4+" data-scn="ish" class="sim-pop">
+            <rect x="294" y="206" width="150" height="24" rx="6" class="svg-card svg-warn-s" stroke-width="1.4"/>
+            <text x="369" y="222" text-anchor="middle" class="svg-mono-warn">ssh · TCP 22</text>
+          </g>
+          <g data-at="5+" data-scn="ish" class="sim-pop">
+            <rect x="294" y="260" width="150" height="24" rx="6" class="svg-card svg-danger-s" stroke-width="1.6"/>
+            <text x="369" y="276" text-anchor="middle" class="svg-mono-danger">connection reset</text>
+          </g>
+
+          <!-- ============ which rung this step is on ============ -->
+          <rect data-at="1" data-scn="se file ish" x="40" y="32"  width="412" height="48" rx="9" fill="none" class="svg-accent-s" stroke-width="2.6"/>
+          <rect data-at="2" data-scn="se file"     x="40" y="86"  width="412" height="48" rx="9" fill="none" class="svg-accent-s" stroke-width="2.6"/>
+          <rect data-at="2" data-scn="ish"         x="40" y="86"  width="412" height="48" rx="9" fill="none" class="svg-muted-s"  stroke-width="2.2" stroke-dasharray="6 4"/>
+          <rect data-at="3" data-scn="se"          x="40" y="140" width="412" height="48" rx="9" fill="none" class="svg-accent-s" stroke-width="2.6"/>
+          <rect data-at="3" data-scn="file ish"    x="40" y="140" width="412" height="48" rx="9" fill="none" class="svg-warn-s"   stroke-width="2.6"/>
+          <rect data-at="4" data-scn="se file"     x="40" y="194" width="412" height="48" rx="9" fill="none" class="svg-accent-s" stroke-width="2.6"/>
+          <rect data-at="4" data-scn="ish"         x="40" y="194" width="412" height="48" rx="9" fill="none" class="svg-warn-s"   stroke-width="2.6"/>
+          <rect data-at="5" data-scn="se file"     x="40" y="248" width="412" height="48" rx="9" fill="none" class="svg-accent-s" stroke-width="2.6"/>
+          <rect data-at="5" data-scn="ish"         x="40" y="248" width="412" height="48" rx="9" fill="none" class="svg-danger-s" stroke-width="2.6"/>
+
+          <!-- ============ what a lost phone costs ============ -->
+          <!-- each fill carries its own opaque readout chip so two never bleed
+               through one another while one fades out and the next fades in -->
+          <g data-at="0+" data-scn="se" data-poster>
+            <rect x="18" y="332" width="40" height="10" rx="5" class="svg-accent"/>
+            <rect x="470" y="322" width="394" height="24" rx="6" class="svg-card svg-stroke" stroke-width="1.2"/>
+            <text x="484" y="338" class="svg-mono-accent">nothing to steal · revoke one line and move on</text>
+          </g>
+          <g data-at="0+" data-scn="file">
+            <rect x="18" y="332" width="232" height="10" rx="5" class="svg-warn"/>
+            <rect x="470" y="322" width="394" height="24" rx="6" class="svg-card svg-stroke" stroke-width="1.2"/>
+            <text x="484" y="338" class="svg-mono-warn">an exportable key · rotate it on all three hosts</text>
+          </g>
+          <g data-at="0+" data-scn="ish">
+            <rect x="18" y="332" width="232" height="10" rx="5" class="svg-warn"/>
+            <rect x="470" y="322" width="394" height="24" rx="6" class="svg-card svg-stroke" stroke-width="1.2"/>
+            <text x="484" y="338" class="svg-mono-warn">the same exportable key, one emulator further in</text>
+          </g>
+
+          <!-- ============ step 0 · you pick the phone up ============ -->
+          <g data-at="0" data-scn="se" class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-accent-s" stroke-width="1.6"/>
+            <text x="488" y="64" class="svg-mono-accent">a saved host, and a key you cannot export</text>
+            <text x="488" y="88" class="svg-sub">Settings → Hosts holds the name, port, user and key</text>
+            <text x="488" y="106" class="svg-sub">the key is a handle to the enclave, not a file</text>
+            <text x="488" y="124" class="svg-sub">the command is mosh macbook -- tmux new -A -s phone</text>
+          </g>
+          <g data-at="0" data-scn="file" class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-warn-s" stroke-width="1.6"/>
+            <text x="488" y="64" class="svg-mono-warn">a saved host, and a key file in the app</text>
+            <text x="488" y="88" class="svg-sub">Blink generated the pair and stored the private half</text>
+            <text x="488" y="106" class="svg-sub">it is a real file: exportable, and backup-able</text>
+            <text x="488" y="124" class="svg-sub">everything else about this connection is identical</text>
+          </g>
+          <g data-at="0" data-scn="ish" class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-danger-s" stroke-width="1.7"/>
+            <text x="488" y="64" class="svg-mono-danger">an x86 emulator running Alpine, and ssh</text>
+            <text x="488" y="88" class="svg-sub">no saved hosts, no key manager, no mosh client</text>
+            <text x="488" y="106" class="svg-sub">the key is a file inside an emulated filesystem</text>
+            <text x="488" y="124" class="svg-sub">the whole thing is one app iOS may kill at any time</text>
+          </g>
+
+          <!-- ============ step 1 · bring the tunnel up ============ -->
+          <g data-at="1" data-scn="se file" class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-accent-s" stroke-width="1.6"/>
+            <text x="488" y="64" class="svg-mono-accent">the Network Extension is already up</text>
+            <text x="488" y="88" class="svg-sub">connect-on-demand raises it before Blink asks</text>
+            <text x="488" y="106" class="svg-sub">only tailnet addresses go through it, not all traffic</text>
+            <text x="488" y="124" class="svg-sub">the VPN badge is not an exit node unless you set one</text>
+          </g>
+          <g data-at="1" data-scn="ish" class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-accent-s" stroke-width="1.6"/>
+            <text x="488" y="64" class="svg-mono-accent">the same tunnel, and it does not care</text>
+            <text x="488" y="88" class="svg-sub">Tailscale is a system extension, not a Blink feature</text>
+            <text x="488" y="106" class="svg-sub">every app on the phone reaches the tailnet through it</text>
+            <text x="488" y="124" class="svg-sub">this rung is the one thing iSH gets for free</text>
+          </g>
+
+          <!-- ============ step 2 · resolve the name ============ -->
+          <g data-at="2" data-scn="se file" class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-accent-s" stroke-width="1.6"/>
+            <text x="488" y="64" class="svg-mono-accent">macbook resolves to 100.x, on the phone</text>
+            <text x="488" y="88" class="svg-sub">MagicDNS answers inside the tunnel, not on café DNS</text>
+            <text x="488" y="106" class="svg-sub">the name survives a device being removed and re-added</text>
+            <text x="488" y="124" class="svg-sub">the 100.x address does not — never save that instead</text>
+          </g>
+          <g data-at="2" data-scn="ish" class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-stroke" stroke-width="1.4"/>
+            <text x="488" y="64" class="svg-sub">you type the whole thing, every time</text>
+            <text x="488" y="88" class="svg-sub">iSH has no host manager, so there is nothing saved</text>
+            <text x="488" y="106" class="svg-sub">MagicDNS still works — the tunnel is the same tunnel</text>
+            <text x="488" y="124" class="svg-sub">this rung only costs you typing, on a phone keyboard</text>
+          </g>
+
+          <!-- ============ step 3 · sign the handshake ============ -->
+          <g data-at="3" data-scn="se" class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-accent-s" stroke-width="1.6"/>
+            <text x="488" y="64" class="svg-mono-accent">the enclave signs · the key never moves</text>
+            <text x="488" y="88" class="svg-sub">Blink hands the challenge to the Secure Enclave</text>
+            <text x="488" y="106" class="svg-sub">Face ID or the passcode gates the signing operation</text>
+            <text x="488" y="124" class="svg-sub">the private key has no exportable form, by design</text>
+          </g>
+          <g data-at="3" data-scn="file" class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-warn-s" stroke-width="1.7"/>
+            <text x="488" y="64" class="svg-mono-warn">the file is read into the app's memory</text>
+            <text x="488" y="88" class="svg-sub">a real ed25519 private key, sitting on the filesystem</text>
+            <text x="488" y="106" class="svg-sub">anything that can read the app's data can copy it</text>
+            <text x="488" y="124" class="svg-sub">including an unencrypted local backup of the phone</text>
+          </g>
+          <g data-at="3" data-scn="ish" class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-warn-s" stroke-width="1.7"/>
+            <text x="488" y="64" class="svg-mono-warn">a key file inside an emulated Linux</text>
+            <text x="488" y="88" class="svg-sub">the same exportable file, one layer further away</text>
+            <text x="488" y="106" class="svg-sub">no Face ID gate, no enclave, no hardware anything</text>
+            <text x="488" y="124" class="svg-sub">and no passphrase prompt at all unless you set one</text>
+          </g>
+
+          <!-- ============ step 4 · start the session ============ -->
+          <g data-at="4" data-scn="se file" class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-accent-s" stroke-width="1.6"/>
+            <text x="488" y="64" class="svg-mono-accent">ssh authenticates, then hands over to mosh</text>
+            <text x="488" y="88" class="svg-sub">mosh-server starts, prints a one-time key, ssh exits</text>
+            <text x="488" y="106" class="svg-sub">the session moves to UDP and stops caring about IPs</text>
+            <text x="488" y="124" class="svg-sub">mosh --install-static put that binary there, no root</text>
+          </g>
+          <g data-at="4" data-scn="ish" class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-warn-s" stroke-width="1.7"/>
+            <text x="488" y="64" class="svg-mono-warn">plain ssh, on one TCP connection</text>
+            <text x="488" y="88" class="svg-sub">the session is bound to this IP and this socket</text>
+            <text x="488" y="106" class="svg-sub">Wi-Fi to LTE ends it, ServerAliveInterval or not</text>
+            <text x="488" y="124" class="svg-sub">there is no mosh client here to upgrade to</text>
+          </g>
+
+          <!-- ============ step 5 · twenty minutes in a pocket ============ -->
+          <g data-at="5" data-scn="se file" data-poster class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-accent-s" stroke-width="1.6"/>
+            <text x="488" y="64" class="svg-mono-accent">you unlock, and the pane is where you left it</text>
+            <text x="488" y="88" class="svg-sub">iOS suspended Blink; mosh reconnects from the new IP</text>
+            <text x="488" y="106" class="svg-sub">tmux new -A -s phone attached rather than started</text>
+            <text x="488" y="124" class="svg-sub">Low Power Mode makes that suspend far more aggressive</text>
+          </g>
+          <g data-at="5" data-scn="ish" class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-danger-s" stroke-width="1.7"/>
+            <text x="488" y="64" class="svg-mono-danger">Connection reset by peer, and the work is gone</text>
+            <text x="488" y="88" class="svg-sub">iSH is an emulator, killed early under memory pressure</text>
+            <text x="488" y="106" class="svg-sub">the reset in the server log proves the fault was here</text>
+            <text x="488" y="124" class="svg-sub">and with no tmux, the remote job died with the shell</text>
+          </g>
+        </svg>
+
+        <div class="sim-controls">
+          <button type="button" class="sim-btn" data-act="prev" aria-label="Previous step"><span class="sim-glyph">◀</span></button>
+          <button type="button" class="sim-btn sim-btn-play" data-act="play" aria-label="Play">
+            <span class="sim-glyph">▶</span><span class="sim-btn-text">Play</span>
+          </button>
+          <button type="button" class="sim-btn" data-act="next" aria-label="Next step"><span class="sim-glyph">▶</span></button>
+          <div class="sim-track" role="group" aria-label="Jump to step">
+            <button type="button" class="sim-dot" data-goto="0" aria-label="Step 0, what is on the phone before you tap">0</button>
+            <button type="button" class="sim-dot" data-goto="1" aria-label="Step 1, bring the tunnel up">1</button>
+            <button type="button" class="sim-dot" data-goto="2" aria-label="Step 2, resolve the name">2</button>
+            <button type="button" class="sim-dot" data-goto="3" aria-label="Step 3, sign the handshake">3</button>
+            <button type="button" class="sim-dot" data-goto="4" aria-label="Step 4, start the session">4</button>
+            <button type="button" class="sim-dot" data-goto="5" aria-label="Step 5, twenty minutes in a pocket">5</button>
+          </div>
+          <div class="sim-progress" aria-hidden="true"><span></span></div>
+        </div>
+
+        <div class="sim-term" aria-hidden="true">
+          <div data-at="0" data-scn="se" data-poster><span class="tp">#</span> Blink → Settings → Keys<br>iphone-se <span class="tok">SECURE ENCLAVE</span> <span class="tdim">— no file, nothing to export</span></div>
+          <div data-at="0" data-scn="file"><span class="tp">#</span> Blink → Settings → Keys<br>iphone-se <span class="twarn">ED25519 (generated)</span> <span class="tdim">— a private key on disk</span></div>
+          <div data-at="0" data-scn="ish"><span class="tp">$</span> ls ~/.ssh <span class="tdim">(inside iSH's Alpine)</span><br><span class="twarn">id_ed25519</span> id_ed25519.pub <span class="tdim">— an ordinary file, emulated</span></div>
+
+          <div data-at="1" data-scn="se file" data-poster><span class="tp">$</span> ping -c1 macbook<br>64 bytes from macbook (100.x.y.z) <span class="tok">— the tunnel was up</span></div>
+          <div data-at="1" data-scn="ish"><span class="tp">$</span> ping -c1 macbook<br>64 bytes from macbook (100.x.y.z) <span class="tok">— same tunnel</span></div>
+
+          <div data-at="2" data-scn="se file" data-poster><span class="tp">#</span> the saved host, in one word<br>mosh macbook -- <span class="tok">tmux new -A -s phone</span></div>
+          <div data-at="2" data-scn="ish"><span class="tp">#</span> nothing is saved, so you type all of it<br>ssh you@macbook.your-tailnet.ts.net <span class="tdim">-p 2222</span></div>
+
+          <div data-at="3" data-scn="se" data-poster><span class="tp">#</span> Blink asks the enclave to sign the challenge<br>Face ID <span class="tok">✓</span> <span class="tdim">— signature returned, the key never left the chip</span></div>
+          <div data-at="3" data-scn="file"><span class="tp">$</span> head -1 id_ed25519 <span class="tdim">(the app's own storage)</span><br><span class="twarn">-----BEGIN OPENSSH PRIVATE KEY-----</span> <span class="tdim">— that is the problem</span></div>
+          <div data-at="3" data-scn="ish"><span class="tp">$</span> cp ~/.ssh/id_ed25519 /mnt/shared/<br><span class="twarn">copied</span> <span class="tdim">— nothing on this phone prevented that</span></div>
+
+          <div data-at="4" data-scn="se file" data-poster><span class="tp">$</span> mosh macbook<br>MOSH CONNECT <span class="tok">60001</span> &lt;one-time key&gt; <span class="tdim">— ssh has already exited</span></div>
+          <div data-at="4" data-scn="ish"><span class="tp">$</span> ssh you@macbook.your-tailnet.ts.net<br>you@macbook:~$ <span class="tdim">— one TCP socket, and it is the session</span></div>
+
+          <div data-at="5" data-scn="se file" data-poster><span class="tp">#</span> twenty minutes later, you unlock the phone<br>[<span class="tok">tmux</span>] attached to session phone <span class="tdim">— 3 windows, all alive</span></div>
+          <div data-at="5" data-scn="ish"><span class="tp">#</span> twenty minutes later, you unlock the phone<br><span class="twarn">Connection reset by peer</span> <span class="tdim">— the app was killed, not the link</span></div>
+        </div>
+
+        <ol class="sim-steps" aria-live="polite">
+          <li data-at="0" data-scn="se" data-poster><b>0 · Before you tap anything</b>One saved host holds the MagicDNS name, the port, your username and the key — and the key here is a <em>handle</em> to something in the Secure Enclave rather than a file. The whole interface is the command on that host: <code>mosh macbook -- tmux new -A -s phone</code>.</li>
+          <li data-at="0" data-scn="file"><b>0 · Before you tap anything</b>Identical setup, one difference: Blink generated an ed25519 pair in software and kept the private half as a file in its own storage. Every rung below behaves the same — it is only the consequences of losing the phone that change, and they change a lot.</li>
+          <li data-at="0" data-scn="ish"><b>0 · Before you tap anything</b>iSH emulates x86 and runs Alpine Linux, so you get a real <code>ssh</code>, a real <code>~/.ssh</code>, and none of the iOS-specific machinery. No saved hosts, no key manager, no Secure Enclave, and — the part that matters — no Mosh client.</li>
+
+          <li data-at="1" data-scn="se file" data-poster><b>1 · The tunnel comes up first</b>Tailscale on iOS runs as a Network Extension, which is why the phone shows a VPN badge. Leave <strong>connect-on-demand</strong> enabled so the tunnel is already up before you open a terminal. Only tailnet addresses route through it — it is not carrying your ordinary traffic unless you have picked an exit node.</li>
+          <li data-at="1" data-scn="ish"><b>1 · The tunnel comes up first</b>This rung is free for every client, because Tailscale is a system extension rather than something a terminal app provides. iSH reaches the tailnet exactly as Blink does. It is the only rung on this chain where the two are genuinely equal.</li>
+
+          <li data-at="2" data-scn="se file" data-poster><b>2 · The name resolves inside the tunnel</b>MagicDNS answers <code>macbook</code> from within the tailnet, not from whatever DNS the café hands you. Save the MagicDNS name in the host, never the <code>100.x</code> address — the name survives a device being removed and re-added, and the address does not.</li>
+          <li data-at="2" data-scn="ish"><b>2 · You type the whole thing, every time</b>MagicDNS still works, but with no host manager there is nothing to save it in, so it is <code>ssh you@macbook.your-tailnet.ts.net -p 2222</code> on a phone keyboard at every connection. Small on its own; it is the reason people stop using the phone.</li>
+
+          <li data-at="3" data-scn="se" data-poster><b>3 · The enclave signs, and the key stays put</b>Blink passes the authentication challenge to the Secure Enclave, Face ID or your passcode gates the operation, and a signature comes back. The private key was generated inside a separate coprocessor and has no exportable form — not for Blink, not for iOS, not for malware, not for you. This is the single choice the chapter is built around.</li>
+          <li data-at="3" data-scn="file"><b>3 · The file is read into memory to sign</b>A software key is an ordinary ed25519 private key on a filesystem. Anything that can read the app's data can copy it, and an unencrypted local backup carries it straight off the device. It works perfectly well — it just means the key exists in a form that can leave.</li>
+          <li data-at="3" data-scn="ish"><b>3 · The same file, one layer further in</b>An emulated Linux does not add protection; it adds distance. There is no enclave to ask, no Face ID gate on signing, and no passphrase at all unless you chose one when you generated the key. Custody here is no better than the Blink key-file case.</li>
+
+          <li data-at="4" data-scn="se file" data-poster><b>4 · SSH starts it, then gets out of the way</b>SSH authenticates, launches <code>mosh-server</code>, collects a one-time key, and exits. From then on the session is UDP and identified by that key rather than by your IP address — which is what lets it survive Wi-Fi to LTE. <code>mosh --install-static</code> is what put the server binary there without needing root.</li>
+          <li data-at="4" data-scn="ish"><b>4 · One TCP connection, and that is the session</b>Plain SSH ties the session to this IP and this socket. <code>ServerAliveInterval</code> helps the client notice a dead link promptly, but nothing client-side can stop the link dying — and iSH has no Mosh client to upgrade to. This is where the chain stops being resilient.</li>
+
+          <li data-at="5" data-scn="se file" data-poster><b>5 · Twenty minutes later, it is still there</b>iOS suspended the app the moment the screen locked, and the phone probably changed network on the way home. Mosh reconnects from whatever IP it now has, and <code>tmux new -A -s phone</code> <em>attaches</em> rather than starting anything. Watch for Low Power Mode: it makes iOS far more aggressive about suspending, which is the usual answer when sessions only die on a low battery.</li>
+          <li data-at="5" data-scn="ish"><b>5 · Twenty minutes later, it is gone</b>iSH is an emulator, so iOS kills it early under memory pressure. That produces a TCP reset, which the server logs as <code>Connection reset by peer</code> — useful, because it proves the fault was on the phone rather than on the network or the server. Without tmux, whatever was running died with the shell.</li>
+        </ol>
+
+        <figcaption>
+          <b>Only one rung on this chain depends on which key you chose — but it is the one you cannot
+          undo later.</b> Switch between <b>Blink + Secure Enclave key</b> and <b>iSH + plain ssh</b>
+          and watch the last two rungs collapse: Mosh and tmux are what make the phone survive being a
+          phone, and the enclave is what makes losing it a one-line revocation instead of a key
+          rotation across three machines.
+        </figcaption>
+      </figure>
+
       <h2>Harden the device first</h2>
       <p>
         A phone that can open a root shell on three machines deserves the same care as those machines.
@@ -175,5 +528,6 @@ for f in /etc/ssh/ssh_host_*_key.pub; do ssh-keygen -lf "$f"; done</code></pre>
 </div>
 <script src="../assets/nav.js"></script>
 <script src="../assets/app.js"></script>
+<script src="../assets/anim.js"></script>
 </body>
 </html>
