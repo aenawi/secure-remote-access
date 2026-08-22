@@ -26,62 +26,305 @@
         <strong>establish the new path before removing the old one.</strong>
       </p>
 
-      <figure class="diagram">
-        <svg viewBox="0 0 800 470" role="img" aria-label="Build order: tailnet settings, then install Tailscale everywhere, then ACLs, then per-host hardening in parallel, then keys, Mosh and tmux, then verification">
+      <figure class="diagram sim" data-sim data-step-ms="3400" tabindex="0"
+              aria-label="Interactive build order. Step through the six stages and watch which ways into the VPS are open at each one, then switch to the wrong order to see where it locks you out. Use the left and right arrow keys to step through it.">
+
+        <div class="sim-bar">
+          <span class="sim-bar-label">Order</span>
+          <button type="button" class="sim-scn is-on" data-scenario="order" aria-pressed="true">Establish, then remove</button>
+          <button type="button" class="sim-scn" data-scenario="early" aria-pressed="false">Remove first</button>
+        </div>
+
+        <svg viewBox="0 0 880 536" role="img" aria-label="Build order in six stages: tailnet foundations, install Tailscale everywhere, write the ACL policy, harden each host in parallel, phone keys with Mosh and tmux, then verify and remove old access. Beside each stage, a panel reports which ways into the VPS are still open — and in the wrong order, where both close at once.">
           <defs>
-            <marker id="f1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <marker id="r1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="currentColor" opacity=".45"/>
+            </marker>
+            <marker id="r2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
               <path d="M0 0 L10 5 L0 10 z" class="svg-accent"/>
             </marker>
           </defs>
 
-          <rect x="222" y="16" width="356" height="46" rx="9" class="svg-card svg-accent-s" stroke-width="1.7"/>
-          <text x="400" y="38" text-anchor="middle" class="svg-label">1 · Tailnet foundations</text>
-          <text x="400" y="55" text-anchor="middle" class="svg-sub">account · device approval · key expiry · tailnet lock</text>
-          <path d="M400 62 L400 84" class="svg-accent-s" stroke-width="1.7" marker-end="url(#f1)"/>
+          <text x="20" y="22" class="svg-sub">BUILD STEP</text>
+          <text x="560" y="22" class="svg-sub">YOUR WAY IN, RIGHT NOW</text>
 
-          <rect x="222" y="88" width="356" height="46" rx="9" class="svg-card svg-stroke" stroke-width="1.5"/>
-          <text x="400" y="110" text-anchor="middle" class="svg-label">2 · Install Tailscale everywhere</text>
-          <text x="400" y="127" text-anchor="middle" class="svg-sub">Mac · VPS · Ubuntu · iPhone — verify each is online</text>
-          <path d="M400 134 L400 156" class="svg-accent-s" stroke-width="1.7" marker-end="url(#f1)"/>
+          <!-- ============ the six stages (always present) ============ -->
+          <g data-at="0+">
+            <rect x="48" y="34" width="452" height="52" rx="9" class="svg-card svg-stroke" stroke-width="1.5"/>
+            <text x="274" y="58" text-anchor="middle" class="svg-label">1 · Tailnet foundations</text>
+            <text x="274" y="76" text-anchor="middle" class="svg-sub">account · device approval · key expiry · tailnet lock</text>
+            <path d="M274 86 L274 104" class="svg-accent-s" stroke-width="1.7" fill="none" marker-end="url(#r2)"/>
+            <path d="M504 60 L556 60" class="svg-muted-s" stroke-width="1.5" fill="none" marker-end="url(#r1)"/>
 
-          <rect x="222" y="160" width="356" height="46" rx="9" class="svg-card svg-stroke" stroke-width="1.5"/>
-          <text x="400" y="182" text-anchor="middle" class="svg-label">3 · Write the ACL policy</text>
-          <text x="400" y="199" text-anchor="middle" class="svg-sub">default deny, then grant SSH only</text>
+            <rect x="48" y="110" width="452" height="52" rx="9" class="svg-card svg-stroke" stroke-width="1.5"/>
+            <text x="274" y="134" text-anchor="middle" class="svg-label">2 · Install Tailscale everywhere</text>
+            <text x="274" y="152" text-anchor="middle" class="svg-sub">Mac · VPS · Ubuntu · iPhone — verify each is online</text>
+            <path d="M274 162 L274 180" class="svg-accent-s" stroke-width="1.7" fill="none" marker-end="url(#r2)"/>
+            <path d="M504 136 L556 136" class="svg-muted-s" stroke-width="1.5" fill="none" marker-end="url(#r1)"/>
 
-          <!-- fan out -->
-          <path d="M400 206 L400 224 M140 224 L660 224 M140 224 L140 244 M400 224 L400 244 M660 224 L660 244"
-                class="svg-accent-s" stroke-width="1.6" fill="none"/>
+            <rect x="48" y="186" width="452" height="52" rx="9" class="svg-card svg-stroke" stroke-width="1.5"/>
+            <text x="274" y="210" text-anchor="middle" class="svg-label">3 · Write the ACL policy</text>
+            <text x="274" y="228" text-anchor="middle" class="svg-sub">default deny, then grant SSH only — and test it</text>
+            <path d="M504 212 L556 212" class="svg-muted-s" stroke-width="1.5" fill="none" marker-end="url(#r1)"/>
 
-          <rect x="40" y="248" width="200" height="72" rx="9" class="svg-card svg-stroke" stroke-width="1.5"/>
-          <text x="140" y="272" text-anchor="middle" class="svg-label">4a · MacBook</text>
-          <text x="140" y="290" text-anchor="middle" class="svg-sub">FileVault · audit ports</text>
-          <text x="140" y="306" text-anchor="middle" class="svg-sub">sshd on tailnet IP</text>
+            <!-- fan out -->
+            <path d="M274 238 L274 250 M121 250 L427 250" class="svg-accent-s" stroke-width="1.6" fill="none"/>
+            <path d="M121 250 L121 262" class="svg-accent-s" stroke-width="1.6" fill="none" marker-end="url(#r2)"/>
+            <path d="M274 250 L274 262" class="svg-accent-s" stroke-width="1.6" fill="none" marker-end="url(#r2)"/>
+            <path d="M427 250 L427 262" class="svg-accent-s" stroke-width="1.6" fill="none" marker-end="url(#r2)"/>
 
-          <rect x="300" y="248" width="200" height="72" rx="9" class="svg-card svg-stroke" stroke-width="1.5"/>
-          <text x="400" y="272" text-anchor="middle" class="svg-label">4b · VPS</text>
-          <text x="400" y="290" text-anchor="middle" class="svg-sub">user · keys · UFW</text>
-          <text x="400" y="306" text-anchor="middle" class="svg-sub">then close public :22</text>
+            <rect x="48" y="266" width="146" height="66" rx="9" class="svg-card svg-stroke" stroke-width="1.5"/>
+            <text x="121" y="290" text-anchor="middle" class="svg-label">4a · MacBook</text>
+            <text x="121" y="308" text-anchor="middle" class="svg-sub">FileVault · ports</text>
+            <text x="121" y="324" text-anchor="middle" class="svg-sub">sshd on tailnet IP</text>
 
-          <rect x="560" y="248" width="200" height="72" rx="9" class="svg-card svg-stroke" stroke-width="1.5"/>
-          <text x="660" y="272" text-anchor="middle" class="svg-label">4c · Ubuntu</text>
-          <text x="660" y="290" text-anchor="middle" class="svg-sub">LUKS · UFW</text>
-          <text x="660" y="306" text-anchor="middle" class="svg-sub">tailscale up --ssh</text>
+            <rect x="201" y="266" width="146" height="66" rx="9" class="svg-card svg-stroke" stroke-width="1.5"/>
+            <text x="274" y="290" text-anchor="middle" class="svg-label">4b · VPS</text>
+            <text x="274" y="308" text-anchor="middle" class="svg-sub">user · keys · UFW</text>
+            <text x="274" y="324" text-anchor="middle" class="svg-sub">then close :22</text>
 
-          <path d="M140 320 L140 340 M660 320 L660 340 M140 340 L660 340 M400 320 L400 340 M400 340 L400 360"
-                class="svg-accent-s" stroke-width="1.6" fill="none" marker-end="url(#f1)"/>
+            <rect x="354" y="266" width="146" height="66" rx="9" class="svg-card svg-stroke" stroke-width="1.5"/>
+            <text x="427" y="290" text-anchor="middle" class="svg-label">4c · Ubuntu</text>
+            <text x="427" y="308" text-anchor="middle" class="svg-sub">LUKS · UFW</text>
+            <text x="427" y="324" text-anchor="middle" class="svg-sub">tailscale up --ssh</text>
+            <path d="M504 299 L556 299" class="svg-muted-s" stroke-width="1.5" fill="none" marker-end="url(#r1)"/>
 
-          <rect x="222" y="364" width="356" height="46" rx="9" class="svg-card svg-stroke" stroke-width="1.5"/>
-          <text x="400" y="386" text-anchor="middle" class="svg-label">5 · Phone: keys, Mosh, tmux</text>
-          <text x="400" y="403" text-anchor="middle" class="svg-sub">Secure Enclave key → each host → mosh --install-static</text>
-          <path d="M400 410 L400 430" class="svg-accent-s" stroke-width="1.7" marker-end="url(#f1)"/>
+            <!-- fan in -->
+            <path d="M121 332 L121 346 M427 332 L427 346 M121 346 L427 346 M274 332 L274 346"
+                  class="svg-accent-s" stroke-width="1.6" fill="none"/>
+            <path d="M274 346 L274 358" class="svg-accent-s" stroke-width="1.6" fill="none" marker-end="url(#r2)"/>
 
-          <rect x="222" y="434" width="356" height="34" rx="9" class="svg-card svg-accent-s" stroke-width="1.8"/>
-          <text x="400" y="456" text-anchor="middle" class="svg-label">6 · Verify, then remove old access</text>
+            <rect x="48" y="362" width="452" height="52" rx="9" class="svg-card svg-stroke" stroke-width="1.5"/>
+            <text x="274" y="386" text-anchor="middle" class="svg-label">5 · Phone: keys, Mosh, tmux</text>
+            <text x="274" y="404" text-anchor="middle" class="svg-sub">Secure Enclave key → each host → mosh --install-static</text>
+            <path d="M274 414 L274 432" class="svg-accent-s" stroke-width="1.7" fill="none" marker-end="url(#r2)"/>
+            <path d="M504 388 L556 388" class="svg-muted-s" stroke-width="1.5" fill="none" marker-end="url(#r1)"/>
+
+            <rect x="48" y="438" width="452" height="52" rx="9" class="svg-card svg-stroke" stroke-width="1.5"/>
+            <text x="274" y="462" text-anchor="middle" class="svg-label">6 · Verify, then remove old access</text>
+            <text x="274" y="480" text-anchor="middle" class="svg-sub">password auth off · Remote Login off · rule deleted</text>
+            <path d="M504 464 L556 464" class="svg-muted-s" stroke-width="1.5" fill="none" marker-end="url(#r1)"/>
+          </g>
+          <text x="20" y="520" class="svg-sub">the rule underneath all six — establish the new path, prove it, and only then remove the old one</text>
+
+          <!-- ============ done marks in the left margin ============ -->
+          <g data-at="1+">
+            <circle cx="30" cy="60" r="10" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <path d="M25 60 L28.5 64 L35.5 55.5" class="svg-accent-s" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          </g>
+          <g data-at="2+">
+            <circle cx="30" cy="136" r="10" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <path d="M25 136 L28.5 140 L35.5 131.5" class="svg-accent-s" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          </g>
+          <g data-at="3+" data-scn="order" data-poster>
+            <circle cx="30" cy="212" r="10" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <path d="M25 212 L28.5 216 L35.5 207.5" class="svg-accent-s" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          </g>
+          <g data-at="3+" data-scn="early">
+            <circle cx="30" cy="212" r="10" class="svg-card svg-danger-s" stroke-width="1.4"/>
+            <path d="M25.5 207.5 L34.5 216.5 M34.5 207.5 L25.5 216.5" class="svg-danger-s" stroke-width="2" fill="none" stroke-linecap="round"/>
+          </g>
+          <g data-at="4+" data-scn="order" data-poster>
+            <circle cx="30" cy="299" r="10" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <path d="M25 299 L28.5 303 L35.5 294.5" class="svg-accent-s" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          </g>
+          <g data-at="5+" data-scn="order" data-poster>
+            <circle cx="30" cy="388" r="10" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <path d="M25 388 L28.5 392 L35.5 383.5" class="svg-accent-s" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          </g>
+          <g data-at="6" data-scn="order" data-poster>
+            <circle cx="30" cy="464" r="10" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <path d="M25 464 L28.5 468 L35.5 459.5" class="svg-accent-s" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          </g>
+
+          <!-- ============ step 0 · where you start ============ -->
+          <g data-at="0" data-scn="order early">
+            <rect x="560" y="200" width="300" height="120" rx="9" class="svg-surface svg-stroke" stroke-width="1.3" stroke-dasharray="5 4"/>
+            <text x="578" y="226" class="svg-sub">before you start</text>
+            <text x="578" y="248" class="svg-mono-danger">public :22 · open to the internet</text>
+            <text x="578" y="266" class="svg-sub">password auth · still on</text>
+            <text x="578" y="284" class="svg-sub">tailnet · nothing installed yet</text>
+            <text x="578" y="302" class="svg-sub">one way in, and it is the risky one</text>
+          </g>
+
+          <!-- ============ step 1 ============ -->
+          <g data-at="1+" class="sim-pop">
+            <rect x="560" y="34" width="300" height="64" rx="9" class="svg-card svg-accent-s" stroke-width="1.5"/>
+            <text x="578" y="57" class="svg-mono-accent">pass · policy set, nothing removed</text>
+            <text x="578" y="75" class="svg-sub">device approval on · key expiry set</text>
+            <text x="578" y="91" class="svg-sub">public :22 still open — unchanged</text>
+          </g>
+          <rect data-at="1" data-scn="order early" x="48" y="34" width="452" height="52" rx="9"
+                fill="none" class="svg-accent-s" stroke-width="2.6"/>
+          <path data-at="1" data-scn="order early" data-flow="accent" data-count="2" data-speed="0.24"
+                d="M504 60 L556 60" stroke="none" fill="none"/>
+
+          <!-- ============ step 2 ============ -->
+          <g data-at="2+" data-scn="order" data-poster class="sim-pop">
+            <rect x="560" y="110" width="300" height="64" rx="9" class="svg-card svg-accent-s" stroke-width="1.5"/>
+            <text x="578" y="133" class="svg-mono-accent">pass · a second way in exists</text>
+            <text x="578" y="151" class="svg-sub">4 devices online in tailscale status</text>
+            <text x="578" y="167" class="svg-sub">two paths — do not close either yet</text>
+          </g>
+          <g data-at="2+" data-scn="early" class="sim-pop">
+            <rect x="560" y="110" width="300" height="64" rx="9" class="svg-card svg-warn-s" stroke-width="1.7"/>
+            <text x="578" y="133" class="svg-mono-warn">risky · you closed public :22 too</text>
+            <text x="578" y="151" class="svg-sub">it looked redundant, so you deleted</text>
+            <text x="578" y="167" class="svg-sub">the rule. Nothing has been tested.</text>
+          </g>
+          <rect data-at="2" data-scn="order" x="48" y="110" width="452" height="52" rx="9"
+                fill="none" class="svg-accent-s" stroke-width="2.6"/>
+          <rect data-at="2" data-scn="early" x="48" y="110" width="452" height="52" rx="9"
+                fill="none" class="svg-warn-s" stroke-width="2.6"/>
+          <path data-at="2" data-scn="order" data-flow="accent" data-count="2" data-speed="0.24"
+                d="M504 136 L556 136" stroke="none" fill="none"/>
+          <path data-at="2" data-scn="early" data-flow="warn" data-count="2" data-speed="0.24"
+                d="M504 136 L556 136" stroke="none" fill="none"/>
+
+          <!-- ============ step 3 ============ -->
+          <g data-at="3+" data-scn="order" data-poster class="sim-pop">
+            <rect x="560" y="186" width="300" height="64" rx="9" class="svg-card svg-accent-s" stroke-width="1.5"/>
+            <text x="578" y="209" class="svg-mono-accent">pass · default deny, SSH granted</text>
+            <text x="578" y="227" class="svg-sub">ssh to the 100.x address gets a shell</text>
+            <text x="578" y="243" class="svg-sub">proven before anything was removed</text>
+          </g>
+          <g data-at="3+" data-scn="early" class="sim-pop">
+            <rect x="560" y="186" width="300" height="64" rx="9" class="svg-card svg-danger-s" stroke-width="1.7"/>
+            <text x="578" y="209" class="svg-mono-danger">stop · you are locked out</text>
+            <text x="578" y="227" class="svg-sub">default deny, and no SSH grant yet.</text>
+            <text x="578" y="243" class="svg-sub">Both ways in closed in one move.</text>
+          </g>
+          <rect data-at="3" data-scn="order" x="48" y="186" width="452" height="52" rx="9"
+                fill="none" class="svg-accent-s" stroke-width="2.6"/>
+          <rect data-at="3+" data-scn="early" x="48" y="186" width="452" height="52" rx="9"
+                fill="none" class="svg-danger-s" stroke-width="2.6"/>
+          <path data-at="3" data-scn="order" data-flow="accent" data-count="2" data-speed="0.24"
+                d="M504 212 L556 212" stroke="none" fill="none"/>
+          <path data-at="3" data-scn="early" data-flow="warn" data-count="2" data-speed="0.24"
+                d="M504 212 L556 212" stroke="none" fill="none"/>
+
+          <!-- ============ step 4 ============ -->
+          <g data-at="4+" data-scn="order" data-poster class="sim-pop">
+            <rect x="560" y="266" width="300" height="64" rx="9" class="svg-card svg-accent-s" stroke-width="1.5"/>
+            <text x="578" y="289" class="svg-mono-accent">pass · old path closed on purpose</text>
+            <text x="578" y="307" class="svg-sub">ufw delete allow OpenSSH — with a</text>
+            <text x="578" y="323" class="svg-sub">second session open, watching.</text>
+          </g>
+          <g data-at="4+" data-scn="early">
+            <rect x="560" y="266" width="300" height="64" rx="9" class="svg-surface svg-stroke" stroke-width="1.3" stroke-dasharray="5 4"/>
+            <text x="578" y="289" class="svg-sub">not run</text>
+            <text x="578" y="307" class="svg-sub">the VPS is unreachable. Recovery is</text>
+            <text x="578" y="323" class="svg-sub">the provider console — chapter 07.</text>
+          </g>
+          <g data-at="4" data-scn="order">
+            <rect x="48" y="266" width="146" height="66" rx="9" fill="none" class="svg-accent-s" stroke-width="2.6"/>
+            <rect x="201" y="266" width="146" height="66" rx="9" fill="none" class="svg-accent-s" stroke-width="2.6"/>
+            <rect x="354" y="266" width="146" height="66" rx="9" fill="none" class="svg-accent-s" stroke-width="2.6"/>
+          </g>
+          <path data-at="4" data-scn="order" data-flow="accent" data-count="2" data-speed="0.24"
+                d="M504 299 L556 299" stroke="none" fill="none"/>
+
+          <!-- ============ step 5 ============ -->
+          <g data-at="5+" data-scn="order" data-poster class="sim-pop">
+            <rect x="560" y="362" width="300" height="64" rx="9" class="svg-card svg-accent-s" stroke-width="1.5"/>
+            <text x="578" y="385" class="svg-mono-accent">pass · the phone can drive it all</text>
+            <text x="578" y="403" class="svg-sub">Secure Enclave key on every host</text>
+            <text x="578" y="419" class="svg-sub">mosh macbook -- tmux new -A -s phone</text>
+          </g>
+          <g data-at="5+" data-scn="early">
+            <rect x="560" y="362" width="300" height="64" rx="9" class="svg-surface svg-stroke" stroke-width="1.3" stroke-dasharray="5 4"/>
+            <text x="578" y="385" class="svg-sub">not run</text>
+            <text x="578" y="407" class="svg-sub">you never got past step 3.</text>
+          </g>
+          <rect data-at="5" data-scn="order" x="48" y="362" width="452" height="52" rx="9"
+                fill="none" class="svg-accent-s" stroke-width="2.6"/>
+          <path data-at="5" data-scn="order" data-flow="accent" data-count="2" data-speed="0.24"
+                d="M504 388 L556 388" stroke="none" fill="none"/>
+
+          <!-- ============ step 6 ============ -->
+          <g data-at="6" data-scn="order" data-poster class="sim-pop">
+            <rect x="560" y="438" width="300" height="64" rx="9" class="svg-card svg-accent-s" stroke-width="1.5"/>
+            <text x="578" y="461" class="svg-mono-accent">done · one path, and it is proven</text>
+            <text x="578" y="479" class="svg-sub">password auth off · Remote Login off</text>
+            <text x="578" y="495" class="svg-sub">removed last, after the new path held</text>
+          </g>
+          <g data-at="6" data-scn="early">
+            <rect x="560" y="438" width="300" height="64" rx="9" class="svg-surface svg-stroke" stroke-width="1.3" stroke-dasharray="5 4"/>
+            <text x="578" y="461" class="svg-sub">not run</text>
+            <text x="578" y="479" class="svg-sub">nothing left to remove — you removed</text>
+            <text x="578" y="495" class="svg-sub">it back in step 2.</text>
+          </g>
+          <rect data-at="6" data-scn="order" x="48" y="438" width="452" height="52" rx="9"
+                fill="none" class="svg-accent-s" stroke-width="2.6"/>
+          <path data-at="6" data-scn="order" data-flow="accent" data-count="2" data-speed="0.24"
+                d="M504 464 L556 464" stroke="none" fill="none"/>
         </svg>
+
+        <div class="sim-controls">
+          <button type="button" class="sim-btn" data-act="prev" aria-label="Previous step"><span class="sim-glyph">◀</span></button>
+          <button type="button" class="sim-btn sim-btn-play" data-act="play" aria-label="Play">
+            <span class="sim-glyph">▶</span><span class="sim-btn-text">Play</span>
+          </button>
+          <button type="button" class="sim-btn" data-act="next" aria-label="Next step"><span class="sim-glyph">▶</span></button>
+          <div class="sim-track" role="group" aria-label="Jump to build step">
+            <button type="button" class="sim-dot" data-goto="0" aria-label="Step 0, where you start">0</button>
+            <button type="button" class="sim-dot" data-goto="1" aria-label="Step 1, tailnet foundations">1</button>
+            <button type="button" class="sim-dot" data-goto="2" aria-label="Step 2, install Tailscale everywhere">2</button>
+            <button type="button" class="sim-dot" data-goto="3" aria-label="Step 3, write the ACL policy">3</button>
+            <button type="button" class="sim-dot" data-goto="4" aria-label="Step 4, harden each host">4</button>
+            <button type="button" class="sim-dot" data-goto="5" aria-label="Step 5, phone keys, Mosh and tmux">5</button>
+            <button type="button" class="sim-dot" data-goto="6" aria-label="Step 6, verify then remove old access">6</button>
+          </div>
+          <div class="sim-progress" aria-hidden="true"><span></span></div>
+        </div>
+
+        <div class="sim-term" aria-hidden="true">
+          <div data-at="0" data-poster><span class="tp">$</span> ssh root@203.0.113.10<br>root@203.0.113.10's password: <span class="tdim">the only way in today</span></div>
+
+          <div data-at="1"><span class="tdim"># admin console · device approval: on · tailnet lock: on</span><br><span class="tdim"># nothing on any machine has changed yet</span></div>
+
+          <div data-at="2" data-scn="order" data-poster><span class="tp">$</span> tailscale status<br>100.101.4.2 vps <span class="tok">active</span> · 100.117.202.65 macbook <span class="tok">active</span></div>
+          <div data-at="2" data-scn="early"><span class="tp">$</span> sudo ufw delete allow OpenSSH<br>Rule deleted <span class="twarn">— and nothing has replaced it yet</span></div>
+
+          <div data-at="3" data-scn="order" data-poster><span class="tp">$</span> ssh yourname@100.101.4.2 'echo ok'<br><span class="tok">ok</span> — the new path works before the old one closes</div>
+          <div data-at="3" data-scn="early"><span class="tp">$</span> ssh yourname@100.101.4.2 'echo ok'<br>ssh: connect to host 100.101.4.2 port 22: <span class="twarn">Operation timed out</span></div>
+
+          <div data-at="4" data-scn="order" data-poster><span class="tp">$</span> sudo ufw delete allow OpenSSH<br>Rule deleted <span class="tok">— second session still connected</span></div>
+          <div data-at="4" data-scn="early"><span class="tdim"># not run — the VPS is unreachable</span><br><span class="tdim">open the provider web console instead</span></div>
+
+          <div data-at="5" data-scn="order" data-poster><span class="tp">$</span> mosh macbook -- tmux new -A -s phone<br><span class="tok">[detached]</span> · roams from Wi-Fi to LTE without dropping</div>
+          <div data-at="5" data-scn="early"><span class="tdim"># not run — you never got past step 3</span><br><span class="tdim">restore the firewall rule, then start again at 1</span></div>
+
+          <div data-at="6" data-scn="order" data-poster><span class="tp">$</span> sudo sshd -T | grep -i passwordauthentication<br>passwordauthentication <span class="tok">no</span></div>
+          <div data-at="6" data-scn="early"><span class="tdim"># not run — there is nothing left to remove</span><br><span class="tdim">you removed it in step 2, before anything replaced it</span></div>
+        </div>
+
+        <ol class="sim-steps" aria-live="polite">
+          <li data-at="0"><b>Where you start</b>There is exactly one way into the VPS: port 22, open to the whole internet, with password authentication on. Everything below replaces that — and for most of it you are working through the very door you are about to close.</li>
+
+          <li data-at="1"><b>1 · Tailnet foundations</b>Account, device approval, key expiry, tailnet lock. Pure policy, done in the admin console before a single machine changes. Nothing is exposed here and nothing is removed, which is why it is safe to go first.</li>
+
+          <li data-at="2" data-scn="order" data-poster><b>2 · Install Tailscale everywhere</b>Mac, VPS, Ubuntu and phone, each confirmed online in <code>tailscale status</code>. You now have two ways into the VPS. Resist closing one — nothing has been tested end to end yet.</li>
+          <li data-at="2" data-scn="early"><b>2 · …and you close public :22 while you are in there</b>It feels efficient. Tailscale is installed and the box has a tailnet address, so the public rule looks redundant. It is not redundant — it is <em>untested</em>. A brand-new tailnet still allows everything by default, so this appears to work, which is exactly what makes it dangerous.</li>
+
+          <li data-at="3" data-scn="order" data-poster><b>3 · Write the ACL policy</b>Default deny, then grant SSH only. Then prove it: <code>ssh</code> to the <code>100.x</code> address and get a shell. That test is the whole reason this step sits before any hardening.</li>
+          <li data-at="3" data-scn="early"><b>3 · The ACL shuts the only door left — stop here</b>Default deny with no SSH grant yet, so the tailnet path dies the moment you save the policy. The public path went in step 2. Both closed in one move, and neither was ever tested. <strong>Recovery is the provider's web console</strong> — <a href="07-vps.html">chapter 07</a> is where you checked that it works.</li>
+
+          <li data-at="4" data-scn="order" data-poster><b>4 · Harden each host</b>4a, 4b and 4c do not depend on each other, so take them in any order. This is where public <code>:22</code> finally closes on the VPS — safely, because steps 1 to 3 are done and proven, and because you keep a second session open while you change the rule.</li>
+          <li data-at="4" data-scn="early"><b>4 · Not run</b>You cannot reach the VPS to harden it. Get back in through the console, restore the firewall rule, and start again from step 1 — this time closing nothing until step 4.</li>
+
+          <li data-at="5" data-scn="order" data-poster><b>5 · Phone: keys, Mosh, tmux</b>Generate the key in the Secure Enclave, add the public half to every host, then layer Mosh and tmux on top. Plain SSH first, always — it fails with far clearer errors than Mosh does.</li>
+          <li data-at="5" data-scn="early"><b>5 · Not run</b>Everything above this point assumed a machine you can still log into. Fix the VPS, then re-run the order from the bottom.</li>
+
+          <li data-at="6" data-scn="order" data-poster><b>6 · Verify, then remove old access</b>Password authentication off, Remote Login off on the Mac, the old public rule gone for good. Every item here is a <em>removal</em>, which is precisely why they all live at the end.</li>
+          <li data-at="6" data-scn="early"><b>6 · Not run</b>There is nothing left to remove. You removed it in step 2, before anything had replaced it — and that single reordering is the whole difference between these two runs.</li>
+        </ol>
+
         <figcaption>
           <b>Step 6 is last for a reason.</b> Deleting the public SSH rule, disabling password auth, or
           switching off Remote Login before confirming the replacement path works is the most common
-          way to lose a machine. Confirm, then remove.
+          way to lose a machine. Switch to <em>Remove first</em> above and watch the same six steps end
+          with a web-console recovery instead. Confirm, then remove.
         </figcaption>
       </figure>
 
@@ -217,5 +460,6 @@ herdr
 </div>
 <script src="../assets/nav.js"></script>
 <script src="../assets/app.js"></script>
+<script src="../assets/anim.js"></script>
 </body>
 </html>
