@@ -67,36 +67,352 @@
         not matter if the key is not in <code>authorized_keys</code>.
       </p>
 
-      <figure class="diagram">
-        <svg viewBox="0 0 720 430" role="img" aria-label="Nested defence layers from tailnet ACL on the outside through host firewall, sshd policy, key possession and PAM, to the shell at the centre">
-          <rect x="16" y="16" width="688" height="398" rx="14" class="svg-surface svg-stroke" stroke-width="1.6"/>
-          <text x="34" y="40" class="svg-label">1 · Tailnet ACL</text>
-          <text x="34" y="58" class="svg-sub">stops: everyone on the internet, and every device not granted this port</text>
+      <figure class="diagram sim" data-sim data-step-ms="3600" tabindex="0"
+              aria-label="Interactive defence-in-depth model. Pick who is knocking, then work inward through the five rings and watch which one actually stops them. Use the left and right arrow keys to step through it.">
 
-          <rect x="60" y="72" width="600" height="318" rx="13" class="svg-card svg-stroke" stroke-width="1.5"/>
-          <text x="78" y="96" class="svg-label">2 · Host firewall &amp; bind address</text>
-          <text x="78" y="114" class="svg-sub">stops: the café network, your LAN, a service bound too widely</text>
+        <div class="sim-bar">
+          <span class="sim-bar-label">Who is knocking</span>
+          <button type="button" class="sim-scn is-on" data-scenario="scan" aria-pressed="true">Internet scanner</button>
+          <button type="button" class="sim-scn" data-scenario="cafe" aria-pressed="false">Café Wi-Fi</button>
+          <button type="button" class="sim-scn" data-scenario="acl" aria-pressed="false">A bad ACL edit</button>
+          <button type="button" class="sim-scn" data-scenario="phone" aria-pressed="false">Stolen phone</button>
+          <button type="button" class="sim-scn" data-scenario="you" aria-pressed="false">You, with your key</button>
+        </div>
 
-          <rect x="104" y="128" width="512" height="238" rx="12" class="svg-surface svg-stroke" stroke-width="1.5"/>
-          <text x="122" y="152" class="svg-label">3 · sshd policy</text>
-          <text x="122" y="170" class="svg-sub">stops: root login, password guessing, users who should not log in</text>
+        <svg viewBox="0 0 880 440" role="img" aria-label="Five nested defence rings — tailnet ACL, host firewall and bind address, sshd policy, key possession, and PAM or SACL — around the shell at the centre. Beside each ring a panel reports whether this attacker passed it, was stopped by it, or never reached it at all.">
+          <defs>
+            <marker id="n1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="currentColor" opacity=".45"/>
+            </marker>
+          </defs>
 
-          <rect x="148" y="184" width="424" height="158" rx="11" class="svg-card svg-accent-s" stroke-width="1.7"/>
-          <text x="166" y="208" class="svg-label">4 · Key possession</text>
-          <text x="166" y="226" class="svg-sub">stops: anyone without the private key — the enclave holds it</text>
+          <text x="20" y="22" class="svg-sub">DEFENCE RING</text>
+          <text x="440" y="22" class="svg-sub">WHAT THIS ATTACKER MEETS THERE</text>
 
-          <rect x="192" y="240" width="336" height="78" rx="10" class="svg-surface svg-stroke" stroke-width="1.4"/>
-          <text x="210" y="264" class="svg-label">5 · PAM / SACL</text>
-          <text x="210" y="282" class="svg-sub">stops: accounts not on the SSH access list</text>
+          <!-- ============ the five rings (always present) ============ -->
+          <g data-at="0+">
+            <rect x="20" y="34" width="380" height="362" rx="14" class="svg-surface svg-stroke" stroke-width="1.6"/>
+            <text x="36" y="56" class="svg-label">1 · Tailnet ACL</text>
+            <text x="36" y="74" class="svg-sub">stops: the whole internet, and untrusted devices</text>
 
-          <rect x="236" y="292" width="248" height="42" rx="9" class="svg-card svg-accent-s" stroke-width="1.8"/>
-          <text x="360" y="318" text-anchor="middle" class="svg-label">your shell</text>
+            <rect x="38" y="84" width="344" height="296" rx="13" class="svg-card svg-stroke" stroke-width="1.5"/>
+            <text x="54" y="106" class="svg-label">2 · Host firewall &amp; bind</text>
+            <text x="54" y="124" class="svg-sub">stops: the café LAN, a service bound too widely</text>
+
+            <rect x="56" y="134" width="308" height="230" rx="12" class="svg-surface svg-stroke" stroke-width="1.5"/>
+            <text x="72" y="156" class="svg-label">3 · sshd policy</text>
+            <text x="72" y="174" class="svg-sub">stops: root login, password guessing</text>
+
+            <rect x="74" y="184" width="272" height="164" rx="11" class="svg-card svg-stroke" stroke-width="1.5"/>
+            <text x="90" y="206" class="svg-label">4 · Key possession</text>
+            <text x="90" y="224" class="svg-sub">stops: anyone without the key</text>
+
+            <rect x="92" y="234" width="236" height="98" rx="10" class="svg-surface svg-stroke" stroke-width="1.4"/>
+            <text x="108" y="256" class="svg-label">5 · PAM / SACL</text>
+            <text x="108" y="274" class="svg-sub">stops: accounts off the list</text>
+
+            <rect x="110" y="284" width="200" height="40" rx="9" class="svg-card svg-stroke" stroke-width="1.5"/>
+            <text x="210" y="309" text-anchor="middle" class="svg-label">your shell</text>
+
+            <path d="M404 56 L436 56"  class="svg-muted-s" stroke-width="1.5" fill="none" marker-end="url(#n1)"/>
+            <path d="M386 106 L436 106" class="svg-muted-s" stroke-width="1.5" fill="none" marker-end="url(#n1)"/>
+            <path d="M368 156 L436 156" class="svg-muted-s" stroke-width="1.5" fill="none" marker-end="url(#n1)"/>
+            <path d="M350 206 L436 206" class="svg-muted-s" stroke-width="1.5" fill="none" marker-end="url(#n1)"/>
+            <path d="M332 256 L436 256" class="svg-muted-s" stroke-width="1.5" fill="none" marker-end="url(#n1)"/>
+          </g>
+          <text x="20" y="424" class="svg-sub">an attacker must defeat every ring, in order — and each ring fails differently</text>
+
+          <!-- ============ step 0 · who is knocking ============ -->
+          <g data-at="0" data-scn="scan cafe acl phone you">
+            <rect x="440" y="104" width="420" height="110" rx="9" class="svg-surface svg-stroke" stroke-width="1.3" stroke-dasharray="5 4"/>
+            <text x="456" y="130" class="svg-sub">before any ring has been tested</text>
+          </g>
+          <g data-at="0" data-scn="scan">
+            <text x="456" y="152" class="svg-mono-danger">a botnet sweeping the whole IPv4 space</text>
+            <text x="456" y="172" class="svg-sub">it has never heard of you — it is trying everyone</text>
+            <text x="456" y="192" class="svg-sub">it arrives minutes after any VPS gets an address</text>
+          </g>
+          <g data-at="0" data-scn="cafe">
+            <text x="456" y="152" class="svg-mono-danger">a laptop on the same hotel Wi-Fi</text>
+            <text x="456" y="172" class="svg-sub">it can reach your machine's local address directly</text>
+            <text x="456" y="192" class="svg-sub">no tailnet membership is required for that</text>
+          </g>
+          <g data-at="0" data-scn="acl">
+            <text x="456" y="152" class="svg-mono-warn">you widened one ACL rule at 11pm</text>
+            <text x="456" y="172" class="svg-sub">a device you never meant to allow now matches</text>
+            <text x="456" y="192" class="svg-sub">ring 1 is the ring that eventually breaks</text>
+          </g>
+          <g data-at="0" data-scn="phone">
+            <text x="456" y="152" class="svg-mono-danger">your phone, in someone else's pocket</text>
+            <text x="456" y="172" class="svg-sub">still a tailnet member until you revoke it</text>
+            <text x="456" y="192" class="svg-sub">and it is locked</text>
+          </g>
+          <g data-at="0" data-scn="you">
+            <text x="456" y="152" class="svg-mono-accent">you, on your own laptop</text>
+            <text x="456" y="172" class="svg-sub">the one case every ring is built to let through</text>
+            <text x="456" y="192" class="svg-sub">watch all five of them say yes</text>
+          </g>
+
+          <!-- ============ ring 1 · tailnet ACL ============ -->
+          <g data-at="1+" data-scn="scan" class="sim-pop">
+            <rect x="440" y="34" width="420" height="44" rx="9" class="svg-card svg-danger-s" stroke-width="1.7"/>
+            <text x="456" y="54" class="svg-mono-danger">stop · there is no port to find</text>
+            <text x="456" y="70" class="svg-sub">sshd never binds a public address, so the scan finds nothing</text>
+          </g>
+          <g data-at="1+" data-scn="cafe" class="sim-pop">
+            <rect x="440" y="34" width="420" height="44" rx="9" class="svg-surface svg-stroke" stroke-width="1.3" stroke-dasharray="5 4"/>
+            <text x="456" y="54" class="svg-sub">bypassed · this ring never sees the packet</text>
+            <text x="456" y="70" class="svg-sub">they reach your Wi-Fi address directly, not the tailnet</text>
+          </g>
+          <g data-at="1+" data-scn="acl" class="sim-pop">
+            <rect x="440" y="34" width="420" height="44" rx="9" class="svg-card svg-warn-s" stroke-width="1.7"/>
+            <text x="456" y="54" class="svg-mono-warn">passed · and it should not have</text>
+            <text x="456" y="70" class="svg-sub">a broad grant let through a device you never meant to allow</text>
+          </g>
+          <g data-at="1+" data-scn="phone you" data-poster class="sim-pop">
+            <rect x="440" y="34" width="420" height="44" rx="9" class="svg-card svg-accent-s" stroke-width="1.5"/>
+            <text x="456" y="54" class="svg-mono-accent">pass · on the tailnet, port granted</text>
+            <text x="456" y="70" class="svg-sub">the ACL allows this device to reach port 22</text>
+          </g>
+
+          <g data-at="1+" data-scn="scan">
+            <circle cx="382" cy="56" r="10" class="svg-card svg-danger-s" stroke-width="1.4"/>
+            <path d="M377.5 51.5 L386.5 60.5 M386.5 51.5 L377.5 60.5" class="svg-danger-s" stroke-width="2" fill="none" stroke-linecap="round"/>
+          </g>
+          <g data-at="1+" data-scn="cafe">
+            <circle cx="382" cy="56" r="10" class="svg-card svg-muted-s" stroke-width="1.4"/>
+            <path d="M377 56 L387 56" class="svg-muted-s" stroke-width="2" fill="none" stroke-linecap="round"/>
+          </g>
+          <g data-at="1+" data-scn="acl">
+            <circle cx="382" cy="56" r="10" class="svg-card svg-warn-s" stroke-width="1.4"/>
+            <path d="M377 56 L380.5 60 L387.5 51.5" class="svg-warn-s" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          </g>
+          <g data-at="1+" data-scn="phone you" data-poster>
+            <circle cx="382" cy="56" r="10" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <path d="M377 56 L380.5 60 L387.5 51.5" class="svg-accent-s" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          </g>
+
+          <rect data-at="1+" data-scn="scan" x="20" y="34" width="380" height="362" rx="14"
+                fill="none" class="svg-danger-s" stroke-width="2.6"/>
+          <rect data-at="1" data-scn="cafe" x="20" y="34" width="380" height="362" rx="14"
+                fill="none" class="svg-muted-s" stroke-width="2.6"/>
+          <rect data-at="1" data-scn="acl" x="20" y="34" width="380" height="362" rx="14"
+                fill="none" class="svg-warn-s" stroke-width="2.6"/>
+          <rect data-at="1" data-scn="phone you" x="20" y="34" width="380" height="362" rx="14"
+                fill="none" class="svg-accent-s" stroke-width="2.6"/>
+          <path data-at="1" data-scn="scan cafe acl" data-flow="warn" data-count="2" data-speed="0.24"
+                d="M404 56 L436 56" stroke="none" fill="none"/>
+          <path data-at="1" data-scn="phone you" data-flow="accent" data-count="2" data-speed="0.24"
+                d="M404 56 L436 56" stroke="none" fill="none"/>
+
+          <!-- ============ ring 2 · host firewall &amp; bind address ============ -->
+          <g data-at="2+" data-scn="cafe" class="sim-pop">
+            <rect x="440" y="84" width="420" height="44" rx="9" class="svg-card svg-danger-s" stroke-width="1.7"/>
+            <text x="456" y="104" class="svg-mono-danger">stop · nothing is listening there</text>
+            <text x="456" y="120" class="svg-sub">sshd binds the 100.x address only — that segment gets nothing</text>
+          </g>
+          <g data-at="2+" data-scn="acl phone you" data-poster class="sim-pop">
+            <rect x="440" y="84" width="420" height="44" rx="9" class="svg-card svg-accent-s" stroke-width="1.5"/>
+            <text x="456" y="104" class="svg-mono-accent">pass · it reached the right interface</text>
+            <text x="456" y="120" class="svg-sub">the packet arrived on the tailnet interface, which is allowed</text>
+          </g>
+          <g data-at="2+" data-scn="scan">
+            <rect x="440" y="84" width="420" height="44" rx="9" class="svg-surface svg-stroke" stroke-width="1.3" stroke-dasharray="5 4"/>
+            <text x="456" y="104" class="svg-sub">not run</text>
+            <text x="456" y="120" class="svg-sub">ring 1 already ended it — nothing inside was ever tested</text>
+          </g>
+
+          <g data-at="2+" data-scn="cafe">
+            <circle cx="364" cy="106" r="10" class="svg-card svg-danger-s" stroke-width="1.4"/>
+            <path d="M359.5 101.5 L368.5 110.5 M368.5 101.5 L359.5 110.5" class="svg-danger-s" stroke-width="2" fill="none" stroke-linecap="round"/>
+          </g>
+          <g data-at="2+" data-scn="acl phone you" data-poster>
+            <circle cx="364" cy="106" r="10" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <path d="M359 106 L362.5 110 L369.5 101.5" class="svg-accent-s" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          </g>
+
+          <rect data-at="2+" data-scn="cafe" x="38" y="84" width="344" height="296" rx="13"
+                fill="none" class="svg-danger-s" stroke-width="2.6"/>
+          <rect data-at="2" data-scn="acl phone you" x="38" y="84" width="344" height="296" rx="13"
+                fill="none" class="svg-accent-s" stroke-width="2.6"/>
+          <path data-at="2" data-scn="cafe" data-flow="warn" data-count="2" data-speed="0.24"
+                d="M386 106 L436 106" stroke="none" fill="none"/>
+          <path data-at="2" data-scn="acl phone you" data-flow="accent" data-count="2" data-speed="0.24"
+                d="M386 106 L436 106" stroke="none" fill="none"/>
+
+          <!-- ============ ring 3 · sshd policy ============ -->
+          <g data-at="3+" data-scn="acl" class="sim-pop">
+            <rect x="440" y="134" width="420" height="44" rx="9" class="svg-card svg-danger-s" stroke-width="1.7"/>
+            <text x="456" y="154" class="svg-mono-danger">stop · the daemon says no</text>
+            <text x="456" y="170" class="svg-sub">no passwords, no root, and this account is not in AllowUsers</text>
+          </g>
+          <g data-at="3+" data-scn="phone you" data-poster class="sim-pop">
+            <rect x="440" y="134" width="420" height="44" rx="9" class="svg-card svg-accent-s" stroke-width="1.5"/>
+            <text x="456" y="154" class="svg-mono-accent">pass · policy permits this login</text>
+            <text x="456" y="170" class="svg-sub">key auth only, not root, and the account is on AllowUsers</text>
+          </g>
+          <g data-at="3+" data-scn="scan cafe">
+            <rect x="440" y="134" width="420" height="44" rx="9" class="svg-surface svg-stroke" stroke-width="1.3" stroke-dasharray="5 4"/>
+            <text x="456" y="154" class="svg-sub">not run</text>
+            <text x="456" y="170" class="svg-sub">the packet never got this far</text>
+          </g>
+
+          <g data-at="3+" data-scn="acl">
+            <circle cx="346" cy="156" r="10" class="svg-card svg-danger-s" stroke-width="1.4"/>
+            <path d="M341.5 151.5 L350.5 160.5 M350.5 151.5 L341.5 160.5" class="svg-danger-s" stroke-width="2" fill="none" stroke-linecap="round"/>
+          </g>
+          <g data-at="3+" data-scn="phone you" data-poster>
+            <circle cx="346" cy="156" r="10" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <path d="M341 156 L344.5 160 L351.5 151.5" class="svg-accent-s" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          </g>
+
+          <rect data-at="3+" data-scn="acl" x="56" y="134" width="308" height="230" rx="12"
+                fill="none" class="svg-danger-s" stroke-width="2.6"/>
+          <rect data-at="3" data-scn="phone you" x="56" y="134" width="308" height="230" rx="12"
+                fill="none" class="svg-accent-s" stroke-width="2.6"/>
+          <path data-at="3" data-scn="acl" data-flow="warn" data-count="2" data-speed="0.24"
+                d="M368 156 L436 156" stroke="none" fill="none"/>
+          <path data-at="3" data-scn="phone you" data-flow="accent" data-count="2" data-speed="0.24"
+                d="M368 156 L436 156" stroke="none" fill="none"/>
+
+          <!-- ============ ring 4 · key possession ============ -->
+          <g data-at="4+" data-scn="phone" data-poster class="sim-pop">
+            <rect x="440" y="184" width="420" height="44" rx="9" class="svg-card svg-danger-s" stroke-width="1.7"/>
+            <text x="456" y="204" class="svg-mono-danger">stop · the enclave will not sign</text>
+            <text x="456" y="220" class="svg-sub">the key needs Face ID or the passcode, and the phone is locked</text>
+          </g>
+          <g data-at="4+" data-scn="you" class="sim-pop">
+            <rect x="440" y="184" width="420" height="44" rx="9" class="svg-card svg-accent-s" stroke-width="1.5"/>
+            <text x="456" y="204" class="svg-mono-accent">pass · your key signs the challenge</text>
+            <text x="456" y="220" class="svg-sub">the private key never leaves the enclave; only signatures do</text>
+          </g>
+          <g data-at="4+" data-scn="scan cafe acl">
+            <rect x="440" y="184" width="420" height="44" rx="9" class="svg-surface svg-stroke" stroke-width="1.3" stroke-dasharray="5 4"/>
+            <text x="456" y="204" class="svg-sub">not run</text>
+            <text x="456" y="220" class="svg-sub">no key was ever offered here</text>
+          </g>
+
+          <g data-at="4+" data-scn="phone" data-poster>
+            <circle cx="328" cy="206" r="10" class="svg-card svg-danger-s" stroke-width="1.4"/>
+            <path d="M323.5 201.5 L332.5 210.5 M332.5 201.5 L323.5 210.5" class="svg-danger-s" stroke-width="2" fill="none" stroke-linecap="round"/>
+          </g>
+          <g data-at="4+" data-scn="you">
+            <circle cx="328" cy="206" r="10" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <path d="M323 206 L326.5 210 L333.5 201.5" class="svg-accent-s" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          </g>
+
+          <rect data-at="4+" data-scn="phone" data-poster x="74" y="184" width="272" height="164" rx="11"
+                fill="none" class="svg-danger-s" stroke-width="2.6"/>
+          <rect data-at="4" data-scn="you" x="74" y="184" width="272" height="164" rx="11"
+                fill="none" class="svg-accent-s" stroke-width="2.6"/>
+          <path data-at="4" data-scn="phone" data-flow="warn" data-count="2" data-speed="0.24"
+                d="M350 206 L436 206" stroke="none" fill="none"/>
+          <path data-at="4" data-scn="you" data-flow="accent" data-count="2" data-speed="0.24"
+                d="M350 206 L436 206" stroke="none" fill="none"/>
+
+          <!-- ============ ring 5 · PAM / SACL, then the shell ============ -->
+          <g data-at="5" data-scn="you" class="sim-pop">
+            <rect x="440" y="234" width="420" height="44" rx="9" class="svg-card svg-accent-s" stroke-width="1.5"/>
+            <text x="456" y="254" class="svg-mono-accent">pass · this account is on the SSH list</text>
+            <text x="456" y="270" class="svg-sub">PAM checks com.apple.access_ssh and lets you through</text>
+          </g>
+          <g data-at="5" data-scn="scan cafe acl phone" data-poster>
+            <rect x="440" y="234" width="420" height="44" rx="9" class="svg-surface svg-stroke" stroke-width="1.3" stroke-dasharray="5 4"/>
+            <text x="456" y="254" class="svg-sub">not run</text>
+            <text x="456" y="270" class="svg-sub">an outer ring already stopped this attempt</text>
+          </g>
+
+          <g data-at="5" data-scn="you">
+            <circle cx="310" cy="256" r="10" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <path d="M305 256 L308.5 260 L315.5 251.5" class="svg-accent-s" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          </g>
+          <rect data-at="5" data-scn="you" x="92" y="234" width="236" height="98" rx="10"
+                fill="none" class="svg-accent-s" stroke-width="2.6"/>
+          <rect data-at="5" data-scn="you" x="110" y="284" width="200" height="40" rx="9"
+                fill="none" class="svg-accent-s" stroke-width="2.6"/>
+          <path data-at="5" data-scn="you" data-flow="accent" data-count="2" data-speed="0.24"
+                d="M332 256 L436 256" stroke="none" fill="none"/>
         </svg>
+
+        <div class="sim-controls">
+          <button type="button" class="sim-btn" data-act="prev" aria-label="Previous step"><span class="sim-glyph">◀</span></button>
+          <button type="button" class="sim-btn sim-btn-play" data-act="play" aria-label="Play">
+            <span class="sim-glyph">▶</span><span class="sim-btn-text">Play</span>
+          </button>
+          <button type="button" class="sim-btn" data-act="next" aria-label="Next step"><span class="sim-glyph">▶</span></button>
+          <div class="sim-track" role="group" aria-label="Jump to ring">
+            <button type="button" class="sim-dot" data-goto="0" aria-label="Step 0, who is knocking">0</button>
+            <button type="button" class="sim-dot" data-goto="1" aria-label="Ring 1, tailnet ACL">1</button>
+            <button type="button" class="sim-dot" data-goto="2" aria-label="Ring 2, host firewall and bind address">2</button>
+            <button type="button" class="sim-dot" data-goto="3" aria-label="Ring 3, sshd policy">3</button>
+            <button type="button" class="sim-dot" data-goto="4" aria-label="Ring 4, key possession">4</button>
+            <button type="button" class="sim-dot" data-goto="5" aria-label="Ring 5, PAM and SACL">5</button>
+          </div>
+          <div class="sim-progress" aria-hidden="true"><span></span></div>
+        </div>
+
+        <div class="sim-term" aria-hidden="true">
+          <div data-at="0" data-scn="scan"><span class="tp">#</span> a botnet, mid-sweep<br>masscan 0.0.0.0/0 -p22 --rate 20000 <span class="tdim">— you are one of forty million</span></div>
+          <div data-at="0" data-scn="cafe"><span class="tp">$</span> arp -a<br>192.168.1.44 <span class="tdim">— your MacBook, same hotel segment, no tailnet needed</span></div>
+          <div data-at="0" data-scn="acl"><span class="tp">#</span> the ACL edit you made at 11pm<br>"dst": ["<span class="twarn">*</span>:22"] <span class="tdim">— the star is doing a lot of work</span></div>
+          <div data-at="0" data-scn="phone" data-poster><span class="tp">#</span> the phone is in someone else's pocket<br><span class="tdim">still a tailnet member · screen locked</span></div>
+          <div data-at="0" data-scn="you"><span class="tp">$</span> ssh macbook<br><span class="tdim">the ordinary case — every ring is built to allow it</span></div>
+
+          <div data-at="1" data-scn="scan"><span class="tp">$</span> nmap -Pn -p22 203.0.113.10<br>22/tcp <span class="twarn">filtered</span> ssh <span class="tdim">— nothing to talk to</span></div>
+          <div data-at="1" data-scn="cafe"><span class="tp">#</span> ring 1 never sees this packet<br><span class="tdim">it is addressed to the Wi-Fi interface, not the tailnet</span></div>
+          <div data-at="1" data-scn="acl"><span class="tp">$</span> tailscale status<br>100.64.9.12 unknown-laptop <span class="twarn">active</span> <span class="tdim">— and now permitted to :22</span></div>
+          <div data-at="1" data-scn="phone you" data-poster><span class="tp">$</span> tailscale status<br>100.83.14.9 iphone iOS <span class="tok">active</span> <span class="tdim">— granted to :22</span></div>
+
+          <div data-at="2" data-scn="cafe"><span class="tp">$</span> nc -z -w 3 192.168.1.44 22<br>nc: connect to 192.168.1.44 port 22 failed: <span class="twarn">Connection refused</span></div>
+          <div data-at="2" data-scn="acl phone you" data-poster><span class="tp">$</span> nc -z -w 3 100.117.202.65 22<br>Connection to 100.117.202.65 port 22 <span class="tok">succeeded!</span></div>
+          <div data-at="2" data-scn="scan"><span class="tdim"># not run — ring 1 already ended it</span><br><span class="tdim">there was never a socket to reach</span></div>
+
+          <div data-at="3" data-scn="acl"><span class="tp">$</span> ssh root@100.117.202.65<br><span class="twarn">Permission denied (publickey).</span> <span class="tdim">no root, no passwords, not on AllowUsers</span></div>
+          <div data-at="3" data-scn="phone you" data-poster><span class="tp">$</span> ssh -v macbook<br>debug1: Authentications that can continue: <span class="tok">publickey</span></div>
+          <div data-at="3" data-scn="scan cafe"><span class="tdim"># not run — the packet never got this far</span><br><span class="tdim">sshd never saw a byte of it</span></div>
+
+          <div data-at="4" data-scn="phone" data-poster><span class="tp">#</span> the enclave declines<br><span class="twarn">Face ID or passcode required</span> <span class="tdim">— no signature, no login</span></div>
+          <div data-at="4" data-scn="you"><span class="tp">$</span> ssh -v macbook<br>debug1: Server accepts key … <span class="tok">Authenticated to macbook</span></div>
+          <div data-at="4" data-scn="scan cafe acl"><span class="tdim"># not run — no key was ever offered here</span><br><span class="tdim">an outer ring answered first</span></div>
+
+          <div data-at="5" data-scn="you"><span class="tp">$</span> dseditgroup -o checkmember -m you com.apple.access_ssh<br>yes <span class="tok">— you land in a shell</span></div>
+          <div data-at="5" data-scn="scan cafe acl phone" data-poster><span class="tdim"># not run — an outer ring already stopped this</span><br><span class="tdim">the shell was never in reach</span></div>
+        </div>
+
+        <ol class="sim-steps" aria-live="polite">
+          <li data-at="0" data-scn="scan"><b>An internet scanner</b>Constant, indiscriminate, and arriving within minutes of any VPS getting an address. It has never heard of you; it is trying everyone. This is the most common adversary by several orders of magnitude, and the one the outermost ring exists for.</li>
+          <li data-at="0" data-scn="cafe"><b>A neighbour on the café Wi-Fi</b>You joined a hotel network and so did they. They can reach your machine's <em>local</em> address directly — no tailnet, no coordination server, nothing for ring 1 to have an opinion about. This is why ring 1 alone is not enough.</li>
+          <li data-at="0" data-scn="acl"><b>A bad ACL edit</b>You widened one rule late at night and a device you never meant to allow now matches it. Nothing is broken yet and nothing warns you. Ring 1 is the ring that eventually breaks — the question is what happens next.</li>
+          <li data-at="0" data-scn="phone" data-poster><b>Your phone, in someone else's pocket</b>It is still a member of the tailnet, because you have not revoked it yet. It holds an SSH key that every one of your machines trusts. And it is locked. Watch how far it gets.</li>
+          <li data-at="0" data-scn="you"><b>You, with your key</b>The one case every ring is built to let through. Worth stepping once, because it is the only run where you see all five rings answer yes — and it shows the cost of the design is a single <code>ssh</code>.</li>
+
+          <li data-at="1" data-scn="scan"><b>1 · Stopped at the tailnet ACL</b>There is no port to find. sshd is bound to the tailnet address and nothing else, so the scan hits a filtered port and moves on. <b>This is the single highest-value control in the guide</b> — it removes an entire adversary class instead of hardening against it.</li>
+          <li data-at="1" data-scn="cafe"><b>1 · Bypassed, not defeated</b>The rings are not literally concentric for every attacker. This packet is addressed to your Wi-Fi interface, so the tailnet ACL is never consulted at all. A control that is not on the path cannot help you — which is the whole argument for the ring below.</li>
+          <li data-at="1" data-scn="acl"><b>1 · Passed — and it should not have</b>The grant was too broad, so a device you never intended to allow now reaches port 22. Ring 1 has failed silently, exactly the way misconfiguration always does. If it were your only layer, this would already be an incident.</li>
+          <li data-at="1" data-scn="phone you" data-poster><b>1 · On the tailnet, port granted</b>The device is a member and the ACL permits it to reach port 22, so the packet is delivered. Correct in both cases — the phone <em>is</em> yours, and you have not revoked it yet.</li>
+
+          <li data-at="2" data-scn="cafe"><b>2 · Stopped at the bind address</b>sshd listens on the <code>100.x</code> address only, so on the hotel segment there is simply nothing to answer. Ring 1 never applied here; ring 2 did the work alone. Default-deny inbound means your laptop offers that network nothing.</li>
+          <li data-at="2" data-scn="acl phone you" data-poster><b>2 · Reached the right interface</b>The packet arrived over the tailnet interface, which is precisely the one sshd is bound to. Nothing here looks suspicious yet — a device that slipped past ring 1 is indistinguishable from a legitimate one at this layer.</li>
+          <li data-at="2" data-scn="scan"><b>2 · Not run</b>Ring 1 already ended it. Nothing inside was ever tested, which is the point: a control that stops traffic before it arrives makes every control behind it irrelevant to that attacker.</li>
+
+          <li data-at="3" data-scn="acl"><b>3 · The daemon says no — and this is the payoff</b>Password authentication is off, root login is off, and this account is not in <code>AllowUsers</code>. Ring 1 failed, and the result was an inconvenience rather than an incident. <b>This is why you harden sshd even behind a private network.</b></li>
+          <li data-at="3" data-scn="phone you" data-poster><b>3 · Policy permits this login</b>Key authentication only, no root, and the account is on the allow list. The daemon has no objection to this attempt — it is a legitimate user account presenting itself the approved way.</li>
+          <li data-at="3" data-scn="scan cafe"><b>3 · Not run</b>The packet never got this far, so <code>sshd_config</code> played no part in the outcome. Worth remembering when you are tempted to debug a connection problem by editing it.</li>
+
+          <li data-at="4" data-scn="phone" data-poster><b>4 · The enclave will not sign</b>The key is hardware-bound and every use is gated by Face ID or the passcode. A thief has the device, not the key — and cannot copy it out to try elsewhere. This is what makes losing a phone a chore rather than a crisis.</li>
+          <li data-at="4" data-scn="you"><b>4 · Your key signs the challenge</b>The private key never leaves the enclave; the enclave returns a signature over the session ID. Note the honest limit: if malware were running on your unlocked machine, it could ask for that same signature. Possession of the device is the boundary.</li>
+          <li data-at="4" data-scn="scan cafe acl"><b>4 · Not run</b>No key was ever offered here, because an outer ring answered first. Key custody is a strong layer, but it only gets a turn if the packet reaches it.</li>
+
+          <li data-at="5" data-scn="you"><b>5 · On the SSH access list, and into the shell</b>PAM checks <code>com.apple.access_ssh</code> and lets you through. Five rings, five yeses, one shell. Each of them fails differently, which is the entire value of the arrangement — the failure of any one is survivable.</li>
+          <li data-at="5" data-scn="scan cafe acl phone" data-poster><b>5 · Not run</b>An outer ring already stopped this attempt, so the shell was never in reach. Switch the attacker above and watch where the run ends — no two of them stop at the same ring.</li>
+        </ol>
+
         <figcaption>
           <b>An attacker must defeat every ring, in order.</b> Most real-world compromises come from a
           single layer being the <em>only</em> layer. The reason to keep sshd hardened even behind a
           private network is that layer 1 will eventually be misconfigured, and you want that to be an
-          inconvenience rather than an incident.
+          inconvenience rather than an incident — switch to <b>A bad ACL edit</b> above and watch ring 3
+          catch what ring 1 let through.
         </figcaption>
       </figure>
 
@@ -122,50 +438,216 @@
       </table>
       </div>
 
-      <figure class="diagram">
-        <svg viewBox="0 0 820 300" role="img" aria-label="A file-based key can be read by any process with file access and travels in backups, whereas a Secure Enclave key can only be asked to produce signatures">
-          <!-- file key -->
-          <rect x="18" y="18" width="386" height="264" rx="12" class="svg-surface svg-stroke" stroke-width="1.5"/>
-          <text x="40" y="46" class="svg-label">File-based key</text>
-          <text x="40" y="64" class="svg-sub">~/.ssh/id_ed25519</text>
+      <figure class="diagram sim" data-sim data-step-ms="3600" tabindex="0"
+              aria-label="Interactive comparison of a file-based SSH key and a Secure Enclave key. Pick something that goes wrong, then step through what leaks and what it costs you to recover. Use the left and right arrow keys to step through it.">
 
-          <rect x="42" y="84" width="150" height="48" rx="8" class="svg-card svg-stroke" stroke-width="1.4"/>
-          <text x="117" y="106" text-anchor="middle" class="svg-sub">key bytes</text>
-          <text x="117" y="122" text-anchor="middle" class="svg-sub">on disk</text>
+        <div class="sim-bar">
+          <span class="sim-bar-label">What goes wrong</span>
+          <button type="button" class="sim-scn is-on" data-scenario="lost" aria-pressed="true">The device is lost</button>
+          <button type="button" class="sim-scn" data-scenario="malware" aria-pressed="false">Malware on the machine</button>
+          <button type="button" class="sim-scn" data-scenario="backup" aria-pressed="false">An unencrypted backup</button>
+        </div>
 
-          <path d="M192 108 L242 108" class="svg-danger-s" stroke-width="1.8" fill="none"/>
-          <rect x="242" y="84" width="140" height="48" rx="8" class="svg-surface svg-danger-s" stroke-width="1.4"/>
-          <text x="312" y="106" text-anchor="middle" class="svg-sub">any process with</text>
-          <text x="312" y="122" text-anchor="middle" class="svg-sub">file access</text>
+        <svg viewBox="0 0 880 390" role="img" aria-label="Two panels side by side. On the left a file-based key whose bytes are handed to whatever reads the file; on the right a Secure Enclave key that only ever returns signatures. Below each, what the chosen mishap exposes and what recovery costs.">
+          <defs>
+            <marker id="k1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" class="svg-accent"/>
+            </marker>
+            <marker id="k2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" class="svg-danger"/>
+            </marker>
+          </defs>
 
-          <text x="42" y="166" class="svg-sub">· decrypted into RAM while in use</text>
-          <text x="42" y="190" class="svg-sub">· copied by an unencrypted backup</text>
-          <text x="42" y="214" class="svg-sub">· survives on old drives you forgot</text>
-          <text x="42" y="252" class="svg-mono-danger">compromise = rotate everywhere</text>
+          <!-- ================= panel A · file-based key ================= -->
+          <rect x="16" y="14" width="412" height="328" rx="12" class="svg-surface svg-stroke" stroke-width="1.5"/>
+          <text x="38" y="42" class="svg-label">File-based key</text>
+          <text x="38" y="60" class="svg-sub">~/.ssh/id_ed25519</text>
 
-          <!-- SE key -->
-          <rect x="424" y="18" width="378" height="264" rx="12" class="svg-surface svg-accent-s" stroke-width="1.7"/>
-          <text x="446" y="46" class="svg-label">Secure Enclave key</text>
-          <text x="446" y="64" class="svg-sub">separate coprocessor</text>
+          <g data-at="0+" class="sim-pop">
+            <rect x="36" y="78" width="130" height="46" rx="8" class="svg-card svg-stroke" stroke-width="1.4"/>
+            <text x="101" y="100" text-anchor="middle" class="svg-sub">key bytes</text>
+            <text x="101" y="115" text-anchor="middle" class="svg-sub">on disk</text>
+            <text x="222" y="92" text-anchor="middle" class="svg-sub">the file is read</text>
+            <path d="M170 101 L270 101" class="svg-danger-s" stroke-width="1.8" fill="none" marker-end="url(#k2)"/>
+            <rect x="278" y="78" width="130" height="46" rx="8" class="svg-card svg-danger-s" stroke-width="1.4"/>
+            <text x="343" y="100" text-anchor="middle" class="svg-sub">whatever</text>
+            <text x="343" y="115" text-anchor="middle" class="svg-sub">opened it</text>
+          </g>
+          <path data-at="0+" data-flow="warn" data-count="2" data-speed="0.16" data-r="3.5"
+                d="M170 101 L270 101" stroke="none" fill="none"/>
 
-          <rect x="448" y="84" width="150" height="48" rx="8" class="svg-card svg-accent-s" stroke-width="1.7"/>
-          <text x="523" y="106" text-anchor="middle" class="svg-sub">key never</text>
-          <text x="523" y="122" text-anchor="middle" class="svg-sub">leaves enclave</text>
+          <!-- ================= panel B · Secure Enclave key ================= -->
+          <rect x="452" y="14" width="412" height="328" rx="12" class="svg-surface svg-accent-s" stroke-width="1.7"/>
+          <text x="474" y="42" class="svg-label">Secure Enclave key</text>
+          <text x="474" y="60" class="svg-sub">separate coprocessor, no export path</text>
 
-          <path d="M598 100 L648 100" class="svg-accent-s" stroke-width="1.8" fill="none"/>
-          <text x="668" y="98" class="svg-sub">&ldquo;sign this&rdquo;</text>
-          <path d="M648 120 L598 120" class="svg-accent-s" stroke-width="1.8" fill="none"/>
-          <text x="668" y="126" class="svg-sub">signature</text>
+          <g data-at="0+" class="sim-pop">
+            <rect x="472" y="78" width="130" height="46" rx="8" class="svg-card svg-accent-s" stroke-width="1.7"/>
+            <text x="537" y="100" text-anchor="middle" class="svg-sub">private key</text>
+            <text x="537" y="115" text-anchor="middle" class="svg-sub">sealed inside</text>
+            <text x="658" y="92" text-anchor="middle" class="svg-sub">a signature only</text>
+            <path d="M606 101 L706 101" class="svg-accent-s" stroke-width="1.8" fill="none" marker-end="url(#k1)"/>
+            <rect x="714" y="78" width="130" height="46" rx="8" class="svg-card svg-stroke" stroke-width="1.4"/>
+            <text x="779" y="100" text-anchor="middle" class="svg-sub">ssh client</text>
+            <text x="779" y="115" text-anchor="middle" class="svg-sub">never sees it</text>
+          </g>
+          <path data-at="0+" data-flow="accent" data-count="2" data-speed="0.16" data-r="3.5"
+                d="M606 101 L706 101" stroke="none" fill="none"/>
 
-          <text x="446" y="166" class="svg-sub">· no bytes for malware to read</text>
-          <text x="446" y="190" class="svg-sub">· absent from every backup</text>
-          <text x="446" y="214" class="svg-sub">· each use gated by Face ID</text>
-          <text x="446" y="252" class="svg-mono-accent">compromise = revoke one line</text>
+          <!-- ============ step 1 · the event ============ -->
+          <g data-at="1+" data-scn="lost" data-poster class="sim-pop">
+            <rect x="36" y="138" width="372" height="58" rx="9" class="svg-card svg-danger-s" stroke-width="1.6"/>
+            <text x="52" y="158" class="svg-mono-danger">the laptop left with the file on it</text>
+            <text x="52" y="174" class="svg-sub">FileVault protects it while it is powered off</text>
+            <text x="52" y="189" class="svg-sub">and only while it is powered off</text>
+          </g>
+          <g data-at="1+" data-scn="lost" data-poster class="sim-pop">
+            <rect x="472" y="138" width="372" height="58" rx="9" class="svg-card svg-accent-s" stroke-width="1.6"/>
+            <text x="488" y="158" class="svg-mono-accent">the phone left with the key sealed</text>
+            <text x="488" y="174" class="svg-sub">the enclave goes with it, intact and inert</text>
+            <text x="488" y="189" class="svg-sub">locked behind Face ID or the passcode</text>
+          </g>
+          <g data-at="1+" data-scn="malware" class="sim-pop">
+            <rect x="36" y="138" width="372" height="58" rx="9" class="svg-card svg-danger-s" stroke-width="1.6"/>
+            <text x="52" y="158" class="svg-mono-danger">a process reads the file</text>
+            <text x="52" y="174" class="svg-sub">one open() is the whole attack</text>
+            <text x="52" y="189" class="svg-sub">no prompt, no Face ID, no trace left behind</text>
+          </g>
+          <g data-at="1+" data-scn="malware" class="sim-pop">
+            <rect x="472" y="138" width="372" height="58" rx="9" class="svg-card svg-warn-s" stroke-width="1.6"/>
+            <text x="488" y="158" class="svg-mono-warn">it asks the enclave to sign</text>
+            <text x="488" y="174" class="svg-sub">it cannot read the key, but it can use it</text>
+            <text x="488" y="189" class="svg-sub">for as long as the device stays unlocked</text>
+          </g>
+          <g data-at="1+" data-scn="backup" class="sim-pop">
+            <rect x="36" y="138" width="372" height="58" rx="9" class="svg-card svg-danger-s" stroke-width="1.6"/>
+            <text x="52" y="158" class="svg-mono-danger">the backup copied the file</text>
+            <text x="52" y="174" class="svg-sub">the key is now inside the archive</text>
+            <text x="52" y="189" class="svg-sub">wherever that archive ended up</text>
+          </g>
+          <g data-at="1+" data-scn="backup" class="sim-pop">
+            <rect x="472" y="138" width="372" height="58" rx="9" class="svg-card svg-accent-s" stroke-width="1.6"/>
+            <text x="488" y="158" class="svg-mono-accent">the backup found nothing to copy</text>
+            <text x="488" y="174" class="svg-sub">no file on the filesystem holds this key</text>
+            <text x="488" y="189" class="svg-sub">it has never existed as bytes you can move</text>
+          </g>
+
+          <!-- ============ step 2 · what they end up holding ============ -->
+          <g data-at="2+" data-scn="lost" data-poster class="sim-pop">
+            <rect x="36" y="206" width="372" height="58" rx="9" class="svg-card svg-danger-s" stroke-width="1.6"/>
+            <text x="52" y="226" class="svg-mono-danger">the disk holds the key</text>
+            <text x="52" y="242" class="svg-sub">shut down it is safe; asleep it is less so</text>
+            <text x="52" y="257" class="svg-sub">assume the file becomes readable eventually</text>
+          </g>
+          <g data-at="2+" data-scn="lost" data-poster class="sim-pop">
+            <rect x="472" y="206" width="372" height="58" rx="9" class="svg-card svg-accent-s" stroke-width="1.6"/>
+            <text x="488" y="226" class="svg-mono-accent">the enclave holds the key</text>
+            <text x="488" y="242" class="svg-sub">every use is gated by Face ID or a passcode</text>
+            <text x="488" y="257" class="svg-sub">and it cannot be moved off the chip at all</text>
+          </g>
+          <g data-at="2+" data-scn="malware" class="sim-pop">
+            <rect x="36" y="206" width="372" height="58" rx="9" class="svg-card svg-danger-s" stroke-width="1.6"/>
+            <text x="52" y="226" class="svg-mono-danger">they hold the key itself</text>
+            <text x="52" y="242" class="svg-sub">usable from any machine, at any time</text>
+            <text x="52" y="257" class="svg-sub">and you cannot tell that it happened</text>
+          </g>
+          <g data-at="2+" data-scn="malware" class="sim-pop">
+            <rect x="472" y="206" width="372" height="58" rx="9" class="svg-card svg-warn-s" stroke-width="1.6"/>
+            <text x="488" y="226" class="svg-mono-warn">they hold no key, only access</text>
+            <text x="488" y="242" class="svg-sub">signatures, on this device, while unlocked</text>
+            <text x="488" y="257" class="svg-sub">revoke the node and it ends immediately</text>
+          </g>
+          <g data-at="2+" data-scn="backup" class="sim-pop">
+            <rect x="36" y="206" width="372" height="58" rx="9" class="svg-card svg-danger-s" stroke-width="1.6"/>
+            <text x="52" y="226" class="svg-mono-danger">the key is in the archive</text>
+            <text x="52" y="242" class="svg-sub">protected only by its passphrase</text>
+            <text x="52" y="257" class="svg-sub">which brute-forces offline, patiently</text>
+          </g>
+          <g data-at="2+" data-scn="backup" class="sim-pop">
+            <rect x="472" y="206" width="372" height="58" rx="9" class="svg-card svg-accent-s" stroke-width="1.6"/>
+            <text x="488" y="226" class="svg-mono-accent">the archive holds nothing useful</text>
+            <text x="488" y="242" class="svg-sub">no bytes were ever exported to copy</text>
+            <text x="488" y="257" class="svg-sub">there is nothing in there to crack later</text>
+          </g>
+
+          <!-- ============ step 3 · what recovery costs ============ -->
+          <g data-at="3" data-scn="lost" data-poster class="sim-pop">
+            <rect x="36" y="274" width="372" height="58" rx="9" class="svg-card svg-danger-s" stroke-width="1.6"/>
+            <text x="52" y="294" class="svg-mono-danger">rotate everywhere, promptly</text>
+            <text x="52" y="310" class="svg-sub">every host and service that trusts this key</text>
+            <text x="52" y="325" class="svg-sub">under time pressure, on a bad day</text>
+          </g>
+          <g data-at="3" data-scn="lost" data-poster class="sim-pop">
+            <rect x="472" y="274" width="372" height="58" rx="9" class="svg-card svg-accent-s" stroke-width="1.6"/>
+            <text x="488" y="294" class="svg-mono-accent">remove one line per host</text>
+            <text x="488" y="310" class="svg-sub">revoke the node in the admin console first</text>
+            <text x="488" y="325" class="svg-sub">nothing else to rotate, anywhere</text>
+          </g>
+          <g data-at="3" data-scn="malware" class="sim-pop">
+            <rect x="36" y="274" width="372" height="58" rx="9" class="svg-card svg-danger-s" stroke-width="1.6"/>
+            <text x="52" y="294" class="svg-mono-danger">rotate everywhere, now</text>
+            <text x="52" y="310" class="svg-sub">every host and service that trusts this key</text>
+            <text x="52" y="325" class="svg-sub">then audit what was done with it meanwhile</text>
+          </g>
+          <g data-at="3" data-scn="malware" class="sim-pop">
+            <rect x="472" y="274" width="372" height="58" rx="9" class="svg-card svg-warn-s" stroke-width="1.6"/>
+            <text x="488" y="294" class="svg-mono-warn">revoke the node, then audit</text>
+            <text x="488" y="310" class="svg-sub">the key never left — the endpoint did</text>
+            <text x="488" y="325" class="svg-sub">nothing to rotate on your other machines</text>
+          </g>
+          <g data-at="3" data-scn="backup" class="sim-pop">
+            <rect x="36" y="274" width="372" height="58" rx="9" class="svg-card svg-danger-s" stroke-width="1.6"/>
+            <text x="52" y="294" class="svg-mono-danger">rotate everywhere</text>
+            <text x="52" y="310" class="svg-sub">you do not know who read that archive</text>
+            <text x="52" y="325" class="svg-sub">or how many copies of it still exist</text>
+          </g>
+          <g data-at="3" data-scn="backup" class="sim-pop">
+            <rect x="472" y="274" width="372" height="58" rx="9" class="svg-card svg-accent-s" stroke-width="1.6"/>
+            <text x="488" y="294" class="svg-mono-accent">nothing to do</text>
+            <text x="488" y="310" class="svg-sub">there was never a copy to leak</text>
+            <text x="488" y="325" class="svg-sub">the backup was always safe to store</text>
+          </g>
+
+          <text x="16" y="368" class="svg-sub">the enclave is a signing oracle, not a container — there is no operation that hands the key back</text>
         </svg>
+
+        <div class="sim-controls">
+          <button type="button" class="sim-btn" data-act="prev" aria-label="Previous step"><span class="sim-glyph">◀</span></button>
+          <button type="button" class="sim-btn sim-btn-play" data-act="play" aria-label="Play">
+            <span class="sim-glyph">▶</span><span class="sim-btn-text">Play</span>
+          </button>
+          <button type="button" class="sim-btn" data-act="next" aria-label="Next step"><span class="sim-glyph">▶</span></button>
+          <div class="sim-track" role="group" aria-label="Jump to step">
+            <button type="button" class="sim-dot" data-goto="0" aria-label="Step 0, both keys work the same">0</button>
+            <button type="button" class="sim-dot" data-goto="1" aria-label="Step 1, the thing that goes wrong">1</button>
+            <button type="button" class="sim-dot" data-goto="2" aria-label="Step 2, what they end up holding">2</button>
+            <button type="button" class="sim-dot" data-goto="3" aria-label="Step 3, what recovery costs">3</button>
+          </div>
+          <div class="sim-progress" aria-hidden="true"><span></span></div>
+        </div>
+
+        <ol class="sim-steps" aria-live="polite">
+          <li data-at="0"><b>Day to day, they are indistinguishable</b>Both keys log you in. The difference only shows up on the worst day of the year, which is exactly why it is worth understanding before then. The file key hands its bytes to whatever opens the file; the enclave hands back a signature and keeps the key.</li>
+
+          <li data-at="1" data-scn="lost" data-poster><b>1 · The device is gone</b>The laptop leaves with the key file on its disk. FileVault protects that file while the machine is powered off — and only then; a sleeping machine has already derived the volume key. The phone leaves with its key too, but sealed in a coprocessor that has no read operation.</li>
+          <li data-at="1" data-scn="malware"><b>1 · Something is running that should not be</b>A bad dependency or a malicious extension. On the file side, one <code>open()</code> is the entire attack — no prompt, no trace. On the enclave side it cannot read the key, but here is the honest limit: <b>it can ask the enclave to sign while you are unlocked.</b> Hardware-bound is not the same as safe from a compromised endpoint.</li>
+          <li data-at="1" data-scn="backup"><b>1 · A backup ran, unencrypted</b>Time Machine to an unencrypted disk, a <code>tar</code> of your home directory, a sync tool with generous defaults. The file key is now inside that archive. The enclave key was never a file, so there was nothing for the backup to pick up.</li>
+
+          <li data-at="2" data-scn="lost" data-poster><b>2 · What they end up holding</b>The disk holds the key file, so you have to assume it becomes readable eventually — a stolen laptop is not a one-hour problem. The enclave holds the phone's key, and every use of it is gated by Face ID or the passcode. It cannot be copied off the chip at any price.</li>
+          <li data-at="2" data-scn="malware"><b>2 · What they end up holding</b>On the file side, the key itself: usable from any machine, at any time, and you cannot tell it happened. On the enclave side, no key at all — only <em>access</em>, bounded to that one device and to the time it stays unlocked. That bound is the difference between an incident and a permanent one.</li>
+          <li data-at="2" data-scn="backup"><b>2 · What they end up holding</b>The key file is in the archive, protected only by its passphrase — and a passphrase in someone else's hands brute-forces offline, patiently, without rate limits. The enclave key is simply not in there. Nothing to crack now, and nothing to crack in five years.</li>
+
+          <li data-at="3" data-scn="lost" data-poster><b>3 · What it costs you</b>File key: rotate everywhere, promptly, on every host and service that trusts it — under time pressure, on a bad day. Enclave key: revoke the node in the admin console, then delete one <code>authorized_keys</code> line per host. <b>Nothing else to rotate, because the key existed nowhere else.</b></li>
+          <li data-at="3" data-scn="malware"><b>3 · What it costs you</b>File key: rotate everywhere, then audit what was done with it in the meantime. Enclave key: revoke the node and audit the same window — but you do not rotate keys on your other machines, because this one never left the phone. A compromised endpoint is still a compromised endpoint; the blast radius is what changes.</li>
+          <li data-at="3" data-scn="backup"><b>3 · What it costs you</b>File key: rotate everywhere, because you do not know who read that archive or how many copies of it exist. Enclave key: nothing at all. The backup was always safe to store, and that is a property you get for free rather than by remembering to be careful.</li>
+        </ol>
+
         <figcaption>
           <b>The enclave is a signing oracle, not a container.</b> You never retrieve the key; you ask
           for signatures. That is why losing the phone does not mean rotating keys on your other
-          machines — the key existed nowhere else and could not have leaked ahead of time.
+          machines — the key existed nowhere else and could not have leaked ahead of time. Switch to
+          <b>Malware on the machine</b> for the honest limit: the key stays put, but it will still sign
+          for whoever is running as you.
         </figcaption>
       </figure>
 
@@ -255,5 +737,6 @@
 </div>
 <script src="../assets/nav.js"></script>
 <script src="../assets/app.js"></script>
+<script src="../assets/anim.js"></script>
 </body>
 </html>
