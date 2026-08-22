@@ -109,61 +109,307 @@ sudo ufw status verbose</code></pre>
         SSH no longer needs to be reachable from the internet at all.
       </p>
 
-      <figure class="diagram">
-        <svg viewBox="0 0 840 350" role="img" aria-label="Before: port 22 open to the internet and constantly probed. After: port 22 removed from the public firewall and reachable only through the tailnet.">
-          <!-- before -->
-          <text x="20" y="26" class="svg-label">Before</text>
-          <rect x="20" y="40" width="150" height="112" rx="9" class="svg-surface svg-danger-s" stroke-width="1.6"/>
-          <text x="95" y="72" text-anchor="middle" class="svg-sub">the internet</text>
-          <text x="95" y="92" text-anchor="middle" class="svg-sub">scanners</text>
-          <text x="95" y="110" text-anchor="middle" class="svg-sub">botnets</text>
-          <text x="95" y="132" text-anchor="middle" class="svg-sub">credential stuffing</text>
+      <figure class="diagram sim" data-sim data-step-ms="3600" tabindex="0"
+              aria-label="Interactive walkthrough of closing the public SSH port. Pick a viewpoint, then step through the six changes and watch what each one does — and does not — change. Use the left and right arrow keys to step through it.">
 
-          <path d="M170 78 L318 78" class="svg-danger-s" stroke-width="2" fill="none"/>
-          <path d="M170 100 L318 100" class="svg-danger-s" stroke-width="2" fill="none"/>
-          <path d="M170 122 L318 122" class="svg-danger-s" stroke-width="2" fill="none"/>
-          <text x="244" y="70" text-anchor="middle" class="svg-sub">thousands/day</text>
+        <div class="sim-bar">
+          <span class="sim-bar-label">Whose view</span>
+          <button type="button" class="sim-scn is-on" data-scenario="scan" aria-pressed="true">An internet scanner</button>
+          <button type="button" class="sim-scn" data-scenario="you" aria-pressed="false">You, on your laptop</button>
+        </div>
 
-          <rect x="318" y="40" width="170" height="112" rx="9" class="svg-card svg-stroke" stroke-width="1.6"/>
-          <text x="403" y="66" text-anchor="middle" class="svg-label">VPS</text>
-          <rect x="334" y="78" width="138" height="26" rx="6" class="svg-surface svg-danger-s" stroke-width="1.4"/>
-          <text x="403" y="96" text-anchor="middle" class="svg-sub">:22 open</text>
-          <rect x="334" y="112" width="138" height="26" rx="6" class="svg-surface svg-stroke" stroke-width="1.2"/>
-          <text x="403" y="130" text-anchor="middle" class="svg-sub">:80 :443</text>
+        <svg viewBox="0 0 880 380" role="img" aria-label="A VPS with three port rows — public SSH, the web ports, and SSH over the tailnet — with the internet knocking from one side and your own devices from the other. A panel beside it reports what the chosen viewer gets at each step, and a bar tracks the authentication failures piling up in the log.">
+          <defs>
+            <marker id="v1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="currentColor" opacity=".45"/>
+            </marker>
+            <marker id="v2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" class="svg-accent"/>
+            </marker>
+            <marker id="v3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" class="svg-danger"/>
+            </marker>
+          </defs>
 
-          <text x="520" y="86" class="svg-sub">one weak credential</text>
-          <text x="520" y="106" class="svg-sub">away from compromise</text>
+          <text x="20" y="22" class="svg-sub">WHO IS REACHING THE VPS</text>
+          <text x="520" y="22" class="svg-sub">WHAT THEY GET AT THIS STEP</text>
 
-          <!-- after -->
-          <text x="20" y="208" class="svg-label">After</text>
-          <rect x="20" y="222" width="150" height="112" rx="9" class="svg-surface svg-stroke" stroke-width="1.4"/>
-          <text x="95" y="264" text-anchor="middle" class="svg-sub">the internet</text>
-          <text x="95" y="286" text-anchor="middle" class="svg-sub">sees only a</text>
-          <text x="95" y="304" text-anchor="middle" class="svg-sub">web server</text>
+          <!-- ============ the frame (always present) ============ -->
+          <g data-at="0+">
+            <rect x="20" y="34" width="150" height="92" rx="9" class="svg-surface svg-danger-s" stroke-width="1.5"/>
+            <text x="95" y="58" text-anchor="middle" class="svg-label">the internet</text>
+            <text x="95" y="80" text-anchor="middle" class="svg-sub">scanners · botnets</text>
+            <text x="95" y="97" text-anchor="middle" class="svg-sub">credential stuffing</text>
+            <text x="95" y="114" text-anchor="middle" class="svg-sub">arrives in minutes</text>
 
-          <path d="M170 300 L318 300" class="svg-muted-s" stroke-width="1.6" fill="none"/>
-          <path d="M170 262 L300 262" class="svg-danger-s" stroke-width="1.8" stroke-dasharray="6 4" fill="none"/>
-          <g class="svg-danger-s" stroke-width="2.6">
-            <path d="M302 252 L318 268"/><path d="M318 252 L302 268"/>
+            <rect x="250" y="34" width="220" height="222" rx="10" class="svg-card svg-stroke" stroke-width="1.6"/>
+            <text x="360" y="56" text-anchor="middle" class="svg-label">VPS · 203.0.113.10</text>
+
+            <rect x="266" y="132" width="188" height="46" rx="7" class="svg-surface svg-stroke" stroke-width="1.2"/>
+            <text x="360" y="152" text-anchor="middle" class="svg-sub">:80 :443 · public</text>
+            <text x="360" y="168" text-anchor="middle" class="svg-sub">the web server, on purpose</text>
+
+            <path d="M470 118 L512 118" class="svg-muted-s" stroke-width="1.5" fill="none" marker-end="url(#v1)"/>
+
+            <text x="20" y="304" class="svg-sub">AUTH FAILURES IN THE LOG</text>
+            <rect x="20" y="314" width="340" height="14" rx="7" class="svg-surface svg-stroke" stroke-width="1.2"/>
+          </g>
+          <text x="20" y="360" class="svg-sub">a port that is not there cannot be brute-forced, fuzzed, or hit by tomorrow's pre-auth CVE</text>
+
+          <!-- ============ your side of the tailnet, from step 3 ============ -->
+          <g data-at="3+">
+            <rect x="20" y="164" width="150" height="92" rx="9" class="svg-surface svg-accent-s" stroke-width="1.6"/>
+            <text x="95" y="188" text-anchor="middle" class="svg-label">your devices</text>
+            <text x="95" y="210" text-anchor="middle" class="svg-sub">MacBook · iPhone</text>
+            <text x="95" y="227" text-anchor="middle" class="svg-sub">inside WireGuard</text>
+            <text x="95" y="244" text-anchor="middle" class="svg-sub">100.x addresses</text>
+            <path d="M170 215 L250 215" class="svg-accent-s" stroke-width="1.8" fill="none" marker-end="url(#v2)"/>
+          </g>
+          <path data-at="3+" data-flow="accent" data-count="2" data-speed="0.22"
+                d="M170 215 L250 215" stroke="none" fill="none"/>
+
+          <!-- ============ the tailnet SSH row ============ -->
+          <g data-at="0-2" data-scn="scan you">
+            <rect x="266" y="192" width="188" height="46" rx="7" class="svg-surface svg-stroke" stroke-width="1.2" stroke-dasharray="5 4"/>
+            <text x="360" y="212" text-anchor="middle" class="svg-sub">no tailnet yet</text>
+            <text x="360" y="228" text-anchor="middle" class="svg-sub">one way in — the public one</text>
+          </g>
+          <g data-at="3+" class="sim-pop">
+            <rect x="266" y="192" width="188" height="46" rx="7" class="svg-card svg-accent-s" stroke-width="1.6"/>
+            <text x="360" y="212" text-anchor="middle" class="svg-mono-accent">100.x :22 · tailnet</text>
+            <text x="360" y="228" text-anchor="middle" class="svg-sub">Tailscale SSH</text>
           </g>
 
-          <rect x="318" y="222" width="170" height="112" rx="9" class="svg-card svg-accent-s" stroke-width="1.8"/>
-          <text x="403" y="248" text-anchor="middle" class="svg-label">VPS</text>
-          <rect x="334" y="258" width="138" height="26" rx="6" class="svg-surface svg-stroke" stroke-width="1.2" stroke-dasharray="4 3"/>
-          <text x="403" y="276" text-anchor="middle" class="svg-sub">:22 not exposed</text>
-          <rect x="334" y="292" width="138" height="26" rx="6" class="svg-surface svg-stroke" stroke-width="1.2"/>
-          <text x="403" y="310" text-anchor="middle" class="svg-sub">:80 :443</text>
+          <!-- ============ the public SSH row, in three states ============ -->
+          <g data-at="0" data-scn="scan you">
+            <rect x="266" y="72" width="188" height="46" rx="7" class="svg-surface svg-danger-s" stroke-width="1.6"/>
+            <text x="360" y="92" text-anchor="middle" class="svg-mono-danger">:22 open · password</text>
+            <text x="360" y="108" text-anchor="middle" class="svg-sub">root login allowed</text>
+          </g>
+          <g data-at="1-4" data-scn="scan you">
+            <rect x="266" y="72" width="188" height="46" rx="7" class="svg-surface svg-warn-s" stroke-width="1.5"/>
+            <text x="360" y="92" text-anchor="middle" class="svg-mono-warn">:22 open · keys only</text>
+            <text x="360" y="108" text-anchor="middle" class="svg-sub">still a public door</text>
+          </g>
+          <g data-at="5" data-scn="scan you" data-poster>
+            <rect x="266" y="72" width="188" height="46" rx="7" class="svg-surface svg-stroke" stroke-width="1.2" stroke-dasharray="4 3"/>
+            <text x="360" y="92" text-anchor="middle" class="svg-sub">:22 · no public rule</text>
+            <text x="360" y="108" text-anchor="middle" class="svg-sub">removed from ufw</text>
+          </g>
 
-          <path d="M488 278 L604 278" class="svg-accent-s" stroke-width="2.2" fill="none"/>
-          <rect x="604" y="252" width="150" height="52" rx="9" class="svg-card svg-accent-s" stroke-width="1.8"/>
-          <text x="679" y="274" text-anchor="middle" class="svg-sub">tailnet only</text>
-          <text x="679" y="291" text-anchor="middle" class="svg-sub">your devices</text>
-          <text x="546" y="270" text-anchor="middle" class="svg-sub">wg</text>
+          <!-- ============ what the internet's packets do ============ -->
+          <g data-at="0-4" data-scn="scan you">
+            <path d="M170 95 L250 95" class="svg-danger-s" stroke-width="2" fill="none" marker-end="url(#v3)"/>
+          </g>
+          <path data-at="0-4" data-scn="scan you" data-flow="warn" data-count="3" data-speed="0.2"
+                d="M170 95 L250 95" stroke="none" fill="none"/>
+          <g data-at="5" data-scn="scan you" data-poster>
+            <path d="M170 95 L204 95" class="svg-danger-s" stroke-width="1.8" stroke-dasharray="6 4" fill="none"/>
+            <path d="M208 86 L224 104" class="svg-danger-s" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+            <path d="M224 86 L208 104" class="svg-danger-s" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+          </g>
+          <path data-at="5" data-scn="scan you" data-flow="warn" data-count="2" data-speed="0.18"
+                d="M170 95 L202 95" stroke="none" fill="none"/>
+
+          <!-- ============ which part of the box this step touches ============ -->
+          <rect data-at="0" data-scn="scan you" x="266" y="72" width="188" height="46" rx="7"
+                fill="none" class="svg-danger-s" stroke-width="2.6"/>
+          <rect data-at="1" data-scn="scan you" x="266" y="72" width="188" height="46" rx="7"
+                fill="none" class="svg-warn-s" stroke-width="2.6"/>
+          <rect data-at="2" data-scn="scan you" x="250" y="34" width="220" height="222" rx="10"
+                fill="none" class="svg-accent-s" stroke-width="2.6"/>
+          <g data-at="3" data-scn="scan you">
+            <rect x="20" y="164" width="150" height="92" rx="9" fill="none" class="svg-accent-s" stroke-width="2.6"/>
+            <rect x="266" y="192" width="188" height="46" rx="7" fill="none" class="svg-accent-s" stroke-width="2.6"/>
+          </g>
+          <rect data-at="4" data-scn="scan you" x="266" y="192" width="188" height="46" rx="7"
+                fill="none" class="svg-accent-s" stroke-width="2.6"/>
+          <rect data-at="5" data-scn="scan you" x="266" y="72" width="188" height="46" rx="7"
+                fill="none" class="svg-accent-s" stroke-width="2.6"/>
+
+          <!-- ============ the log-noise meter ============ -->
+          <!-- each readout sits on an opaque chip so the two never bleed
+               through each other while one fades out and the next fades in -->
+          <g data-at="0-4" data-scn="scan you">
+            <rect x="22" y="316" width="336" height="10" rx="5" class="svg-danger"/>
+            <rect x="366" y="313" width="258" height="19" rx="5" class="svg-card"/>
+            <text x="372" y="327" class="svg-mono-danger">≈ 4,800 a day, and none of it stops</text>
+          </g>
+          <g data-at="5" data-scn="scan you" data-poster>
+            <rect x="366" y="313" width="258" height="19" rx="5" class="svg-card"/>
+            <text x="372" y="327" class="svg-mono-accent">0 — there is nothing left to knock on</text>
+          </g>
+
+          <!-- ============ step 0 · day one ============ -->
+          <g data-at="0" data-scn="scan" class="sim-pop">
+            <rect x="520" y="60" width="340" height="116" rx="9" class="svg-card svg-danger-s" stroke-width="1.7"/>
+            <text x="538" y="88" class="svg-mono-danger">in · and it will keep guessing</text>
+            <text x="538" y="112" class="svg-sub">password authentication is on</text>
+            <text x="538" y="130" class="svg-sub">root login is permitted</text>
+            <text x="538" y="148" class="svg-sub">every attempt is a free try</text>
+          </g>
+          <g data-at="0" data-scn="you" class="sim-pop">
+            <rect x="520" y="60" width="340" height="116" rx="9" class="svg-card svg-warn-s" stroke-width="1.7"/>
+            <text x="538" y="88" class="svg-mono-warn">in · through the same door they use</text>
+            <text x="538" y="112" class="svg-sub">root, over the public internet, with a password</text>
+            <text x="538" y="130" class="svg-sub">this is the first ten minutes' whole job</text>
+            <text x="538" y="148" class="svg-sub">fix it before anything else</text>
+          </g>
+
+          <!-- ============ step 1 · sshd hardened ============ -->
+          <g data-at="1" data-scn="scan" class="sim-pop">
+            <rect x="520" y="60" width="340" height="116" rx="9" class="svg-card svg-warn-s" stroke-width="1.7"/>
+            <text x="538" y="88" class="svg-mono-warn">reaches :22 · always denied</text>
+            <text x="538" y="112" class="svg-sub">PasswordAuthentication no · PermitRootLogin no</text>
+            <text x="538" y="130" class="svg-sub">every attempt now fails at the daemon</text>
+            <text x="538" y="148" class="svg-sub">the log noise does not change at all</text>
+          </g>
+          <g data-at="1" data-scn="you" class="sim-pop">
+            <rect x="520" y="60" width="340" height="116" rx="9" class="svg-card svg-accent-s" stroke-width="1.5"/>
+            <text x="538" y="88" class="svg-mono-accent">in · your key, on the public port</text>
+            <text x="538" y="112" class="svg-sub">sshd -t passed, then reload, then re-test</text>
+            <text x="538" y="130" class="svg-sub">always from a second, already-open session</text>
+            <text x="538" y="148" class="svg-sub">the port is hardened, not hidden</text>
+          </g>
+
+          <!-- ============ step 2 · the firewall ============ -->
+          <g data-at="2" data-scn="scan" class="sim-pop">
+            <rect x="520" y="60" width="340" height="116" rx="9" class="svg-card svg-warn-s" stroke-width="1.7"/>
+            <text x="538" y="88" class="svg-mono-warn">reaches :22 · the rule allows it</text>
+            <text x="538" y="112" class="svg-sub">ufw default deny closed everything else</text>
+            <text x="538" y="130" class="svg-sub">but allow OpenSSH is still in the set</text>
+            <text x="538" y="148" class="svg-sub">a hardened door is still a door</text>
+          </g>
+          <g data-at="2" data-scn="you" class="sim-pop">
+            <rect x="520" y="60" width="340" height="116" rx="9" class="svg-card svg-accent-s" stroke-width="1.5"/>
+            <text x="538" y="88" class="svg-mono-accent">in · and ufw is holding it open</text>
+            <text x="538" y="112" class="svg-sub">allow OpenSSH is your safety line for now</text>
+            <text x="538" y="130" class="svg-sub">keep it until the tailnet path is proven</text>
+            <text x="538" y="148" class="svg-sub">80 and 443 stay open on purpose</text>
+          </g>
+
+          <!-- ============ step 3 · tailscale up --ssh ============ -->
+          <g data-at="3" data-scn="scan" class="sim-pop">
+            <rect x="520" y="60" width="340" height="116" rx="9" class="svg-card svg-warn-s" stroke-width="1.7"/>
+            <text x="538" y="88" class="svg-mono-warn">reaches :22 · nothing was removed</text>
+            <text x="538" y="112" class="svg-sub">Tailscale added a path, it did not close one</text>
+            <text x="538" y="130" class="svg-sub">and nothing should close until step 4</text>
+            <text x="538" y="148" class="svg-sub">the scan cannot tell anything happened</text>
+          </g>
+          <g data-at="3" data-scn="you" class="sim-pop">
+            <rect x="520" y="60" width="340" height="116" rx="9" class="svg-card svg-accent-s" stroke-width="1.5"/>
+            <text x="538" y="88" class="svg-mono-accent">two ways in · public and tailnet</text>
+            <text x="538" y="112" class="svg-sub">tailscale up --ssh, on the VPS</text>
+            <text x="538" y="130" class="svg-sub">having both at once is the point</text>
+            <text x="538" y="148" class="svg-sub">remove nothing yet</text>
+          </g>
+
+          <!-- ============ step 4 · prove the new path ============ -->
+          <g data-at="4" data-scn="scan" class="sim-pop">
+            <rect x="520" y="60" width="340" height="116" rx="9" class="svg-card svg-warn-s" stroke-width="1.7"/>
+            <text x="538" y="88" class="svg-mono-warn">reaches :22 · one command from gone</text>
+            <text x="538" y="112" class="svg-sub">the tailnet path is proven working</text>
+            <text x="538" y="130" class="svg-sub">the public rule has done its job</text>
+            <text x="538" y="148" class="svg-sub">now it is safe to delete</text>
+          </g>
+          <g data-at="4" data-scn="you" class="sim-pop">
+            <rect x="520" y="60" width="340" height="116" rx="9" class="svg-card svg-accent-s" stroke-width="1.5"/>
+            <text x="538" y="88" class="svg-mono-accent">proven · a shell over the tailnet</text>
+            <text x="538" y="112" class="svg-sub">ssh yourname@vps-hostname, new terminal</text>
+            <text x="538" y="130" class="svg-sub">this test is what makes step 5 safe</text>
+            <text x="538" y="148" class="svg-sub">skip it and step 5 is a coin flip</text>
+          </g>
+
+          <!-- ============ step 5 · the rule is deleted ============ -->
+          <g data-at="5" data-scn="scan" data-poster class="sim-pop">
+            <rect x="520" y="60" width="340" height="116" rx="9" class="svg-card svg-accent-s" stroke-width="1.7"/>
+            <text x="538" y="88" class="svg-mono-accent">nothing to reach · filtered</text>
+            <text x="538" y="112" class="svg-sub">nmap -Pn -p22 → 22/tcp filtered</text>
+            <text x="538" y="130" class="svg-sub">no banner, no handshake, no prompt</text>
+            <text x="538" y="148" class="svg-sub">the log noise stops. Not reduced — stopped.</text>
+          </g>
+          <g data-at="5" data-scn="you" class="sim-pop">
+            <rect x="520" y="60" width="340" height="116" rx="9" class="svg-card svg-accent-s" stroke-width="1.5"/>
+            <text x="538" y="88" class="svg-mono-accent">in · tailnet only, and that is enough</text>
+            <text x="538" y="112" class="svg-sub">mosh and tmux ride inside WireGuard</text>
+            <text x="538" y="130" class="svg-sub">keep the provider console tested</text>
+            <text x="538" y="148" class="svg-sub">it is now your recovery path</text>
+          </g>
+
+          <!-- ============ the packets between box and panel ============ -->
+          <path data-at="0-4" data-scn="scan" data-flow="warn" data-count="2" data-speed="0.24"
+                d="M470 118 L512 118" stroke="none" fill="none"/>
+          <path data-at="5" data-scn="scan" data-flow="accent" data-count="2" data-speed="0.24"
+                d="M470 118 L512 118" stroke="none" fill="none"/>
+          <path data-at="0" data-scn="you" data-flow="warn" data-count="2" data-speed="0.24"
+                d="M470 118 L512 118" stroke="none" fill="none"/>
+          <path data-at="1-5" data-scn="you" data-flow="accent" data-count="2" data-speed="0.24"
+                d="M470 118 L512 118" stroke="none" fill="none"/>
         </svg>
+
+        <div class="sim-controls">
+          <button type="button" class="sim-btn" data-act="prev" aria-label="Previous step"><span class="sim-glyph">◀</span></button>
+          <button type="button" class="sim-btn sim-btn-play" data-act="play" aria-label="Play">
+            <span class="sim-glyph">▶</span><span class="sim-btn-text">Play</span>
+          </button>
+          <button type="button" class="sim-btn" data-act="next" aria-label="Next step"><span class="sim-glyph">▶</span></button>
+          <div class="sim-track" role="group" aria-label="Jump to step">
+            <button type="button" class="sim-dot" data-goto="0" aria-label="Step 0, day one">0</button>
+            <button type="button" class="sim-dot" data-goto="1" aria-label="Step 1, harden sshd">1</button>
+            <button type="button" class="sim-dot" data-goto="2" aria-label="Step 2, the firewall">2</button>
+            <button type="button" class="sim-dot" data-goto="3" aria-label="Step 3, Tailscale on the VPS">3</button>
+            <button type="button" class="sim-dot" data-goto="4" aria-label="Step 4, prove the tailnet path">4</button>
+            <button type="button" class="sim-dot" data-goto="5" aria-label="Step 5, delete the public rule">5</button>
+          </div>
+          <div class="sim-progress" aria-hidden="true"><span></span></div>
+        </div>
+
+        <div class="sim-term" aria-hidden="true">
+          <div data-at="0" data-scn="scan" data-poster><span class="tp">#</span> /var/log/auth.log, an hour after creation<br>Failed password for root from 45.135.x.x <span class="twarn">… × 412</span></div>
+          <div data-at="0" data-scn="you"><span class="tp">$</span> ssh root@203.0.113.10<br>root@203.0.113.10's password: <span class="tdim">the only way in today</span></div>
+
+          <div data-at="1" data-scn="scan" data-poster><span class="tp">#</span> the same scanner, one config later<br>Connection closed by invalid user admin <span class="twarn">[preauth]</span></div>
+          <div data-at="1" data-scn="you"><span class="tp">$</span> sudo sshd -t &amp;&amp; sudo systemctl reload ssh<br><span class="tok">ok</span> <span class="tdim">— now open a fresh session before closing anything</span></div>
+
+          <div data-at="2" data-scn="scan" data-poster><span class="tp">$</span> nmap -Pn -p22,80,443 203.0.113.10<br>22/tcp <span class="twarn">open</span> · 80/tcp <span class="twarn">open</span> · 443/tcp <span class="twarn">open</span></div>
+          <div data-at="2" data-scn="you"><span class="tp">$</span> sudo ufw status verbose<br>OpenSSH <span class="twarn">ALLOW IN</span> Anywhere <span class="tdim">— on purpose, for now</span></div>
+
+          <div data-at="3" data-scn="scan" data-poster><span class="tp">$</span> nmap -Pn -p22 203.0.113.10<br>22/tcp <span class="twarn">open</span> ssh <span class="tdim">— the tailnet is invisible from out here</span></div>
+          <div data-at="3" data-scn="you"><span class="tp">$</span> sudo tailscale up --ssh<br>100.101.4.2 vps <span class="tok">active</span> <span class="tdim">— a second path now exists</span></div>
+
+          <div data-at="4" data-scn="scan" data-poster><span class="tp">#</span> nothing has changed out here yet<br><span class="tdim">the public rule is still in place — for one more command</span></div>
+          <div data-at="4" data-scn="you"><span class="tp">$</span> ssh yourname@vps-hostname 'echo ok'<br><span class="tok">ok</span> <span class="tdim">— proven over the tailnet, from a new terminal</span></div>
+
+          <div data-at="5" data-scn="scan" data-poster><span class="tp">$</span> nmap -Pn -p22 203.0.113.10<br>22/tcp <span class="tok">filtered</span> ssh <span class="tdim">— no banner, nothing to talk to</span></div>
+          <div data-at="5" data-scn="you"><span class="tp">$</span> sudo ufw delete allow OpenSSH<br>Rule deleted <span class="tok">— second session still connected</span></div>
+        </div>
+
+        <ol class="sim-steps" aria-live="polite">
+          <li data-at="0" data-scn="scan" data-poster><b>0 · Day one</b>A fresh VPS, root, password authentication, port 22 open to everyone. The scanners do not need to find you — they are already sweeping the whole address space, and your box joined it minutes ago. Every one of those attempts is a free guess.</li>
+          <li data-at="0" data-scn="you"><b>0 · Day one, from your side</b>You are logging in through the exact door the scanners are using, as root, with a password. Nothing about this is unusual — it is how every provider hands the machine over. It is also the single worst state the machine will ever be in.</li>
+
+          <li data-at="1" data-scn="scan" data-poster><b>1 · sshd hardened — and the noise is unchanged</b>No root, no passwords, three tries, thirty seconds. Every attempt now dies at the daemon. Notice what did <em>not</em> happen: the scanning did not slow down at all. Hardening changes the outcome of each attempt, not the number of them.</li>
+          <li data-at="1" data-scn="you"><b>1 · Prove the key, then take the password away</b>Key login first, verified, from a second session you leave open. Then <code>sshd -t</code>, then reload, then connect again in a third terminal before you close anything. That ordering is the entire safety mechanism.</li>
+
+          <li data-at="2" data-scn="scan" data-poster><b>2 · The firewall closes everything except what you opened</b>Default deny inbound is a large improvement for every port you forgot about — and no improvement at all for port 22, because <code>ufw allow OpenSSH</code> is still in the rule set. The scanner sees exactly what it saw yesterday.</li>
+          <li data-at="2" data-scn="you"><b>2 · Keep the SSH rule for now</b>It looks redundant the moment Tailscale is running. It is not redundant, it is your safety line — the thing that gets you back in if the tailnet path turns out not to work. Ports 80 and 443 stay open because they are genuinely public.</li>
+
+          <li data-at="3" data-scn="scan" data-poster><b>3 · Tailscale changes nothing out here</b>A new path exists, and from the internet it is entirely invisible: no port, no banner, no handshake. Also — importantly — nothing was closed. Adding a path and removing a path are two separate steps, and they must stay that way.</li>
+          <li data-at="3" data-scn="you"><b>3 · A second way in</b><code>sudo tailscale up --ssh</code>. You now have two independent routes to the box. This is the state people rush through, and it is the one that makes the next two steps survivable. Remove nothing while you are here.</li>
+
+          <li data-at="4" data-scn="scan" data-poster><b>4 · Still open, for one more command</b>The public rule has done its job: it kept you in the machine while you built the replacement. From out here nothing has changed yet — the last step is the one that matters, and it is about to happen.</li>
+          <li data-at="4" data-scn="you"><b>4 · Prove the new path before you delete the old one</b>A fresh terminal, over the tailnet: <code>ssh yourname@vps-hostname</code>. If that does not work, stop and fix it — you still have the public port. This test is the whole difference between a change and a lockout.</li>
+
+          <li data-at="5" data-scn="scan" data-poster><b>5 · The port stops existing</b><code>sudo ufw delete allow OpenSSH</code>, and <code>22/tcp</code> goes to <em>filtered</em>. The log noise stops — not reduced, stopped. Brute force, weak-key scans and every future OpenSSH pre-auth bug all require reaching the port first, and now none of them can.</li>
+          <li data-at="5" data-scn="you"><b>5 · Tailnet only, and that is enough</b>SSH, Mosh and tmux all ride inside WireGuard, so Mosh's UDP range needs no public rule either. The cost is that your tailnet is now the only path — so keep the provider's console access tested, and treat it as the recovery route it is.</li>
+        </ol>
+
         <figcaption>
           <b>The log noise stops completely.</b> Not reduced — stopped. Brute-force attempts, weak-key
           scans, and every future OpenSSH pre-auth vulnerability all require reaching the port first.
-          This is worth more than any amount of password policy.
+          This is worth more than any amount of password policy — step through it as
+          <b>An internet scanner</b> and watch how little steps 1 to 4 change from the outside, and how
+          much step 5 does.
         </figcaption>
       </figure>
 
@@ -319,5 +565,6 @@ curl -fsSL https://herdr.dev/install.sh | sh</code></pre>
 </div>
 <script src="../assets/nav.js"></script>
 <script src="../assets/app.js"></script>
+<script src="../assets/anim.js"></script>
 </body>
 </html>
