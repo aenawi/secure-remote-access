@@ -42,6 +42,11 @@
           kernels can, which is exactly why this chapter still exists. But it is the cheaper place
           to make your first mistakes, and it costs nothing to try before committing to the build.
         </p>
+        <p>
+          And if you want the real kernels without the afternoon, there is a middle path:
+          <a href="#fast-path"><code>cd lab &amp;&amp; docker compose up</code></a>
+          brings the same topology up as containers, with an attacker you can switch on.
+        </p>
       </div>
 
       <div class="callout danger">
@@ -412,6 +417,81 @@
         </p>
       </div>
 
+      <h2 id="fast-path">The fast path: <code>docker compose up</code></h2>
+      <p>
+        Everything below this section builds the rig by hand, and that is worth doing once: you learn
+        where each piece sits by putting it there. But it is ten commands, three VM downloads and an
+        afternoon, and there is a version of the same topology that takes one command.
+      </p>
+
+      <pre><code>cd lab &amp;&amp; docker compose up -d
+open http://localhost:8099</code></pre>
+
+      <p>
+        Docker is the only thing you need installed. The control server, the coordination server and
+        the certificate authority are all services in the same stack, so there is no Go, no Python and
+        no npm on your machine. What comes up is four containers on four isolated segments, each
+        behind its own NAT router, running real <code>tailscaled</code> on real TUN devices and
+        putting real WireGuard frames on real wires — plus a page where every switch is a command that
+        runs and every probe reports the rung that decided it.
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th></th><th>The Lima rig, below</th><th><code>lab/</code></th></tr>
+          </thead>
+          <tbody>
+            <tr><td><b>Setup</b></td><td>Ten commands and three VM images</td><td>One command</td></tr>
+            <tr><td><b>Coordination</b></td><td>A real throwaway tailnet</td><td>Headscale, in the stack</td></tr>
+            <tr><td><b>Proves chapter 01 as written</b></td><td>Yes</td><td>Partly — a compatible reimplementation</td></tr>
+            <tr><td><b>Offline &amp; repeatable</b></td><td>No</td><td>Yes</td></tr>
+            <tr><td><b>An attacker on the wire</b></td><td>You build one</td><td><code>evil-box</code>, behind a profile</td></tr>
+            <tr><td><b>Teaches you the moving parts</b></td><td>Yes, that is the point</td><td>No — it hides them</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        The two are not rivals. Build the rig below once to understand the shape of the thing; use
+        <code>lab/</code> when you want to re-run the whole battery against a change, or point
+        something hostile at it, or produce the same evidence twice on a Tuesday.
+        <a href="../lab/README.md">Its README</a> covers the services, the ports, what each attack
+        proves, and — the part worth reading first — the three places where the containers and the
+        <a href="14-sandbox.html">chapter 14 sandbox</a> disagree with each other.
+      </p>
+
+      <div class="callout warn">
+        <div class="ct">It uses Headscale, and this chapter tells you not to</div>
+        <p>
+          Two paragraphs below, this chapter argues for a real throwaway tailnet over Headscale, and
+          it still means it: testing Tailscale's NAT traversal and ACL semantics against a different
+          implementation is testing a different product. <code>lab/</code> diverges deliberately,
+          because a rig you are going to point an attacker at should not need an account, an internet
+          connection or anybody's production infrastructure — and because <code>make reset</code>
+          should be able to destroy the entire control plane, which is not a thing you can do to
+          somebody else's.
+        </p>
+        <p>
+          So: use the throwaway tailnet when you are checking whether <em>Tailscale</em> behaves as
+          chapter 01 describes. Use <code>lab/</code> when you are checking whether
+          <em>your configuration</em> holds. Those are different questions and it is worth knowing
+          which one you are asking.
+        </p>
+      </div>
+
+      <div class="callout danger">
+        <div class="ct">The attacker never starts on its own</div>
+        <p>
+          <code>evil-box</code> sits behind a compose profile and does not exist until you run
+          <code>docker compose --profile attack up -d</code>. When it does exist, it attacks
+          containers you started, on hardware you own, on bridges that reach nothing else. The control
+          server holds the Docker socket, has no authentication, is published to
+          <code>127.0.0.1</code> only, and refuses to start if that is changed — which is a guardrail
+          worth leaving in place rather than a formality.
+        </p>
+      </div>
+
       <h2>Building the rig</h2>
       <p>
         Three Linux VMs, one per role in the guide. This uses <a href="https://lima-vm.io">Lima</a>,
@@ -671,7 +751,7 @@ tart delete lab-mac          # if you built one</code></pre>
 
       <h2>Checklist</h2>
       <ul class="checklist">
-        <li>Three VMs running, each on its own NAT — no <code>--network</code> flag.</li>
+        <li>Either three VMs running, each on its own NAT — or <code>lab/</code> up with <code>docker compose</code>.</li>
         <li>A throwaway tailnet on a separate account, never the real one.</li>
         <li>All three nodes joined and visible in <code>tailscale status</code>.</li>
         <li><code>tailscale netcheck</code> run and its output read, not just executed.</li>
@@ -685,6 +765,7 @@ tart delete lab-mac          # if you built one</code></pre>
         <li>tmux reattached after a hard client kill.</li>
         <li>The build order deliberately run wrong once, and recovered from.</li>
         <li>Lab nodes removed from the tailnet and auth keys revoked at teardown.</li>
+        <li>If you used <code>lab/</code>: the eleven-check audit run against <code>hardened</code>, and its one failure understood rather than ignored.</li>
       </ul>
 
       <nav class="pager"></nav>

@@ -10,3 +10,6 @@
 # Local tooling artefacts
 .mcp-web-inspector/
 .ast-bro/
+
+# The control server binary, if you build it outside Docker
+lab/control/control
