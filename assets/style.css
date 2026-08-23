@@ -1,5 +1,5 @@
 /* ============================================================
-   Secure Remote Dev Environment — shared stylesheet
+   Secure Remote Access — shared stylesheet
    Theme-aware: light palette on :root, dark overrides guarded
    so the toggle wins in both directions.
    ============================================================ */
@@ -483,6 +483,7 @@ td code { font-size: 12.5px; }
 }
 .badge.mac { color: var(--info); }
 .badge.ios { color: var(--accent); }
+.badge.android { color: var(--ok); }
 .badge.linux { color: var(--warn); }
 .badge.all { color: var(--text-muted); }
 

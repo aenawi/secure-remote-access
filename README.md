@@ -1,8 +1,14 @@
-# Secure Remote Dev Environment — a guide
+# Secure Remote Access — a guide
 
-A self-contained HTML guide to reaching your MacBook Pro, Linux VPS and Ubuntu
-laptop from an iPhone — privately, and without losing work when the connection
+A self-contained HTML guide to reaching your own laptops, servers and phones
+from anywhere — privately, and without losing your session when the connection
 drops.
+
+It is built in two separable layers. The **network layer** (chapters 01, 02 and
+the per-machine hardening chapters) gives you private reachability and is useful
+whatever you point at it. The **session layer** (chapters 03 and 04 — Mosh and
+tmux) is what turns that into somewhere you can work for hours from a phone on a
+moving train. Build the first alone if that is all you need.
 
 ## Open it
 
@@ -21,29 +27,30 @@ python3 -m http.server -d . 8080   # then visit http://localhost:8080
 
 | # | Chapter | Covers |
 |---|---------|--------|
-| — | `index.html` | The whole picture: four machines, three planes, how the layers stack |
+| — | `index.html` | The whole picture: four machines, three planes, how the layers stack (the phone role covers both iOS and Android) |
 | 01 | Tailscale & WireGuard | Cryptokey routing, NAT traversal, DERP, ACLs, tailnet lock |
 | 02 | SSH, keys & hardening | The auth handshake, key types, `sshd_config`, macOS PAM/SACL |
 | 03 | Mosh & Blink Shell | Why SSH dies on mobile, the state-sync protocol, Secure Enclave keys |
 | 04 | tmux & Herdr | Session persistence, agent multiplexing, the prefix collision |
-| 05 | Securing the MacBook Pro | FileVault, port audit, sshd as a launchd daemon, tailnet-only bind, reaching a dev server from the phone |
+| 05 | Securing the MacBook Pro | FileVault, port audit, sshd as a launchd daemon, tailnet-only bind, reaching a local service from the phone |
 | 06 | The iPhone client | Device hardening, Blink setup, Mosh, saved hosts |
-| 07 | Hardening a Linux VPS | First ten minutes, UFW, closing public SSH, Docker's UFW bypass |
-| 08 | The Ubuntu laptop | LUKS, Secure Boot, MAC randomisation, hostile networks |
-| 09 | Threat model & key custody | Who you are defending against, blast radius, incident response |
-| 10 | Runbooks & checklists | Build order, onboarding, rotation, the full deployment checklist |
-| 11 | Troubleshooting | A five-rung diagnostic ladder and a symptom reference |
+| 07 | The Android client | Termux, key custody without an enclave, Doze and per-vendor app killing |
+| 08 | Hardening a Linux VPS | First ten minutes, UFW, closing public SSH, Docker's UFW bypass |
+| 09 | The Ubuntu laptop | LUKS, Secure Boot, MAC randomisation, hostile networks |
+| 10 | Threat model & key custody | Who you are defending against, blast radius, incident response |
+| 11 | Runbooks & checklists | Build order, onboarding, rotation, the full deployment checklist |
+| 12 | Troubleshooting | A five-rung diagnostic ladder and a symptom reference |
 
 ## Features
 
-- **Interactive diagrams.** Chapters 01–05 carry stepped simulations rather than
+- **Interactive diagrams.** Every chapter carries stepped simulations rather than
   static pictures: pick a scenario, then step through it with the controls or the
   arrow keys. The drawing, the narration and a mock terminal all advance together,
   so you can watch a NAT punch through, an SSH replay get rejected, or a launchd
   job fall into a restart loop. With JavaScript off each one collapses to a
   readable static poster frame.
 - **Persistent checklists.** Ticks are saved in `localStorage`, per chapter.
-  The full deployment checklist in chapter 10 has a progress bar and a reset button.
+  The full deployment checklist in chapter 11 has a progress bar and a reset button.
 - **Dark and light themes**, following your system by default, with a toggle
   (bottom right) that overrides and remembers.
 - **Copy buttons** on every command block.
@@ -63,7 +70,7 @@ secure-remote-dev-guide/
 │   ├── anim.js        the stepped diagram simulations
 │   └── favicon.svg
 └── chapters/
-    └── 01-…-11-….html
+    └── 01-…-12-….html
 ```
 
 `nav.js` is the single source of truth for navigation. Add an entry there and the
@@ -83,8 +90,6 @@ scenario-specific layer *except* those tagged `data-poster` until it does. So
 `data-poster` marks the one coherent frame a reader sees with scripting off — worth
 setting deliberately on any new simulation.
 
-Chapters 06–11 and the index still use static diagrams and do not load `anim.js`.
-
 Navigation is defined as a plain global rather than fetched, because `fetch()` is
 blocked on the `file:` scheme — this is what lets the guide work by double-clicking
 `index.html`.
@@ -92,10 +97,14 @@ blocked on the `file:` scheme — this is what lets the guide work by double-cli
 ## A note on accuracy
 
 Commands were written against macOS 26, Ubuntu 24.04 LTS, OpenSSH 10.x and
-Tailscale as of August 2026. Two things move fastest and are worth checking
+Tailscale as of August 2026. Three things move fastest and are worth checking
 against their own docs rather than trusting any guide:
 
 - **Herdr** is young; keybindings and config keys are still settling. Use
   `herdr --default-config` and `prefix + ?` on your installed version.
 - **Tailscale SSH** server support is Linux plus the open-source macOS CLI build
   only — *not* the standard macOS app.
+- **Android vendor settings** (chapter 07) move constantly and differ per handset
+  and per OS version. The setting *names* are stable enough to search for; the menu
+  paths are not. [dontkillmyapp.com](https://dontkillmyapp.com/) tracks them per
+  vendor and is more current than this guide can be.
