@@ -40,6 +40,7 @@ python3 -m http.server -d . 8080   # then visit http://localhost:8080
 | 10 | Threat model & key custody | Who you are defending against, blast radius, incident response |
 | 11 | Runbooks & checklists | Build order, onboarding, rotation, the full deployment checklist |
 | 12 | Troubleshooting | A five-rung diagnostic ladder and a symptom reference |
+| 13 | The lab | Three throwaway VMs, a deliberately hostile network, and a pass/fail test per chapter |
 
 ## Features
 

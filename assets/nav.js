@@ -35,6 +35,10 @@ window.GUIDE_NAV = [
     { n: "12", id: "troubleshooting",  file: "chapters/12-troubleshooting.html",     title: "Troubleshooting",
       desc: "A diagnostic ladder for connections that fail, hang, or drop." },
   ]},
+  { group: "Prove it", items: [
+    { n: "13", id: "lab",              file: "chapters/13-lab.html",                 title: "The lab",
+      desc: "Build the topology as throwaway VMs, shape the network, and prove the guide works." },
+  ]},
 ];
 
 /* Flat list for prev/next paging. */
