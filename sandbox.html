@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The sandbox — Secure Remote Access</title>
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-page="sandbox">
+<div class="layout">
+  <aside class="sidebar"></aside>
+  <main class="main">
+    <div class="content">
+
+      <p class="eyebrow">Chapter 14 · Prove it <span class="badge all">All machines</span></p>
+      <h1>The sandbox</h1>
+      <p class="lede">
+        Every other diagram in this guide is a story someone wrote down: on step three, this
+        happens. This one has no steps. It has machines, a network, a policy, and an engine that
+        works out the consequence of whatever you do to them. Close a port, kill a link, leak a
+        key, put a hostile machine on the wire — and read what actually happens, at which rung,
+        with real numbers.
+      </p>
+
+      <div class="callout info">
+        <div class="ct">What this is, and what it is not</div>
+        <p>
+          This is a <strong>model</strong> of the topology in this guide, running in your browser.
+          Nothing here is a container and no packet leaves your machine. What it gives you is
+          the thing a diagram cannot: a consequence you did not read in advance. What it cannot
+          give you is a surprise — it only knows what has been modelled, and the real world does
+          not agree to be modelled. When you want the real thing, everything you do here can be
+          exported as a script and run against the three VMs in
+          <a href="chapters/13-lab.html">chapter 13</a>.
+        </p>
+      </div>
+
+      <section class="sandbox" data-sandbox>
+
+        <div class="sb-poster">
+          <b>This page needs JavaScript.</b>
+          Without it you get the diagram below and nothing else, because the whole point of the
+          page is an engine that recomputes the drawing when you change something. The topology
+          is real either way: three machines behind three NATs, a tailnet in the middle, and a
+          public address on <code>lab-vps</code> that anyone in the world can reach.
+          Everything the console would let you prove is also written out longhand in
+          <a href="chapters/13-lab.html">chapter 13</a>, as commands you can run yourself.
+        </div>
+
+        <div class="sb-stage">
+          <svg viewBox="0 0 860 320" role="img"
+               aria-label="The lab topology: lab-roam, evil-box and lab-ubuntu on the left, each behind its own NAT, connected to a tailnet box holding a coordination server and a DERP relay, with lab-vps on the right. Three routes are drawn between lab-ubuntu and lab-vps — direct, relayed through DERP, and a public-internet path used by evil-box.">
+
+            <!-- shared layer-2 segment, when evil-box is put on lab-ubuntu's wire -->
+            <rect data-el="seg-shared" class="sb-svg-seg is-hidden"
+                  x="6" y="96" width="166" height="146" rx="12"/>
+            <text data-el="seg-label" class="svg-sub sb-svg-seg-label is-hidden" x="14" y="256">one L2 segment — they can see each other's frames</text>
+
+            <text x="14" y="20" class="svg-sub">THE MACHINES</text>
+            <text x="330" y="296" class="svg-sub">THE PUBLIC INTERNET — anyone, from anywhere, to 203.0.113.11</text>
+
+            <!-- ---------- NAT boxes ---------- -->
+            <rect x="186" y="30"  width="58" height="56" rx="8" class="svg-card svg-stroke" stroke-width="1.2"/>
+            <text x="215" y="62"  text-anchor="middle" class="svg-sub">NAT</text>
+            <g data-el="nat-evil-box" class="is-hidden">
+              <rect x="186" y="104" width="58" height="56" rx="8" class="svg-card svg-stroke" stroke-width="1.2"/>
+              <text x="215" y="136" text-anchor="middle" class="svg-sub">NAT</text>
+            </g>
+            <rect x="186" y="178" width="58" height="56" rx="8" class="svg-card svg-stroke" stroke-width="1.2"/>
+            <text x="215" y="212" text-anchor="middle" class="svg-sub">NAT</text>
+
+            <!-- ---------- the tailnet ---------- -->
+            <rect x="322" y="24" width="196" height="134" rx="10" class="svg-surface svg-stroke" stroke-width="1.3"/>
+            <text x="334" y="42" class="svg-sub">THE TAILNET</text>
+            <rect x="334" y="50" width="172" height="26" rx="6" class="svg-card svg-stroke" stroke-width="1.1"/>
+            <text x="420" y="67" text-anchor="middle" class="svg-sub">coordination server</text>
+            <rect x="334" y="86" width="172" height="26" rx="6" class="svg-card svg-stroke" stroke-width="1.1"/>
+            <text x="420" y="103" text-anchor="middle" class="svg-sub">DERP relay · fra</text>
+            <rect data-el="chip-path-box" x="334" y="122" width="172" height="26" rx="6"
+                  class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text data-el="chip-path" x="420" y="139" text-anchor="middle" class="svg-mono-accent">direct · punched</text>
+
+            <!-- ---------- static connectors ---------- -->
+            <path d="M164 58 L322 58" class="sb-svg-wire" fill="none"/>
+            <path data-el="path-evil-tailnet" class="sb-svg-wire is-hidden" d="M164 132 L322 132" fill="none"/>
+            <path d="M164 192 L186 192" class="sb-svg-wire" fill="none"/>
+            <path d="M164 220 L186 220" class="sb-svg-wire" fill="none"/>
+
+            <!-- ---------- the three routes between the focused pair ---------- -->
+            <path data-route="relay" class="sb-svg-route is-hidden"
+                  d="M186 192 C 252 192 292 172 322 152" fill="none"/>
+            <path data-route="relay" class="sb-svg-route is-hidden"
+                  d="M518 118 C 592 118 634 168 676 192" fill="none"/>
+            <!-- the one route left drawn with JS off: the guide's normal case,
+                 and the frame the rest of the page assumes you have seen -->
+            <path data-route="direct" data-poster class="sb-svg-route is-live"
+                  d="M186 220 L676 220" fill="none"/>
+            <path data-route="public" class="sb-svg-route is-hidden"
+                  d="M164 146 L268 146 C 292 146 292 276 316 276 L640 276 C 668 276 670 244 676 226" fill="none"/>
+            <path data-route="lan" class="sb-svg-route is-hidden" d="M89 160 L89 178" fill="none"/>
+            <path data-el="path-evil-tap" class="sb-svg-tap is-hidden" d="M89 160 L89 178" fill="none"/>
+
+            <!-- ---------- the machines ---------- -->
+            <g data-el="node-lab-roam">
+              <rect x="14" y="30" width="150" height="56" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
+              <text x="26" y="49" class="svg-label">lab-roam</text>
+              <text data-el="cond-lab-roam" x="26" y="63" class="svg-sub">the phone's stand-in</text>
+              <text data-el="ip-lab-roam" x="26" y="77" class="svg-sub">100.71.4.27</text>
+            </g>
+
+            <g data-el="node-evil-box" class="is-hidden sb-svg-hostile">
+              <rect x="14" y="104" width="150" height="56" rx="9" class="svg-surface svg-danger-s" stroke-width="1.5"/>
+              <text x="26" y="123" class="svg-label">evil-box</text>
+              <text data-el="cond-evil-box" x="26" y="137" class="svg-sub">a hostile machine</text>
+              <text data-el="ip-evil-box" x="26" y="151" class="svg-sub">192.0.2.66 (outside)</text>
+            </g>
+
+            <g data-el="node-lab-ubuntu">
+              <rect x="14" y="178" width="150" height="56" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
+              <text x="26" y="197" class="svg-label">lab-ubuntu</text>
+              <text data-el="cond-lab-ubuntu" x="26" y="211" class="svg-sub">the laptop</text>
+              <text data-el="ip-lab-ubuntu" x="26" y="225" class="svg-sub">100.71.4.13</text>
+            </g>
+
+            <g data-el="node-lab-vps">
+              <rect x="676" y="178" width="170" height="56" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
+              <text x="688" y="197" class="svg-label">lab-vps</text>
+              <text data-el="cond-lab-vps" x="688" y="211" class="svg-sub">the public box</text>
+              <text data-el="ip-lab-vps" x="688" y="225" class="svg-sub">100.71.4.11</text>
+            </g>
+
+            <text data-el="focus-label" x="14" y="308" class="svg-mono-accent">lab-ubuntu → lab-vps:22</text>
+          </svg>
+        </div>
+
+        <p class="sb-verdict">
+          Three machines, a default-deny tailnet, and public <code>:22</code> still open.
+        </p>
+
+        <div class="sb-grid">
+
+          <div class="sb-col">
+            <div data-sandbox-controls></div>
+
+            <section class="sb-panel">
+              <h3 class="pp-title">Probe</h3>
+              <p class="pp-note">One connection, walked down the ladder rung by rung.</p>
+              <div class="probe">
+                <select data-probe-from aria-label="Connect from">
+                  <option value="lab-ubuntu">lab-ubuntu</option>
+                  <option value="lab-roam">lab-roam</option>
+                  <option value="lab-vps">lab-vps</option>
+                  <option value="evil-box">evil-box</option>
+                </select>
+                <span class="probe-arrow" aria-hidden="true">→</span>
+                <select data-probe-to aria-label="Connect to">
+                  <option value="lab-vps">lab-vps</option>
+                  <option value="lab-ubuntu">lab-ubuntu</option>
+                  <option value="lab-roam">lab-roam</option>
+                </select>
+                <span class="probe-colon" aria-hidden="true">:</span>
+                <select data-probe-port aria-label="Port">
+                  <option value="22">22</option>
+                  <option value="8080">8080</option>
+                  <option value="41641">41641</option>
+                </select>
+                <button type="button" class="pp-btn is-primary" data-act="probe">Run</button>
+              </div>
+              <div class="pp-quick">
+                <button type="button" class="pp-chip" data-quick="lab-ubuntu,lab-vps,22">ssh from the laptop</button>
+                <button type="button" class="pp-chip" data-quick="lab-roam,lab-vps,22">ssh from the phone</button>
+                <button type="button" class="pp-chip" data-quick="evil-box,lab-vps,22">the attacker, to :22</button>
+                <button type="button" class="pp-chip" data-quick="evil-box,lab-vps,8080">the attacker, to :8080</button>
+              </div>
+            </section>
+
+            <section class="sb-panel">
+              <h3 class="pp-title">Attacks</h3>
+              <p class="pp-note">
+                Each one sets up whatever it needs, runs, and tells you which defence answered it.
+              </p>
+              <div class="pp-attacks">
+                <button type="button" class="pp-attack" data-attack="scan-public">
+                  <b>Scan from the open internet</b>
+                  <span>What a stranger sees of <code>lab-vps</code> with no credentials at all</span>
+                </button>
+                <button type="button" class="pp-attack" data-attack="scan-tailnet">
+                  <b>Scan from inside the tailnet</b>
+                  <span>Membership is not authorisation — unless you left it that way</span>
+                </button>
+                <button type="button" class="pp-attack" data-attack="sniff">
+                  <b>Sit on the wire and capture</b>
+                  <span>Real ciphertext, and a decrypt that really fails</span>
+                </button>
+                <button type="button" class="pp-attack" data-attack="replay">
+                  <b>Replay a captured frame</b>
+                  <span>The cheapest attack there is, and what answers it</span>
+                </button>
+                <button type="button" class="pp-attack" data-attack="stolen-key">
+                  <b>Join with a stolen node key</b>
+                  <span>The one tailnet lock exists for</span>
+                </button>
+                <button type="button" class="pp-attack" data-attack="expired-key">
+                  <b>Let a key expire</b>
+                  <span>The lost phone that removes itself</span>
+                </button>
+                <button type="button" class="pp-attack" data-attack="rogue-exit">
+                  <b>Advertise a rogue exit node</b>
+                  <span>Offering to be everybody's default route</span>
+                </button>
+                <button type="button" class="pp-attack" data-attack="docker-bypass">
+                  <b>Publish a Docker port</b>
+                  <span>UFW says deny. The port answers anyway.</span>
+                </button>
+                <button type="button" class="pp-attack is-danger" data-attack="lock-out">
+                  <b>Run the build order wrong</b>
+                  <span>Close both doors, in the wrong sequence, and be outside</span>
+                </button>
+              </div>
+              <button type="button" class="pp-btn pp-reset" data-act="reset">Reset everything</button>
+            </section>
+          </div>
+
+          <div class="sb-col sb-col-readout">
+            <div class="sb-tabs" role="tablist" aria-label="Readout">
+              <button type="button" role="tab" class="sb-tab" data-tab="status">status</button>
+              <button type="button" role="tab" class="sb-tab" data-tab="packets">packets</button>
+              <button type="button" role="tab" class="sb-tab" data-tab="rules">rules</button>
+              <button type="button" role="tab" class="sb-tab" data-tab="script">script</button>
+            </div>
+
+            <div class="sb-pane" data-pane="status" role="tabpanel" aria-live="polite"><pre></pre></div>
+            <div class="sb-pane" data-pane="packets" role="tabpanel" aria-live="polite"></div>
+            <div class="sb-pane" data-pane="rules" role="tabpanel"><pre></pre></div>
+            <div class="sb-pane" data-pane="script" role="tabpanel">
+              <pre></pre>
+              <button type="button" class="pp-btn" data-act="copy-script">Copy the script</button>
+              <p class="pp-foot">
+                Paste it at the three VMs from <a href="chapters/13-lab.html">chapter 13</a> and you
+                get the same outcome on real kernels.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <p class="sb-crypto" data-crypto-note>Checking what this browser will let us encrypt with…</p>
+      </section>
+
+      <h2>How to read a failure</h2>
+      <p>
+        The engine never answers <em>yes</em> or <em>no</em>. It answers <em>which rung</em>, because
+        that is the only answer you can act on. These are the same five rungs
+        <a href="chapters/12-troubleshooting.html">chapter 12</a> teaches, in the same order, and
+        every probe stops at exactly one of them.
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Rung</th><th>The question</th><th>What a failure here means</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><b>1</b></td>
+              <td>Is the machine up, with a session?</td>
+              <td>Nothing left the machine. A dead link, a stopped box, an expired key, or a node key nobody signed</td>
+            </tr>
+            <tr>
+              <td><b>2</b></td>
+              <td>Is there a path, and is it direct or relayed?</td>
+              <td>The two ends could not find each other, or found each other only through DERP</td>
+            </tr>
+            <tr>
+              <td><b>3</b></td>
+              <td>Does the tailnet policy allow it?</td>
+              <td>Refused before a packet reached the far machine. Its firewall never saw anything</td>
+            </tr>
+            <tr>
+              <td><b>4</b></td>
+              <td>Does the host firewall allow it?</td>
+              <td>The packet arrived and the box dropped it. Or — the interesting case — Docker let it in first</td>
+            </tr>
+            <tr>
+              <td><b>5</b></td>
+              <td>Is anything listening, on an address this path reaches?</td>
+              <td>Everything permitted it and nothing answered. Usually a bind address, not a rule</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout tip">
+        <div class="ct">Rung 3 and rung 4 are the pair worth internalising</div>
+        <p>
+          They are two firewalls, owned by different people, and they fail differently. A rung-3
+          denial happens in the tailnet — the target machine is not involved and has no log line to
+          show you. A rung-4 denial happens on the box, where <code>ufw</code> can tell you about it.
+          When something is unreachable and the far end swears it saw nothing, that asymmetry is
+          usually the reason.
+        </p>
+      </div>
+
+      <h2>Six things worth doing here first</h2>
+      <p>
+        The console will let you do anything in any order. These six are the ones that change how
+        you think, roughly in the order they are worth doing.
+      </p>
+
+      <h3>1 · Close port 22 while you are still logged in</h3>
+      <p>
+        Under <b>The host</b>, turn off <code>allow 22/tcp from anywhere</code>. Then run the
+        <b>ssh from the laptop</b> probe: still fine, over the tailnet. Then run
+        <b>the attacker, to :22</b>: gone. That is the whole of
+        <a href="chapters/08-vps.html">chapter 08</a> in two clicks, and it is the move people
+        postpone for weeks on a real VPS.
+      </p>
+
+      <h3>2 · Now do it in the wrong order</h3>
+      <p>
+        Press <b>Run the build order wrong</b>. It removes the public rule <em>and</em> the
+        <code>tailscale0</code> rule, which is the mistake that reads as harmless right up until
+        you press return. Both probes fail. On a real box that is a console session and an
+        apologetic email. <a href="chapters/11-runbooks.html">Chapter 11</a>'s build order exists
+        entirely to stop this, and it is much cheaper to feel it here.
+      </p>
+
+      <h3>3 · Block UDP and watch the path change</h3>
+      <p>
+        In <b>The network</b>, set <code>udp/41641</code> to <b>dropped</b> on
+        <code>lab-ubuntu</code>. The chip in the middle of the diagram flips from
+        <code>direct</code> to <code>relay "fra"</code>, the round-trip time in the packet log
+        roughly quadruples, and <code>tailscale netcheck</code> now reports
+        <code>UDP: false</code>. Nothing else changed. This is what a hotel network does to you,
+        and <a href="chapters/01-tailscale.html">chapter 01</a> is about why it still works at all.
+      </p>
+
+      <h3>4 · Publish a Docker port</h3>
+      <p>
+        Press <b>Publish a Docker port</b>. UFW is default-deny, says so in the <b>rules</b> tab,
+        and <code>:8080</code> answers a scan from the open internet regardless — because Docker
+        writes into a chain that is consulted before UFW's. If you take one thing from this page,
+        take this one; it is the trap most likely to be sitting on a machine you already own.
+      </p>
+
+      <h3>5 · Capture the traffic, then try to read it</h3>
+      <p>
+        Press <b>Sit on the wire and capture</b>. <code>evil-box</code> moves onto
+        <code>lab-ubuntu</code>'s segment and captures a frame — and the hex in the packet log is
+        real ciphertext, sealed under a shared secret derived from real keypairs generated in this
+        tab. Then it tries to open it with its own key and fails, and the error you are shown is
+        the one the cipher actually threw. Nobody wrote that outcome down; it is what happened.
+      </p>
+
+      <h3>6 · Leak a node key</h3>
+      <p>
+        Press <b>Join with a stolen node key</b> with tailnet lock <em>on</em>, then turn lock off
+        and press it again. With lock on it dies at rung 2 — no peer will complete a handshake with
+        a key nobody signed, so the ACL is never even consulted. With lock off, the key is a login,
+        and the only thing between it and your machines is the policy file.
+        <a href="chapters/10-threat-model.html">Chapter 10</a> is about which of those two worlds
+        you are living in.
+      </p>
+
+      <h2>What is real here, and what is modelled</h2>
+      <p>
+        A model that oversells itself is worse than no model. Here is the honest split.
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Real</th><th>Modelled</th><th>Absent</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>The keypairs, the ECDH shared secret and the AES-GCM seal. The failed decrypt is a genuine cipher rejection in your browser</td>
+              <td>Path selection, NAT behaviour, the ACL evaluator, the firewall ordering including Docker's bypass, and the loss and latency arithmetic</td>
+              <td>Any actual packet, kernel, container or daemon. Nothing is transmitted and nothing listens</td>
+            </tr>
+            <tr>
+              <td>The generated commands — each is the real command for the change you made</td>
+              <td>The anti-replay counter, and the shape of <code>tailscale status</code> and <code>netcheck</code> output</td>
+              <td>Anything Tailscale changes after August 2026. A model cannot learn</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout warn">
+        <div class="ct">The thing a model can never do</div>
+        <p>
+          It cannot surprise you. Every outcome here was put in by someone who already understood
+          the system, which makes this an excellent way to <em>learn</em> the shape of the thing and
+          a poor way to <em>discover</em> that your assumptions are wrong. For that you need real
+          kernels — the three VMs in <a href="chapters/13-lab.html">chapter 13</a>, or a machine you
+          are willing to break. Use the <b>script</b> tab: it turns everything you did here into
+          the commands that do it for real.
+        </p>
+      </div>
+
+      <h2>Checklist</h2>
+      <ul class="checklist">
+        <li>Closed public <code>:22</code> and confirmed the tailnet route still works.</li>
+        <li>Ran the build order wrong on purpose, and read which rung caught it.</li>
+        <li>Blocked UDP and watched the path fall back to <code>relay</code>.</li>
+        <li>Read <code>tailscale netcheck</code> reporting <code>UDP: false</code>.</li>
+        <li>Reproduced the Docker UFW bypass and scanned <code>:8080</code> from outside.</li>
+        <li>Captured a frame and watched the decrypt fail with a real cipher error.</li>
+        <li>Tried a stolen node key with tailnet lock on, then off.</li>
+        <li>Turned a default-deny ACL into an allow-all one and seen what membership then buys.</li>
+        <li>Let a key expire and watched the node fall out on its own.</li>
+        <li>Bound <code>sshd</code> to the tailnet address and seen a rung-5 failure that no firewall rule explains.</li>
+        <li>Exported the script and read it against <a href="chapters/13-lab.html">chapter 13</a>.</li>
+      </ul>
+
+      <nav class="pager"></nav>
+    </div>
+  </main>
+  <aside class="toc"></aside>
+</div>
+<script src="assets/nav.js"></script>
+<script src="assets/app.js"></script>
+<script src="assets/sandbox.js"></script>
+</body>
+</html>

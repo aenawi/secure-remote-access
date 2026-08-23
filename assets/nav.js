@@ -38,6 +38,8 @@ window.GUIDE_NAV = [
   { group: "Prove it", items: [
     { n: "13", id: "lab",              file: "chapters/13-lab.html",                 title: "The lab",
       desc: "Build the topology as throwaway VMs, shape the network, and prove the guide works." },
+    { n: "14", id: "sandbox",         file: "sandbox.html",                   title: "The sandbox",
+      desc: "An operable model of the whole topology: flip a switch, add a hostile machine, read what breaks." },
   ]},
 ];
 

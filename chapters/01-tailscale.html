@@ -425,6 +425,17 @@ tailscale ip -4      # this machine's tailnet address — chapter 05 needs the M
       <p>
         The policy file is the control. Default-deny, then grant precisely what you need:
       </p>
+
+      <div class="callout tip">
+        <div class="ct">Watch a policy actually deny something</div>
+        <p>
+          A default-deny ACL is hard to trust on faith, because a correct one looks exactly like a
+          broken one until something tries to get through. The
+          <a href="../sandbox.html">sandbox</a> lets you toggle these grants and fire a
+          connection at them: turn <code>tag:laptop → tag:server : 22</code> off and the probe stops
+          at rung 3, in the tailnet, before the far machine hears anything about it.
+        </p>
+      </div>
       <div class="filename">Tailscale admin console → Access controls</div>
       <pre><code>{
   "tagOwners": {

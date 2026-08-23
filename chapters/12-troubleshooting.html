@@ -27,6 +27,17 @@
         authentication if the packet never arrives.
       </p>
 
+      <div class="callout tip">
+        <div class="ct">Break one rung at a time, on purpose</div>
+        <p>
+          The <a href="../sandbox.html">sandbox</a> runs this exact ladder, and every
+          probe it reports names the rung that decided the outcome. Break one thing there — drop a
+          link, delete a grant, bind <code>sshd</code> to the tailnet address — and check that the
+          rung it reports is the one you expected. Being wrong about that in a simulator is free;
+          being wrong about it at 11pm is not.
+        </p>
+      </div>
+
       <figure class="diagram sim" data-sim data-step-ms="3600" tabindex="0"
               aria-label="Interactive diagnostic ladder. Pick a symptom, then climb the five rungs one at a time to see which one actually fails. Use the left and right arrow keys to step through it.">
 

@@ -41,6 +41,7 @@ python3 -m http.server -d . 8080   # then visit http://localhost:8080
 | 11 | Runbooks & checklists | Build order, onboarding, rotation, the full deployment checklist |
 | 12 | Troubleshooting | A five-rung diagnostic ladder and a symptom reference |
 | 13 | The lab | Three throwaway VMs, a deliberately hostile network, and a pass/fail test per chapter |
+| 14 | `sandbox.html` | The same topology as an operable model: flip switches, add a hostile machine, read which rung stopped it |
 
 ## Features
 
@@ -50,6 +51,15 @@ python3 -m http.server -d . 8080   # then visit http://localhost:8080
   so you can watch a NAT punch through, an SSH replay get rejected, or a launchd
   job fall into a restart loop. With JavaScript off each one collapses to a
   readable static poster frame.
+- **A sandbox, not just diagrams.** `sandbox.html` drops the timeline
+  entirely: it holds state, a rules engine and a render, so you change something and
+  it works out the consequence. Close a port, kill a link, leak a node key, put a
+  hostile machine on the wire — every probe reports the rung of the diagnostic ladder
+  that decided it, with round-trip times, byte counts and retransmits. The keypairs
+  and the AES-GCM seal are genuine WebCrypto, so when the attacker fails to decrypt a
+  captured frame it is the cipher refusing, in your browser. Everything you do there
+  also emits the real `nft` / `tc` / `ufw` / `tailscale` command, so the page doubles
+  as a script generator for the chapter 13 VMs.
 - **Persistent checklists.** Ticks are saved in `localStorage`, per chapter.
   The full deployment checklist in chapter 11 has a progress bar and a reset button.
 - **Dark and light themes**, following your system by default, with a toggle
@@ -64,14 +74,16 @@ python3 -m http.server -d . 8080   # then visit http://localhost:8080
 ```text
 secure-remote-access/
 ├── index.html
+├── sandbox.html  the operable model (chapter 14)
 ├── assets/
 │   ├── style.css      design tokens, layout, components, SVG theming hooks
 │   ├── nav.js         the chapter index — edit here to add or reorder chapters
 │   ├── app.js         theme, sidebar, TOC, chapter filter, copy buttons, checklists
 │   ├── anim.js        the stepped diagram simulations
+│   ├── sandbox.js     the sandbox: state, the five-rung engine, the attacks
 │   └── favicon.svg
 └── chapters/
-    └── 01-…-12-….html
+    └── 01-…-13-….html
 ```
 
 `nav.js` is the single source of truth for navigation. Add an entry there and the
@@ -94,6 +106,14 @@ setting deliberately on any new simulation.
 Navigation is defined as a plain global rather than fetched, because `fetch()` is
 blocked on the `file:` scheme — this is what lets the guide work by double-clicking
 `index.html`.
+
+`sandbox.js` follows the same opt-in rule as `anim.js`: only a page containing
+`[data-sandbox]` loads it. It builds its control panels from a declarative spec and
+mutates the topology SVG through `data-el` and `data-route` hooks, so with scripting
+off the page keeps a readable static figure and a poster explaining what it does.
+Its engine walks the chapter 12 ladder in order and always returns the rung that
+decided the outcome, never a bare pass/fail — that is the thing worth preserving if
+you extend it. State round-trips through the URL hash, so a configuration is a link.
 
 ## A note on accuracy
 

@@ -109,6 +109,17 @@ sudo ufw status verbose</code></pre>
         SSH no longer needs to be reachable from the internet at all.
       </p>
 
+      <div class="callout tip">
+        <div class="ct">Do it once somewhere harmless first</div>
+        <p>
+          Deleting the rule that is currently keeping you logged in is the move people postpone for
+          weeks, and reasonably so. In the <a href="../sandbox.html">sandbox</a> it is a
+          checkbox: turn off <code>allow 22/tcp from anywhere</code>, confirm the tailnet probe still
+          gets in, then scan the public address and watch it time out. The same page reproduces the
+          Docker bypass below in one click, which is worth more than reading about it.
+        </p>
+      </div>
+
       <figure class="diagram sim" data-sim data-step-ms="3600" tabindex="0"
               aria-label="Interactive walkthrough of closing the public SSH port. Pick a viewpoint, then step through the six changes and watch what each one does — and does not — change. Use the left and right arrow keys to step through it.">
 
