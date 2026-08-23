@@ -729,6 +729,10 @@
     paintStatus();
     paintRules();
     paintControls();
+    /* The score is a live gauge, not a snapshot. It used to redraw only when
+       the Audit button was pressed, which left a stale number sitting there
+       looking current while you changed the configuration underneath it. */
+    paintAudit();
     saveHash();
   }
 
@@ -832,6 +836,67 @@
 
   function pick(name) { return svg ? svg.querySelector('[data-el="' + name + '"]') : null; }
 
+  /* ---- route geometry --------------------------------------------
+     The right edge of each machine box, in the SVG's own coordinates.
+     Every route is built from these two numbers rather than written out
+     by hand, so the line always leaves the box it belongs to. */
+  var ANCHOR = {
+    "lab-roam": 58,
+    "evil-box": 132,
+    "lab-ubuntu": 206,
+    "lab-vps": 206
+  };
+  var VPS_X = 676;      /* lab-vps's left edge */
+  var LEFT_X = 164;     /* the right edge of the left column */
+  var LANE_Y = 276;     /* the public-internet lane along the bottom */
+  var CORRIDOR = 292;   /* clear vertical space between the NATs and the tailnet */
+
+  /* Returns { in: d, out: d } — "out" only for the relayed path, which is
+     drawn as two legs so the tailnet box sits between them. */
+  function routeD(kind, from, to) {
+    if (from === to) return null;
+
+    /* A path is undirected here, so normalise onto "a left machine, and
+       possibly lab-vps" rather than carrying a direction through. */
+    var a = from, b = to;
+    if (a === "lab-vps") { a = to; b = "lab-vps"; }
+    var sy = ANCHOR[a], dy = ANCHOR[b];
+    if (sy == null || dy == null) return null;
+
+    if (kind === "lan") return { in: "M89 160 L89 178" };
+
+    /* Neither end is the public box: loop through the corridor between the
+       NAT column and the tailnet, rather than pretending to cross the page. */
+    if (b !== "lab-vps") {
+      return { in: "M" + LEFT_X + " " + sy + " L258 " + sy +
+                   " C " + CORRIDOR + " " + sy + " " + CORRIDOR + " " + dy + " 258 " + dy +
+                   " L" + LEFT_X + " " + dy };
+    }
+
+    if (kind === "relay") {
+      /* into the tailnet box's left edge, clamped to its height */
+      var ey = Math.min(150, Math.max(36, sy));
+      return {
+        in: "M" + LEFT_X + " " + sy + " L258 " + sy +
+            " C " + CORRIDOR + " " + sy + " " + CORRIDOR + " " + ey + " 322 " + ey,
+        out: "M518 118 C 592 118 634 170 " + VPS_X + " " + dy
+      };
+    }
+
+    if (kind === "direct") {
+      /* straight across, under the tailnet box */
+      return { in: "M" + LEFT_X + " " + sy + " L258 " + sy +
+                   " C " + CORRIDOR + " " + sy + " " + CORRIDOR + " " + dy + " 322 " + dy +
+                   " L" + VPS_X + " " + dy };
+    }
+
+    /* public: down into the bottom lane, across, and up into the box */
+    return { in: "M" + LEFT_X + " " + sy + " L258 " + sy +
+                 " C " + CORRIDOR + " " + sy + " " + CORRIDOR + " " + LANE_Y + " 316 " + LANE_Y +
+                 " L640 " + LANE_Y + " C 668 " + LANE_Y + " 672 " + (dy + 34) + " " +
+                 VPS_X + " " + (dy + 14) };
+  }
+
   function paintTopology() {
     if (!svg) return;
 
@@ -866,44 +931,55 @@
     var segLabel = pick("seg-label");
     if (segLabel) segLabel.classList.toggle("is-hidden", !S.segmentShared);
 
-    var evilTail = pick("path-evil-tailnet");
-    if (evilTail) {
-      evilTail.classList.toggle("is-hidden",
-        !(S.machines["evil-box"].online && S.machines["evil-box"].onTailnet));
-    }
+    var evilStub = pick("path-evil-stub");
+    if (evilStub) evilStub.classList.toggle("is-hidden", !S.machines["evil-box"].online);
     var evilTap = pick("path-evil-tap");
     if (evilTap) {
       evilTap.classList.toggle("is-hidden",
         !(S.machines["evil-box"].online && S.segmentShared));
     }
 
-    /* The focused pair decides which of the three routes is drawn live. */
+    /* The focused pair decides which route is drawn, and where it starts. */
     var t = deliver({ from: S.probe.from, to: S.probe.to, port: S.probe.port });
     var kind = t.path ? t.path.kind : null;
+    var d = kind ? routeD(kind, S.probe.from, S.probe.to) : null;
 
     ["direct", "relay", "public", "lan"].forEach(function (k) {
       var els = svg.querySelectorAll('[data-route="' + k + '"]');
       Array.prototype.forEach.call(els, function (p) {
-        var on = kind === k;
+        var leg = p.getAttribute("data-leg") === "out" ? "out" : "in";
+        var geom = kind === k && d ? d[leg] : null;
+        if (geom) p.setAttribute("d", geom);
+        var on = !!geom;
         p.classList.toggle("is-live", on && t.ok);
         p.classList.toggle("is-dead", on && !t.ok);
         p.classList.toggle("is-hidden", !on);
       });
     });
 
+    /* The chip lives inside the tailnet box, so it has to describe the
+       tailnet's involvement — not just name the path. Saying "public
+       internet" in there read as though the tailnet were carrying it. */
+    var usesTailnet = kind === "direct" || kind === "relay";
     var chip = pick("chip-path");
     if (chip) {
-      chip.textContent = !kind ? "no path"
+      chip.textContent = !kind ? "no path at all"
         : kind === "relay" ? 'relay "fra"'
         : kind === "direct" ? "direct · punched"
-        : kind === "lan" ? "same segment"
-        : "public internet";
+        : kind === "lan" ? "not used · same wire"
+        : "not used · public path";
     }
     var chipBox = pick("chip-path-box");
     if (chipBox) {
-      chipBox.setAttribute("class",
-        "svg-card " + (t.ok ? "svg-accent-s" : "svg-danger-s"));
+      chipBox.setAttribute("class", "svg-card " +
+        (!kind ? "svg-danger-s" : usesTailnet ? "svg-accent-s" : "svg-warn-s"));
     }
+    if (chip) {
+      chip.setAttribute("class",
+        !kind ? "svg-mono-danger" : usesTailnet ? "svg-mono-accent" : "svg-mono-warn");
+    }
+    var services = pick("tailnet-services");
+    if (services) services.classList.toggle("is-off", !usesTailnet);
     var focus = pick("focus-label");
     if (focus) {
       focus.textContent = S.probe.from + " → " + S.probe.to + ":" + S.probe.port;
@@ -1721,46 +1797,74 @@
     return n;
   }
 
-  function runAudit() {
+  /* Pure: run every check against the current state and put the state back.
+     Never touches the DOM, so paintAll() can call it on every change. */
+  function computeAudit() {
     var saved = clone(S);
-    var results = AUDIT.map(function (c) {
-      S = clone(saved);
-      var got;
-      try { got = !!c.run(); } catch (e) { got = !c.want; }
-      return { c: c, pass: got === c.want };
-    });
-    S = saved;
-
-    var compare = PRESETS.map(function (p) {
-      return { label: p.label, score: scoreState(stateFor(p, true)) };
-    });
-
-    paintAudit(results, compare);
-    paintAll();
-    showTab("audit");
-
-    var pass = results.filter(function (r) { return r.pass; }).length;
-    var access = results.filter(function (r) { return r.c.kind === "access" && !r.pass; }).length;
-    verdict(access ? "bad" : pass === results.length ? "ok" : "warn",
-      access
-        ? pass + " of " + results.length + " checks held — but you are locked out of your own " +
-          "server, so the score is meaningless. Closed is not the same as secure."
-        : pass + " of " + results.length + " checks held. " +
-          (pass === results.length
-            ? "Everything an attacker was allowed to try was refused, and you can still work."
-            : "Open the audit tab: each failure names what it costs you."));
+    var results;
+    try {
+      results = AUDIT.map(function (c) {
+        S = clone(saved);
+        var got;
+        try { got = !!c.run(); } catch (e) { got = !c.want; }
+        return { c: c, pass: got === c.want };
+      });
+    } finally {
+      S = saved;
+    }
+    return {
+      results: results,
+      compare: PRESETS.map(function (p) {
+        return { label: p.label, score: scoreState(stateFor(p, true)) };
+      })
+    };
   }
 
-  function paintAudit(results, compare) {
-    if (!el.audit) return;
-    var pass = results.filter(function (r) { return r.pass; }).length;
+  /* The button no longer computes anything — it just brings the tab forward
+     and says out loud what the number already showing means. */
+  function runAudit() {
+    var results = computeAudit().results;
     var total = results.length;
-    var access = results.filter(function (r) { return r.c.kind === "access" && !r.pass; }).length;
-    var tone = access ? "bad" : pass === total ? "ok" : pass >= total - 3 ? "warn" : "bad";
+    var pass = results.filter(function (r) { return r.pass; }).length;
+    var lockedOut = results.some(function (r) { return r.c.kind === "access" && !r.pass; });
+    showTab("audit");
+    verdict(lockedOut ? "bad" : pass === total ? "ok" : "warn",
+      lockedOut
+        ? pass + " of " + total + " checks held — but you are locked out of your own server, " +
+          "so the score is meaningless. Closed is not the same as secure."
+        : pass === total
+          ? "All " + total + " held. Everything the attacker was allowed to try was refused, " +
+            "and you can still work. This is the configuration the guide builds towards."
+          : pass + " of " + total + " held. Each failure below names what it costs you — and " +
+            "the number moves as you change anything above.");
+  }
+
+  function paintAudit() {
+    if (!el.audit) return;
+    var a = computeAudit();
+    var results = a.results, compare = a.compare;
+    var total = results.length;
+    var pass = results.filter(function (r) { return r.pass; }).length;
+    var lockedOut = results.some(function (r) { return r.c.kind === "access" && !r.pass; });
+    var tone = lockedOut ? "bad" : pass === total ? "ok" : pass >= total - 3 ? "warn" : "bad";
+
+    var scale = lockedOut
+      ? "You cannot reach your own machines, so this number means nothing. Fix that first."
+      : pass === total
+        ? "Every check held. This is the target."
+        : (total - pass) + " of " + total + " did not hold — see below.";
 
     var html = '<div class="sb-score is-' + tone + '">' +
       '<b>' + pass + " / " + total + "</b>" +
-      "<span>checks held against this configuration</span></div>";
+      "<span>checks held &middot; " + esc(scale) + "</span></div>" +
+      '<p class="sb-scale">' +
+      "<b>Higher is better, and " + total + " / " + total + " is the target.</b> " +
+      "Each check is one thing this guide teaches you to close, and it counts as held only " +
+      "when the configuration currently loaded refuses it. Two of them ask whether " +
+      "<em>you</em> can still get in — without those, a machine with every door bricked shut " +
+      "would score nearly full marks. The number recomputes on every change you make above, " +
+      "so you can watch a single switch move it." +
+      "</p>";
 
     ["access", "attack", "config"].forEach(function (kind) {
       var rows = results.filter(function (r) { return r.c.kind === kind; });

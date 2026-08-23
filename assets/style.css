@@ -624,6 +624,12 @@ td code { font-size: 12.5px; }
 .sb-score.is-bad  { background: var(--danger-soft); border-left-color: var(--danger); }
 .sb-score.is-bad b { color: var(--danger); }
 
+.sb-scale {
+  font-size: 11.5px; line-height: 1.6; color: var(--text-faint);
+  margin: 0 0 4px; padding: 0 2px;
+}
+.sb-scale b { color: var(--text-muted); font-weight: 660; }
+
 .sb-audit-group {
   font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em;
   color: var(--text-faint); font-weight: 700; margin: 14px 0 6px;
