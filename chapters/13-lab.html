@@ -1,0 +1,669 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The lab — Secure Remote Access</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body data-page="lab" data-depth="1">
+<div class="layout">
+  <aside class="sidebar"></aside>
+  <main class="main">
+    <div class="content">
+
+      <p class="eyebrow">Chapter 13 · Prove it <span class="badge all">All machines</span></p>
+      <h1>The lab</h1>
+      <p class="lede">
+        Every other chapter asks you to do something irreversible to a machine you rely on: close the
+        only open port, disable the only working login, hand your one key to a device you have not
+        tested yet. This chapter builds a throwaway copy of the whole topology so you can make those
+        moves somewhere a mistake costs you a <code>limactl delete</code> instead of a support ticket.
+      </p>
+
+      <div class="callout info">
+        <div class="ct">The lab is optional, and it is not a prerequisite</div>
+        <p>
+          Nothing in chapters 01–12 depends on this one. If you are building for yourself on machines
+          you can walk over to and plug a keyboard into, skip it. The lab earns its keep when you are
+          about to do this to a box you can only reach over the network — a VPS, a machine in another
+          building, a laptop you posted to someone.
+        </p>
+      </div>
+
+      <h2>The trap: a lab that proves the boring half</h2>
+      <p>
+        The obvious lab is three virtual machines on one laptop. It is also nearly useless for this
+        particular guide, and the reason is worth understanding before you build anything.
+      </p>
+      <p>
+        Three VMs on one host share a network. They can already see each other. Every connection
+        between them is direct, on the first try, forever. So a lab like that will happily confirm your
+        <code>sshd_config</code> is valid and your firewall rules load — and it will tell you
+        <em>nothing</em> about the two chapters that are hardest to trust on faith:
+        <a href="01-tailscale.html">chapter 01</a>, which is entirely about what happens when two
+        machines <em>cannot</em> see each other, and
+        <a href="03-mosh-blink.html">chapter 03</a>, which is entirely about what happens when the link
+        dies mid-sentence.
+      </p>
+      <p>
+        The lab is not a pile of machines. It is a <strong>network shape</strong>. Getting the shape
+        wrong produces a rig that passes everything and proves half of it.
+      </p>
+
+      <figure class="diagram sim" data-sim data-step-ms="4000" tabindex="0"
+              aria-label="Interactive walkthrough of the same three-machine lab wired three different ways — one shared segment, each machine behind its own NAT, and a hostile link — stepping through six stages from starting the machines to the final verdict, showing which chapters each wiring actually proves. Use the left and right arrow keys to step through it.">
+
+        <div class="sim-bar">
+          <span class="sim-bar-label">How the lab network is wired</span>
+          <button type="button" class="sim-scn is-on" data-scenario="shared" aria-pressed="true">One shared segment</button>
+          <button type="button" class="sim-scn" data-scenario="nat" aria-pressed="false">A NAT per machine</button>
+          <button type="button" class="sim-scn" data-scenario="hostile" aria-pressed="false">NAT + a hostile link</button>
+        </div>
+
+        <svg viewBox="0 0 880 384" role="img" aria-label="On the left, three lab machines — lab-vps, lab-ubuntu and lab-roam — connected through a middle column to a tailnet, where the middle column is either one shared segment or a separate NAT per machine, plus a strip showing the state of the link and what the rig costs to build. On the right, six rows naming the chapters under test, each of which receives a verdict chip at the end of the run, and a summary of what the run was worth.">
+
+          <text x="16" y="22" class="svg-sub">THE RIG, AND HOW ITS NETWORK IS WIRED</text>
+          <text x="470" y="22" class="svg-sub">WHAT THIS RUN ACTUALLY PROVES</text>
+
+          <!-- ============ the rig frame (always present) ============ -->
+          <g data-at="0+">
+            <rect x="24" y="36" width="140" height="46" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
+            <text x="36" y="56" class="svg-label">lab-vps</text>
+            <text x="36" y="72" class="svg-sub">public box · ch 08</text>
+
+            <rect x="24" y="100" width="140" height="46" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
+            <text x="36" y="120" class="svg-label">lab-ubuntu</text>
+            <text x="36" y="136" class="svg-sub">the laptop · ch 09</text>
+
+            <rect x="24" y="164" width="140" height="46" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
+            <text x="36" y="184" class="svg-label">lab-roam</text>
+            <text x="36" y="200" class="svg-sub">the phone's stand-in</text>
+
+            <path d="M164 59 L182 59"   class="svg-muted-s" stroke-width="1.3" fill="none"/>
+            <path d="M164 123 L182 123" class="svg-muted-s" stroke-width="1.3" fill="none"/>
+            <path d="M164 187 L182 187" class="svg-muted-s" stroke-width="1.3" fill="none"/>
+            <path d="M266 59 L286 59"   class="svg-muted-s" stroke-width="1.3" fill="none"/>
+            <path d="M266 123 L286 123" class="svg-muted-s" stroke-width="1.3" fill="none"/>
+            <path d="M266 187 L286 187" class="svg-muted-s" stroke-width="1.3" fill="none"/>
+
+            <rect x="286" y="36" width="158" height="174" rx="10" class="svg-surface svg-stroke" stroke-width="1.3"/>
+            <text x="298" y="56" class="svg-sub">THE TAILNET</text>
+            <rect x="298" y="66" width="134" height="30" rx="6" class="svg-card svg-stroke" stroke-width="1.2"/>
+            <text x="365" y="85" text-anchor="middle" class="svg-sub">coordination server</text>
+            <rect x="298" y="104" width="134" height="30" rx="6" class="svg-card svg-stroke" stroke-width="1.2"/>
+            <text x="365" y="123" text-anchor="middle" class="svg-sub">DERP relay</text>
+
+            <text x="16" y="238" class="svg-sub">THE LINK, DURING THIS RUN</text>
+            <rect x="16" y="246" width="428" height="20" rx="10" class="svg-surface svg-stroke" stroke-width="1.2"/>
+
+            <text x="16" y="292" class="svg-sub">WHAT THE RIG COSTS YOU</text>
+            <rect x="16" y="300" width="428" height="44" rx="9" class="svg-surface svg-stroke" stroke-width="1.2"/>
+          </g>
+
+          <!-- ============ the middle column · one shared segment ============ -->
+          <g data-at="0+" data-scn="shared" data-poster class="sim-pop">
+            <rect x="182" y="36" width="84" height="174" rx="9" class="svg-card svg-warn-s" stroke-width="1.4"/>
+            <text x="224" y="116" text-anchor="middle" class="svg-mono-warn">one L2</text>
+            <text x="224" y="134" text-anchor="middle" class="svg-mono-warn">segment</text>
+          </g>
+
+          <!-- ============ the middle column · a NAT per machine ============ -->
+          <g data-at="0+" data-scn="nat hostile" class="sim-pop">
+            <rect x="182" y="46" width="84" height="26" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="224" y="63" text-anchor="middle" class="svg-mono-accent">its own NAT</text>
+            <rect x="182" y="110" width="84" height="26" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="224" y="127" text-anchor="middle" class="svg-mono-accent">its own NAT</text>
+            <rect x="182" y="174" width="84" height="26" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="224" y="191" text-anchor="middle" class="svg-mono-accent">its own NAT</text>
+          </g>
+
+          <!-- ============ traffic, once the tailnet is up ============ -->
+          <path data-at="2-3" data-scn="shared" data-poster data-flow="accent" data-count="2" data-speed="0.2" data-r="3.5"
+                d="M164 59 L286 59" fill="none" stroke="none"/>
+          <path data-at="2-3" data-scn="shared" data-flow="accent" data-count="2" data-speed="0.2" data-r="3.5"
+                d="M164 187 L286 187" fill="none" stroke="none"/>
+          <path data-at="2-3" data-scn="nat" data-flow="accent" data-count="2" data-speed="0.16" data-r="3.5"
+                d="M164 59 L286 59" fill="none" stroke="none"/>
+          <path data-at="2-3" data-scn="nat" data-flow="accent" data-count="2" data-speed="0.16" data-r="3.5"
+                d="M164 187 L286 187" fill="none" stroke="none"/>
+          <path data-at="2-3" data-scn="hostile" data-flow="warn" data-count="1" data-speed="0.09" data-r="3.5"
+                d="M164 187 L286 119" fill="none" stroke="none"/>
+          <path data-at="5" data-scn="hostile" data-flow="accent" data-count="2" data-speed="0.12" data-r="3.5"
+                d="M164 187 L286 119" fill="none" stroke="none"/>
+
+          <!-- ============ how they connected ============ -->
+          <g data-at="2+" data-scn="shared" data-poster class="sim-pop">
+            <rect x="298" y="152" width="134" height="26" rx="6" class="svg-card svg-warn-s" stroke-width="1.4"/>
+            <text x="365" y="169" text-anchor="middle" class="svg-mono-warn">direct, always</text>
+          </g>
+          <g data-at="2+" data-scn="nat" class="sim-pop">
+            <rect x="298" y="152" width="134" height="26" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="365" y="169" text-anchor="middle" class="svg-mono-accent">direct, punched</text>
+          </g>
+          <g data-at="2+" data-scn="hostile" class="sim-pop">
+            <rect x="298" y="152" width="134" height="26" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="365" y="169" text-anchor="middle" class="svg-mono-accent">relayed via DERP</text>
+          </g>
+
+          <!-- ============ link state strip ============ -->
+          <g data-at="0-3" data-scn="shared" data-poster class="sim-pop">
+            <text x="30" y="260" class="svg-mono-accent">a virtual switch that has never once dropped a packet</text>
+          </g>
+          <g data-at="4+" data-scn="shared" class="sim-pop">
+            <text x="30" y="260" class="svg-mono-warn">there is nothing here to break</text>
+          </g>
+          <g data-at="0-3" data-scn="nat" class="sim-pop">
+            <text x="30" y="260" class="svg-mono-accent">clean, but the two ends are strangers to each other</text>
+          </g>
+          <g data-at="4+" data-scn="nat" class="sim-pop">
+            <text x="30" y="260" class="svg-mono-warn">eth0 down for 20s — then up, on a new address</text>
+          </g>
+          <g data-at="0-3" data-scn="hostile" class="sim-pop">
+            <text x="30" y="260" class="svg-mono-warn">20% loss, 180ms jitter, UDP to :41641 dropped</text>
+          </g>
+          <g data-at="4+" data-scn="hostile" class="sim-pop">
+            <text x="30" y="260" class="svg-mono-danger">eth0 down for 20s, under loss, on a relayed path</text>
+          </g>
+
+          <!-- ============ cost of the rig ============ -->
+          <g data-at="0+" data-scn="shared" data-poster>
+            <text x="30" y="320" class="svg-sub">3 VMs · ~6 GB disk · one flag: --network=vzNAT</text>
+            <text x="30" y="336" class="svg-sub">the cheapest rig, and the one that flatters you most</text>
+          </g>
+          <g data-at="0+" data-scn="nat">
+            <text x="30" y="320" class="svg-sub">3 VMs · ~6 GB disk · Lima's default networking, no flags</text>
+            <text x="30" y="336" class="svg-sub">free, and already more honest than the shared segment</text>
+          </g>
+          <g data-at="0+" data-scn="hostile">
+            <text x="30" y="320" class="svg-sub">the same 3 VMs · plus tc netem and two nft rules</text>
+            <text x="30" y="336" class="svg-sub">ten more minutes, and it is the only run that proves ch 03</text>
+          </g>
+
+          <!-- ============ right panel · what is under test ============ -->
+          <g data-at="0+">
+            <rect x="470" y="32" width="394" height="30" rx="8" class="svg-surface svg-stroke" stroke-width="1.2"/>
+            <text x="482" y="52" class="svg-sub">01 · NAT traversal and DERP</text>
+            <rect x="470" y="70" width="394" height="30" rx="8" class="svg-surface svg-stroke" stroke-width="1.2"/>
+            <text x="482" y="90" class="svg-sub">02 · sshd config and keys</text>
+            <rect x="470" y="108" width="394" height="30" rx="8" class="svg-surface svg-stroke" stroke-width="1.2"/>
+            <text x="482" y="128" class="svg-sub">03 · Mosh across a link that dies</text>
+            <rect x="470" y="146" width="394" height="30" rx="8" class="svg-surface svg-stroke" stroke-width="1.2"/>
+            <text x="482" y="166" class="svg-sub">08 / 09 · hardening, UFW, Docker</text>
+            <rect x="470" y="184" width="394" height="30" rx="8" class="svg-surface svg-stroke" stroke-width="1.2"/>
+            <text x="482" y="204" class="svg-sub">11 · the build order, run for real</text>
+            <rect x="470" y="222" width="394" height="30" rx="8" class="svg-surface svg-stroke" stroke-width="1.2"/>
+            <text x="482" y="242" class="svg-sub">12 · the diagnostic ladder</text>
+
+          </g>
+
+          <!-- the verdict box only exists once there is a verdict to put in it -->
+          <g data-at="5">
+            <text x="470" y="292" class="svg-sub">SO WHAT WAS THE RUN WORTH</text>
+            <rect x="470" y="300" width="394" height="44" rx="9" class="svg-surface svg-stroke" stroke-width="1.2"/>
+          </g>
+
+          <!-- ============ verdict chips · one shared segment ============ -->
+          <g data-at="5" data-scn="shared" data-poster class="sim-pop">
+            <rect x="702" y="36" width="150" height="22" rx="6" class="svg-card svg-danger-s" stroke-width="1.4"/>
+            <text x="777" y="51" text-anchor="middle" class="svg-mono-danger">never exercised</text>
+            <rect x="702" y="74" width="150" height="22" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="777" y="89" text-anchor="middle" class="svg-mono-accent">proven</text>
+            <rect x="702" y="112" width="150" height="22" rx="6" class="svg-card svg-danger-s" stroke-width="1.4"/>
+            <text x="777" y="127" text-anchor="middle" class="svg-mono-danger">nothing to survive</text>
+            <rect x="702" y="150" width="150" height="22" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="777" y="165" text-anchor="middle" class="svg-mono-accent">proven</text>
+            <rect x="702" y="188" width="150" height="22" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="777" y="203" text-anchor="middle" class="svg-mono-accent">proven</text>
+            <rect x="702" y="226" width="150" height="22" rx="6" class="svg-card svg-warn-s" stroke-width="1.4"/>
+            <text x="777" y="241" text-anchor="middle" class="svg-mono-warn">two rungs of five</text>
+            <text x="484" y="320" class="svg-sub">Everything passed, and the two chapters you most wanted</text>
+            <text x="484" y="336" class="svg-sub">confidence in were never put under any load at all.</text>
+          </g>
+
+          <!-- ============ verdict chips · a NAT per machine ============ -->
+          <g data-at="5" data-scn="nat" class="sim-pop">
+            <rect x="702" y="36" width="150" height="22" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="777" y="51" text-anchor="middle" class="svg-mono-accent">punching proven</text>
+            <rect x="702" y="74" width="150" height="22" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="777" y="89" text-anchor="middle" class="svg-mono-accent">proven</text>
+            <rect x="702" y="112" width="150" height="22" rx="6" class="svg-card svg-warn-s" stroke-width="1.4"/>
+            <text x="777" y="127" text-anchor="middle" class="svg-mono-warn">a clean handover only</text>
+            <rect x="702" y="150" width="150" height="22" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="777" y="165" text-anchor="middle" class="svg-mono-accent">proven</text>
+            <rect x="702" y="188" width="150" height="22" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="777" y="203" text-anchor="middle" class="svg-mono-accent">proven</text>
+            <rect x="702" y="226" width="150" height="22" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="777" y="241" text-anchor="middle" class="svg-mono-accent">four rungs of five</text>
+            <text x="484" y="320" class="svg-sub">The default Lima rig, with no extra work — and it already</text>
+            <text x="484" y="336" class="svg-sub">makes two strangers find each other through two NATs.</text>
+          </g>
+
+          <!-- ============ verdict chips · NAT and a hostile link ============ -->
+          <g data-at="5" data-scn="hostile" class="sim-pop">
+            <rect x="702" y="36" width="150" height="22" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="777" y="51" text-anchor="middle" class="svg-mono-accent">direct and relayed</text>
+            <rect x="702" y="74" width="150" height="22" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="777" y="89" text-anchor="middle" class="svg-mono-accent">proven</text>
+            <rect x="702" y="112" width="150" height="22" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="777" y="127" text-anchor="middle" class="svg-mono-accent">proven, the hard way</text>
+            <rect x="702" y="150" width="150" height="22" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="777" y="165" text-anchor="middle" class="svg-mono-accent">proven</text>
+            <rect x="702" y="188" width="150" height="22" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="777" y="203" text-anchor="middle" class="svg-mono-accent">proven</text>
+            <rect x="702" y="226" width="150" height="22" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="777" y="241" text-anchor="middle" class="svg-mono-accent">all five rungs</text>
+            <text x="484" y="320" class="svg-sub">The only run where Mosh had something real to survive —</text>
+            <text x="484" y="336" class="svg-sub">and the only one that ever touched the relay path.</text>
+          </g>
+
+          <text x="16" y="370" class="svg-sub">the machines are identical in all three runs · everything that changes is the shape of the network between them</text>
+        </svg>
+
+        <div class="sim-controls">
+          <button type="button" class="sim-btn" data-act="prev" aria-label="Previous step"><span class="sim-glyph">◀</span></button>
+          <button type="button" class="sim-btn sim-btn-play" data-act="play" aria-label="Play">
+            <span class="sim-glyph">▶</span><span class="sim-btn-text">Play</span>
+          </button>
+          <button type="button" class="sim-btn" data-act="next" aria-label="Next step"><span class="sim-glyph">▶</span></button>
+          <div class="sim-track" role="group" aria-label="Jump to step">
+            <button type="button" class="sim-dot" data-goto="0" aria-label="Step 0, three machines and nothing else">0</button>
+            <button type="button" class="sim-dot" data-goto="1" aria-label="Step 1, they join the tailnet">1</button>
+            <button type="button" class="sim-dot" data-goto="2" aria-label="Step 2, ask how they actually connected">2</button>
+            <button type="button" class="sim-dot" data-goto="3" aria-label="Step 3, run the chapters against it">3</button>
+            <button type="button" class="sim-dot" data-goto="4" aria-label="Step 4, break the link">4</button>
+            <button type="button" class="sim-dot" data-goto="5" aria-label="Step 5, what you can now claim">5</button>
+          </div>
+          <div class="sim-progress" aria-hidden="true"><span></span></div>
+        </div>
+
+        <div class="sim-term" aria-hidden="true">
+          <div data-at="0" data-scn="shared" data-poster><span class="tp">$</span> limactl start --vm-type=vz <span class="tok">--network=vzNAT</span> --name=lab-vps template://ubuntu-24.04<br><span class="tdim">192.168.105.12 — and lab-ubuntu is .13, on the same wire</span></div>
+          <div data-at="0" data-scn="nat"><span class="tp">$</span> limactl start --name=lab-vps template://ubuntu-24.04<br><span class="tdim">user-mode NAT — no route from here to the other two</span></div>
+          <div data-at="0" data-scn="hostile"><span class="tp">$</span> limactl start --name=lab-vps template://ubuntu-24.04<br><span class="tdim">same three machines — the shaping comes later, at step 4</span></div>
+
+          <div data-at="1" data-scn="shared" data-poster><span class="tp">$</span> sudo tailscale up --hostname=lab-vps<br>Success. <span class="tdim">— repeat on lab-ubuntu and lab-roam</span></div>
+          <div data-at="1" data-scn="nat"><span class="tp">$</span> sudo tailscale up --hostname=lab-vps<br>Success. <span class="tdim">— same command, three strangers</span></div>
+          <div data-at="1" data-scn="hostile"><span class="tp">$</span> sudo tailscale up --hostname=lab-vps<br>Success. <span class="tdim">— same command, again</span></div>
+
+          <div data-at="2" data-scn="shared" data-poster><span class="tp">$</span> tailscale status<br>100.71.4.13 lab-ubuntu ... active; <span class="twarn">direct 192.168.105.13:41641</span> <span class="tdim">— it never had to try</span></div>
+          <div data-at="2" data-scn="nat"><span class="tp">$</span> tailscale status<br>100.71.4.13 lab-ubuntu ... active; <span class="tok">direct 203.0.113.9:41641</span> <span class="tdim">— punched, through two NATs</span></div>
+          <div data-at="2" data-scn="hostile"><span class="tp">$</span> tailscale status<br>100.71.4.13 lab-ubuntu ... active; <span class="tok">relay "fra"</span> <span class="tdim">— UDP is blocked, so DERP carries it</span></div>
+
+          <div data-at="3" data-scn="shared" data-poster><span class="tp">$</span> ssh lab-vps 'sudo sshd -t <span class="tdim">&amp;&amp;</span> sudo ufw status'<br>Status: active <span class="tok">— config chapters pass, exactly as they should</span></div>
+          <div data-at="3" data-scn="nat"><span class="tp">$</span> sudo ufw delete allow 22/tcp <span class="tdim">(the irreversible one)</span><br><span class="tp">$</span> ssh lab-vps <span class="tok">— still in, over the tailnet. Now you know.</span></div>
+          <div data-at="3" data-scn="hostile"><span class="tp">$</span> sudo ufw delete allow 22/tcp <span class="tdim">(over a relayed, lossy path)</span><br><span class="tp">$</span> ssh lab-vps <span class="tok">— still in. That is the run that counts.</span></div>
+
+          <div data-at="4" data-scn="shared" data-poster><span class="tp">#</span> there is no link to take down<br><span class="twarn">a virtual switch does not have a tunnel to drive into</span></div>
+          <div data-at="4" data-scn="nat"><span class="tp">$</span> sudo ip link set eth0 down; sleep 20; sudo ip link set eth0 up<br>[<span class="tok">tmux</span>] attached <span class="tdim">— mosh reconnected on the new address</span></div>
+          <div data-at="4" data-scn="hostile"><span class="tp">$</span> sudo ip link set eth0 down; sleep 20; sudo ip link set eth0 up<br>ssh: <span class="twarn">Connection reset</span> · mosh: [<span class="tok">tmux</span>] attached <span class="tdim">— both, side by side</span></div>
+
+          <div data-at="5" data-scn="shared" data-poster><span class="tp">#</span> what this run entitles you to claim<br><span class="twarn">"my configs are valid"</span> <span class="tdim">— and not one word more than that</span></div>
+          <div data-at="5" data-scn="nat"><span class="tp">#</span> what this run entitles you to claim<br><span class="tok">"two strangers find each other, and I can close port 22"</span></div>
+          <div data-at="5" data-scn="hostile"><span class="tp">#</span> what this run entitles you to claim<br><span class="tok">"it holds when the network is against me"</span> <span class="tdim">— the whole guide</span></div>
+        </div>
+
+        <ol class="sim-steps" aria-live="polite">
+          <li data-at="0" data-scn="shared" data-poster><b>0 · Three machines on one wire</b>One <code>--network=vzNAT</code> flag puts all three VMs on a shared segment with real addresses, and they can ping each other before Tailscale is even installed. This is the rig most people build, because it is the one that looks most like a network diagram. Hold on to that: <em>they can already reach each other</em>.</li>
+          <li data-at="0" data-scn="nat"><b>0 · Three machines that cannot see each other</b>Drop the flag and Lima gives every VM its own user-mode NAT, with no route between them — which sounds like a defect and is actually the feature. Three machines behind three separate routers is precisely the situation chapter 01 exists to solve, and you got it by typing less.</li>
+          <li data-at="0" data-scn="hostile"><b>0 · The same three machines again</b>Identical to the NAT run at this point. What makes this one different arrives at step 4, and it is two <code>nft</code> rules and a <code>tc</code> invocation rather than any change to the machines themselves.</li>
+
+          <li data-at="1" data-scn="shared" data-poster><b>1 · They join the tailnet</b><code>tailscale up</code> on each, then approve them in the admin console if approval is on. Use a <strong>throwaway tailnet on a separate account</strong>, never the real one — the whole point is to write ACLs that are wrong on purpose, and you do not want a bad policy landing on the machines you actually use.</li>
+          <li data-at="1" data-scn="nat"><b>1 · They join the tailnet</b>Same three commands. Note what has to happen now that did not have to happen on the shared segment: each node reports its NAT mapping to the coordination server, learns the others' candidate addresses, and starts probing. None of that machinery ran in the first scenario.</li>
+          <li data-at="1" data-scn="hostile"><b>1 · They join the tailnet</b>Same again. Join <em>before</em> you make the network hostile — a node that has never once talked to the coordination server has a different failure mode from one that has, and it is the second one you are trying to test.</li>
+
+          <li data-at="2" data-scn="shared" data-poster><b>2 · Ask how they actually connected</b><code>tailscale status</code> is the honesty check, and here it reads <code>direct 192.168.105.13:41641</code> — a private address on the shared wire. WireGuard came up on the first packet because the two ends were already neighbours. Nothing was traversed. The DERP relay in the diagram has not carried a single byte and never will.</li>
+          <li data-at="2" data-scn="nat"><b>2 · Ask how they actually connected</b>Now <code>direct</code> means something: the two nodes exchanged candidates, both NATs held a mapping open, and the path came up without a relay. Run <code>tailscale netcheck</code> alongside it — it prints whether UDP works, which DERP region is nearest, and whether your mapping varies by destination, which is the tell for the hard kind of NAT.</li>
+          <li data-at="2" data-scn="hostile"><b>2 · It falls back, and that is the point</b><code>relay "fra"</code> means direct failed and the session is riding DERP over TCP 443. This is the path that carries you on a hotel network or a mobile carrier that blocks UDP, it is meaningfully slower, and until you have seen it in a lab you do not know whether your setup survives it. One <code>nft</code> rule buys you that knowledge.</li>
+
+          <li data-at="3" data-scn="shared" data-poster><b>3 · Run the chapters against it</b>Now work through 08 and 09 exactly as written: patch, non-root user, key login, <code>sshd -t</code>, UFW default-deny, the Docker publish trap. Every one of these passes here, and every one of them would have passed on a single VM with no network at all. That is what makes this scenario comfortable and misleading.</li>
+          <li data-at="3" data-scn="nat"><b>3 · Do the irreversible thing on purpose</b>The same hardening, and then the move the whole guide builds towards: delete the public <code>:22</code> rule while your only remaining way in is the tailnet. On a real VPS that is the step people postpone for weeks. Here it costs nothing to get wrong, so get it wrong once deliberately — close it <em>before</em> writing the ACL and watch chapter 11's ordering lesson happen to you.</li>
+          <li data-at="3" data-scn="hostile"><b>3 · Do it over the relayed path</b>Same removal, except your remaining route is DERP under 20% packet loss. If closing port 22 is going to feel dangerous anywhere, it is here — which is exactly why this is the run worth doing before you touch anything real.</li>
+
+          <li data-at="4" data-scn="shared" data-poster><b>4 · There is nothing to break</b>You can take an interface down, but both ends come back on the same address, on the same switch, in the same second. Mosh has nothing to recover from and tmux has nothing to reattach to. Chapters 03 and 04 look green and were never asked a question.</li>
+          <li data-at="4" data-scn="nat"><b>4 · Take the link away</b><code>ip link set eth0 down</code>, wait, bring it up. The VM returns on a different mapping, ssh reports a dead socket, and Mosh reconnects because the session is keyed to a secret rather than to an address. This is a clean handover — a train entering a tunnel, not a bad café.</li>
+          <li data-at="4" data-scn="hostile"><b>4 · Take it away badly</b>The same outage, but under loss and jitter and on a relayed path. Run <code>ssh</code> and <code>mosh</code> side by side into the same box and watch one die and the other resume. That single side-by-side is the most persuasive thing in this entire guide, and you cannot produce it on a network that behaves.</li>
+
+          <li data-at="5" data-scn="shared" data-poster><b>5 · A green run that proves the boring half</b>Config validity, firewall rules, build order — all genuinely confirmed. NAT traversal, relay fallback and session survival — all untouched. If you stop here, be honest in your notes about which half you tested, because the untested half is the half that fails at 11pm on someone else's Wi-Fi.</li>
+          <li data-at="5" data-scn="nat"><b>5 · The default rig, and it is already good</b>No flags, no extra tooling: three Lima VMs behind three NATs, finding each other the way your real machines will have to. This is the sensible place to stop for most people, and it is what the build below gives you.</li>
+          <li data-at="5" data-scn="hostile"><b>5 · The only run that tests the interesting half</b>Ten extra minutes of <code>tc</code> and <code>nft</code> moves you from "my configuration is valid" to "this holds when the network is actively against me". Those are very different claims, and only one of them is worth the effort of building a lab at all.</li>
+        </ol>
+
+        <figcaption>
+          <b>The machines never change. Only the network between them does — and that is the entire
+          difference between a lab that flatters you and a lab that tells you something.</b> Switch
+          from <b>One shared segment</b> to <b>NAT + a hostile link</b> and watch the top and third rows
+          on the right go from red to green: those are chapters 01 and 03, the two you would most like
+          to be sure of, and they are the two a comfortable lab silently skips.
+        </figcaption>
+      </figure>
+
+      <h2>What a lab can, and cannot, prove</h2>
+      <p>
+        Before building anything, be clear about where the boundary is. Three buckets, and the third
+        one matters as much as the first two.
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Bucket</th><th>Chapters</th><th>Verdict</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><b>Configuration &amp; policy</b></td>
+              <td>02, 04, 08, 09, 11</td>
+              <td>Proven exactly. The lab runs the same daemons with the same config files.</td>
+            </tr>
+            <tr>
+              <td><b>Needs a shaped network</b></td>
+              <td>01, 03, 12</td>
+              <td>Proven <em>only</em> once you add NAT, loss and link failure. A flat lab silently skips these.</td>
+            </tr>
+            <tr>
+              <td><b>Real hardware only</b></td>
+              <td>06, 07, and the FileVault and Secure Enclave parts of 05</td>
+              <td>Not provable here at all. Do these on the device.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout warn">
+        <div class="ct">The third bucket is not a gap you can close</div>
+        <p>
+          A VM has no Secure Enclave, so enclave-bound keys
+          (<a href="06-iphone.html">chapter 06</a>) and hardware-backed keystores
+          (<a href="07-android.html">chapter 07</a>) have nothing to bind to. Nor can a lab reproduce
+          carrier-grade NAT, a vendor's battery killer, or iOS suspending an app in your pocket. Those
+          chapters are verified on the phone in your hand, and no amount of virtualisation changes that.
+          Better to write that down than to let a green lab imply coverage it does not have.
+        </p>
+      </div>
+
+      <h2>Building the rig</h2>
+      <p>
+        Three Linux VMs, one per role in the guide. This uses <a href="https://lima-vm.io">Lima</a>,
+        which wraps Apple's Virtualization framework on Apple silicon and QEMU elsewhere. Nothing here
+        is Mac-specific in spirit — the same three machines work under <code>multipass</code>,
+        <code>vagrant</code> or plain <code>virt-install</code>.
+      </p>
+
+      <pre><code>brew install lima            # macOS
+# or: sudo apt install -y lima   on Ubuntu 24.04+
+
+# Three machines, each behind its own user-mode NAT.
+# The absence of a --network flag is the important part.
+limactl start --name=lab-vps    --cpus=2 --memory=2 template://ubuntu-24.04
+limactl start --name=lab-ubuntu --cpus=2 --memory=2 template://ubuntu-24.04
+limactl start --name=lab-roam   --cpus=2 --memory=2 template://ubuntu-24.04
+
+limactl list</code></pre>
+
+      <p>
+        Three roles, mapped to the chapters they stand in for:
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Machine</th><th>Plays</th><th>Chapter</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>lab-vps</code></td><td>The always-on box with a public address</td><td><a href="08-vps.html">08</a></td></tr>
+            <tr><td><code>lab-ubuntu</code></td><td>The laptop that joins the same tailnet</td><td><a href="09-ubuntu.html">09</a></td></tr>
+            <tr><td><code>lab-roam</code></td><td>The roaming client — the phone's stand-in</td><td><a href="03-mosh-blink.html">03</a>, <a href="04-tmux-herdr.html">04</a></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        Drop into any of them with <code>limactl shell lab-vps</code>. From there, every command in
+        chapters 08 and 09 works verbatim.
+      </p>
+
+      <h3>Why no shared network</h3>
+      <p>
+        Lima's default user-mode networking gives each VM its own NAT and no route to its siblings.
+        Reach for <code>--network=vzNAT</code> or <code>--network=lima:shared</code> and you undo that,
+        putting everything on one segment — which is the flat lab from the simulation above. Leave the
+        flag off. The isolation is the feature, and it is free.
+      </p>
+
+      <h2>The control plane</h2>
+      <p>
+        Tailscale needs a coordination server, and the lab cannot invent one. Two options, and they
+        prove different things.
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th></th><th>A throwaway tailnet</th><th>Headscale in the lab</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><b>What it is</b></td><td>Real Tailscale, free plan, on a separate email</td><td>An open-source reimplementation of the control server</td></tr>
+            <tr><td><b>Coordination &amp; DERP</b></td><td>Tailscale's own, exactly as in production</td><td>Yours, with a DERP you configure</td></tr>
+            <tr><td><b>Offline / repeatable</b></td><td>No — needs internet</td><td>Yes</td></tr>
+            <tr><td><b>Proves chapter 01</b></td><td>Yes, as written</td><td>Partly — it is a different implementation</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout tip">
+        <div class="ct">Use a throwaway tailnet</div>
+        <p>
+          <a href="01-tailscale.html">Chapter 01</a> describes Tailscale's actual behaviour — its NAT
+          traversal, its DERP mesh, its ACL semantics, tailnet lock. Testing that against Headscale is
+          testing a different product that happens to speak a compatible protocol. Sign up with a
+          second email, and keep the lab tailnet entirely separate from the real one so a deliberately
+          broken ACL can never reach a machine you care about.
+        </p>
+      </div>
+
+      <h2>Making the network hostile</h2>
+      <p>
+        This is the part that turns a rig into a test. All three are run inside a lab VM, and all three
+        are reversible.
+      </p>
+
+      <h3>1 · Loss and latency</h3>
+      <pre><code># 20% loss, 180ms delay with 40ms of jitter — a bad café
+sudo tc qdisc add dev eth0 root netem loss 20% delay 180ms 40ms
+
+# put it back
+sudo tc qdisc del dev eth0 root</code></pre>
+
+      <h3>2 · Force the relay path</h3>
+      <p>
+        Blocking WireGuard's UDP port makes direct paths fail, so Tailscale falls back to DERP over
+        TCP 443 — the same thing that happens on a network that blocks UDP outbound.
+      </p>
+      <pre><code>sudo nft add table inet lab
+sudo nft add chain inet lab out { type filter hook output priority 0 \; }
+sudo nft add rule inet lab out udp dport 41641 drop
+sudo nft add rule inet lab out udp sport 41641 drop
+
+# confirm it took effect — this should now say relay, not direct
+tailscale status
+tailscale netcheck
+
+# put it back
+sudo nft delete table inet lab</code></pre>
+
+      <h3>3 · Take the link away</h3>
+      <pre><code># the train entering a tunnel
+sudo ip link set eth0 down; sleep 20; sudo ip link set eth0 up</code></pre>
+
+      <div class="callout danger">
+        <div class="ct">Run that one from the console, not over SSH</div>
+        <p>
+          Taking <code>eth0</code> down kills the session you typed it in. Use
+          <code>limactl shell</code> from the host, or wrap it so it restores itself even if your
+          session dies:
+          <code>sudo sh -c 'ip link set eth0 down; sleep 20; ip link set eth0 up' &amp;</code>.
+          The lab is where you learn that reflex cheaply.
+        </p>
+      </div>
+
+      <h2>Prove it: the tests worth running</h2>
+      <p>
+        A lab is only worth building if it produces verdicts. Each row here is a command and the output
+        that means <em>pass</em> — run them in order, because several depend on the one above.
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Chapter</th><th>Run</th><th>Pass looks like</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><a href="01-tailscale.html">01</a></td>
+              <td><code>tailscale netcheck</code></td>
+              <td><code>UDP: true</code>, a nearest DERP region, and <code>MappingVariesByDestIP</code> reported either way — you now know which NAT you are behind</td>
+            </tr>
+            <tr>
+              <td><a href="01-tailscale.html">01</a></td>
+              <td><code>tailscale status</code></td>
+              <td><code>direct</code> with the UDP block off; <code>relay "…"</code> with it on. Both paths seen at least once</td>
+            </tr>
+            <tr>
+              <td><a href="01-tailscale.html">01</a></td>
+              <td>Write a default-deny ACL with no SSH grant, then <code>ssh</code></td>
+              <td>Connection refused. The policy is doing something — which you cannot know from a permissive default</td>
+            </tr>
+            <tr>
+              <td><a href="02-ssh.html">02</a></td>
+              <td><code>sudo sshd -t</code>, then <code>ssh -o PasswordAuthentication=yes</code></td>
+              <td>Config valid; the password attempt is rejected without a prompt</td>
+            </tr>
+            <tr>
+              <td><a href="03-mosh-blink.html">03</a></td>
+              <td><code>ssh</code> and <code>mosh</code> into <code>lab-vps</code> side by side, then drop <code>eth0</code> for 20s</td>
+              <td>ssh reports a broken pipe; mosh redraws and carries on. The whole chapter, in one screenshot</td>
+            </tr>
+            <tr>
+              <td><a href="04-tmux-herdr.html">04</a></td>
+              <td>Start work in <code>tmux</code>, kill the client hard, reconnect with <code>tmux new -A -s lab</code></td>
+              <td>Attaches to the running session; the job never noticed</td>
+            </tr>
+            <tr>
+              <td><a href="08-vps.html">08</a></td>
+              <td><code>docker run -d -p 8080:80 nginx</code>, then scan from <code>lab-ubuntu</code></td>
+              <td>Port 8080 is reachable <em>despite</em> UFW denying it — the Docker bypass, seen with your own eyes</td>
+            </tr>
+            <tr>
+              <td><a href="08-vps.html">08</a></td>
+              <td>Delete the public <code>:22</code> rule while connected over the tailnet</td>
+              <td>You are still logged in, and a fresh public connection times out</td>
+            </tr>
+            <tr>
+              <td><a href="11-runbooks.html">11</a></td>
+              <td>Deliberately run the build order wrong: close <code>:22</code> at step 2, before the ACL</td>
+              <td>You lock yourself out, and recover via <code>limactl shell</code> — the console stand-in</td>
+            </tr>
+            <tr>
+              <td><a href="12-troubleshooting.html">12</a></td>
+              <td>Break one rung at a time, then walk the ladder</td>
+              <td>Each fault is found at the rung that owns it, not two rungs later</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout ok">
+        <div class="ct">The two tests that justify the whole chapter</div>
+        <p>
+          The Docker-bypass one and the locked-out build-order one. Both are things you have read and
+          believed; neither becomes real until you have watched it happen. Everything else in this
+          table you could reasonably take on trust.
+        </p>
+      </div>
+
+      <h2>Adding a Mac to the lab</h2>
+      <p>
+        The rig above has no macOS node, so <a href="05-macos.html">chapter 05</a> sits outside it. If
+        your host is an Apple silicon Mac you can add one, using Apple's own Virtualization framework
+        via <a href="https://tart.run">Tart</a>:
+      </p>
+
+      <pre><code>brew install openai/tools/tart
+tart clone ghcr.io/cirruslabs/macos-tahoe-base:latest lab-mac
+tart run lab-mac</code></pre>
+
+      <p>
+        That is roughly a 25 GB download for a VM that behaves like a real ARM Mac: <code>launchd</code>,
+        <code>pfctl</code>, <code>sshd</code>, Tailscale and <code>lsof -i</code> all work as chapter 05
+        describes, and cloning the VM gives you an instant snapshot to reset to.
+      </p>
+
+      <div class="callout warn">
+        <div class="ct">Three things it will not tell you</div>
+        <ul>
+          <li>
+            <b>FileVault.</b> A VM has no Secure Enclave, so the encryption keys are not protected the
+            way they are on your actual MacBook. The commands work; the guarantee is weaker.
+          </li>
+          <li>
+            <b>Secure Enclave keys.</b> Nothing to bind to, so the key-custody argument in
+            <a href="10-threat-model.html">chapter 10</a> cannot be exercised here.
+          </li>
+          <li>
+            <b>Two at a time.</b> Apple's framework permits at most two macOS guests running at once on
+            a host, so a Mac node is a singleton in this lab.
+          </li>
+        </ul>
+      </div>
+
+      <div class="callout info">
+        <div class="ct">Not on Apple silicon?</div>
+        <p>
+          Then skip this section rather than reaching for a container. The projects that run macOS
+          inside Docker need an x86 Linux host with <code>/dev/kvm</code> and emulate an Intel Mac, so
+          they cannot help an ARM host — and Docker Desktop does not expose KVM to containers on any
+          platform. The three-VM rig above is unaffected and still proves eight of the twelve chapters.
+        </p>
+      </div>
+
+      <h2>Tearing it down</h2>
+      <pre><code>limactl stop lab-vps lab-ubuntu lab-roam
+limactl delete lab-vps lab-ubuntu lab-roam
+
+tart delete lab-mac          # if you built one</code></pre>
+      <p>
+        Then remove the lab machines from the tailnet admin console, and revoke the auth keys you used.
+        A stale lab node in an ACL group is exactly the kind of thing
+        <a href="10-threat-model.html">chapter 10</a> warns about — the lab is throwaway, but its tailnet
+        identity is not throwaway until you throw it away.
+      </p>
+
+      <h2>Checklist</h2>
+      <ul class="checklist">
+        <li>Three VMs running, each on its own NAT — no <code>--network</code> flag.</li>
+        <li>A throwaway tailnet on a separate account, never the real one.</li>
+        <li>All three nodes joined and visible in <code>tailscale status</code>.</li>
+        <li><code>tailscale netcheck</code> run and its output read, not just executed.</li>
+        <li>A <code>direct</code> path observed at least once.</li>
+        <li>A <code>relay</code> path observed at least once, with the UDP block in place.</li>
+        <li>A default-deny ACL written and proven to actually deny.</li>
+        <li>Chapters 08 and 09 run end to end against <code>lab-vps</code> and <code>lab-ubuntu</code>.</li>
+        <li>Public <code>:22</code> closed over the tailnet, and survived.</li>
+        <li>The Docker UFW bypass reproduced and seen from another machine.</li>
+        <li>ssh and mosh compared side by side across a 20-second outage.</li>
+        <li>tmux reattached after a hard client kill.</li>
+        <li>The build order deliberately run wrong once, and recovered from.</li>
+        <li>Lab nodes removed from the tailnet and auth keys revoked at teardown.</li>
+      </ul>
+
+      <nav class="pager"></nav>
+    </div>
+  </main>
+  <aside class="toc"></aside>
+</div>
+<script src="../assets/nav.js"></script>
+<script src="../assets/app.js"></script>
+<script src="../assets/anim.js"></script>
+</body>
+</html>
