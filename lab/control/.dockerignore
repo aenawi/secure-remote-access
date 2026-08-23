@@ -1,0 +1,4 @@
+# A binary built on the host is the wrong architecture and the wrong build.
+# Keep it out of the image entirely rather than relying on it being overwritten.
+control
+*.exe

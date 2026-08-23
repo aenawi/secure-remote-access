@@ -42,6 +42,7 @@ python3 -m http.server -d . 8080   # then visit http://localhost:8080
 | 12 | Troubleshooting | A five-rung diagnostic ladder and a symptom reference |
 | 13 | The lab | Three throwaway VMs, a deliberately hostile network, and a pass/fail test per chapter |
 | 14 | The sandbox | The same topology as an operable model: flip switches, add a hostile machine, read which rung stopped it |
+| — | [`lab/`](lab/README.md) | The same topology as real containers: `docker compose up`, then drive it from a browser |
 
 ## Features
 
@@ -60,6 +61,16 @@ python3 -m http.server -d . 8080   # then visit http://localhost:8080
   captured frame it is the cipher refusing, in your browser. Everything you do there
   also emits the real `nft` / `tc` / `ufw` / `tailscale` command, so the page doubles
   as a script generator for the chapter 13 VMs.
+- **A lab that runs.** [`lab/`](lab/README.md) is the same topology as real
+  containers — four machines on four isolated segments, each behind its own NAT
+  router, running real `tailscaled` on real TUN devices. `docker compose up` and
+  a browser is the whole setup; Docker is the only prerequisite. Every switch on
+  the page is a command that runs inside a container, every probe watches the far
+  end while it knocks and reports the rung that decided it, and the eleven-check
+  audit is the same eleven the sandbox scores — so a real stack and the model can
+  be compared directly. Where they disagree, the README says so and explains why;
+  that is the most useful thing the pair produces. An attacker container is
+  included and never starts unless you ask for it.
 - **Persistent checklists.** Ticks are saved in `localStorage`, per chapter.
   The full deployment checklist in chapter 11 has a progress bar and a reset button.
 - **Dark and light themes**, following your system by default, with a toggle
@@ -81,9 +92,19 @@ secure-remote-access/
 │   ├── anim.js        the stepped diagram simulations
 │   ├── sandbox.js     the sandbox: state, the five-rung engine, the attacks
 │   └── favicon.svg
-└── chapters/
-    └── 01-…-14-….html
+├── chapters/
+│   └── 01-…-14-….html
+└── lab/               the same topology as containers — see lab/README.md
+    ├── docker-compose.yml
+    ├── Makefile       up / attack / audit / reset
+    ├── config/        the coordination server's configuration
+    ├── images/        one lab machine, one NAT router, one attacker
+    └── control/       a Go control server with its UI compiled in
 ```
+
+`lab/` is the one part of this repository that is not a static page. It is
+opt-in, self-contained and needs nothing but Docker; the guide reads exactly the
+same without it.
 
 `nav.js` is the single source of truth for navigation. Add an entry there and the
 sidebar, filter, chapter cards and prev/next links all pick it up. Each chapter
@@ -132,7 +153,8 @@ Before running any of it against something you care about:
 - **Your environment is not this one.** Versions drift and providers differ.
   Understand what a line does before you run it.
 - **Practise somewhere disposable.** Chapter 14 is a simulation and costs
-  nothing; chapter 13 builds throwaway VMs. A green result in either is not a
+  nothing; chapter 13 builds throwaway VMs; [`lab/`](lab/README.md) builds
+  throwaway containers in one command. A green result in any of them is not a
   promise about your production box.
 - **Keep a second way in** — another SSH session, a provider console, physical
   access — proven working *before* you change anything.

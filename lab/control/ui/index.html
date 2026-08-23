@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The lab — Secure Remote Access</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <p class="eyebrow">The lab · real containers</p>
+    <h1>The lab</h1>
+    <p class="lede">
+      The same panels as <b>chapter 14's sandbox</b>, wired to real kernels. Every switch here
+      runs a command inside a container; every probe watches the far end while it knocks, and
+      reports the rung that decided it. Nothing on this page is modelled, which means it can
+      surprise you — and that is the only reason it exists.
+    </p>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="callout danger">
+    <div class="ct">This is a lab, and it is only safe because of where it is</div>
+    <p>
+      <code>evil-box</code> attacks containers you started, on hardware you own, on bridges that
+      go nowhere. It never starts unless you ask for it. This control server holds the Docker
+      socket and has no authentication, so it is published to <code>127.0.0.1</code> only and
+      refuses to start if that is changed. Everything here is provided <b>as is</b>, with no
+      warranty — see the disclaimer and the MIT licence in the guide.
+    </p>
+  </div>
+
+  <div class="verdict" id="verdict">Reading the lab…</div>
+
+  <div class="grid">
+    <div>
+      <section class="panel">
+        <h3>Configurations</h3>
+        <p class="note">Four states, each one somebody's real machine. Load one, then audit it.</p>
+        <div class="presets" id="presets"></div>
+        <button type="button" class="btn primary" id="audit-btn">Audit this configuration</button>
+        <p class="foot">
+          Eleven checks, the same eleven every time — including two that ask whether
+          <em>you</em> can still get in, because a configuration that locks you out is not
+          secure, it is broken. Five of them need <code>evil-box</code>.
+        </p>
+      </section>
+
+      <div id="panels"></div>
+
+      <section class="panel">
+        <h3>Probe</h3>
+        <p class="note">One connection, walked down the ladder rung by rung — measured at both ends.</p>
+        <div class="probe">
+          <select id="p-from" aria-label="Connect from">
+            <option value="lab-ubuntu">lab-ubuntu</option>
+            <option value="lab-roam">lab-roam</option>
+            <option value="lab-vps">lab-vps</option>
+            <option value="evil-box">evil-box</option>
+          </select>
+          <span aria-hidden="true">→</span>
+          <select id="p-to" aria-label="Connect to">
+            <option value="lab-vps">lab-vps</option>
+            <option value="lab-ubuntu">lab-ubuntu</option>
+            <option value="lab-roam">lab-roam</option>
+          </select>
+          <span aria-hidden="true">:</span>
+          <select id="p-port" aria-label="Port">
+            <option value="22">22</option>
+            <option value="8080">8080</option>
+            <option value="41641">41641</option>
+          </select>
+          <button type="button" class="btn primary" id="probe-btn">Run</button>
+        </div>
+        <div class="chips">
+          <button type="button" class="chip" data-quick="lab-ubuntu,lab-vps,22">ssh from the laptop</button>
+          <button type="button" class="chip" data-quick="lab-roam,lab-vps,22">ssh from the phone</button>
+          <button type="button" class="chip" data-quick="evil-box,lab-vps,22">the attacker, to :22</button>
+          <button type="button" class="chip" data-quick="evil-box,lab-vps,8080">the attacker, to :8080</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h3>Attacks</h3>
+        <p class="note">
+          Each one sets up whatever it needs, runs, and tells you which defence answered it.
+        </p>
+        <div class="attacks" id="attacks"></div>
+        <button type="button" class="btn" id="outage-btn" style="margin-top:8px">
+          ssh and mosh, through a 20-second outage
+        </button>
+        <button type="button" class="btn" id="rotate-btn">Rotate the key</button>
+        <button type="button" class="btn" id="reset-btn">Reset everything</button>
+      </section>
+    </div>
+
+    <div class="readout">
+      <div class="tabs" role="tablist">
+        <button type="button" class="tab on" data-tab="status">status</button>
+        <button type="button" class="tab" data-tab="packets">packets</button>
+        <button type="button" class="tab" data-tab="audit">audit</button>
+        <button type="button" class="tab" data-tab="rules">rules</button>
+        <button type="button" class="tab" data-tab="script">script</button>
+      </div>
+
+      <div class="pane on" data-pane="status">
+        <pre class="out" id="status-out">connecting…</pre>
+        <p class="foot">
+          <label><input type="checkbox" id="logs-on"> follow <code>tailscaled</code>, filtered to
+          the lines about how it picked a path</label>
+        </p>
+        <pre class="out live" id="logs-out" hidden></pre>
+      </div>
+
+      <div class="pane" data-pane="packets">
+        <div id="traces"></div>
+        <p class="foot">
+          <label><input type="checkbox" id="cap-on"> live capture from <code>evil-box</code>
+          (<code>udp port 41641</code>) — the payload is genuinely opaque</label>
+        </p>
+        <pre class="out live" id="cap-out" hidden></pre>
+      </div>
+
+      <div class="pane" data-pane="audit">
+        <div id="audit-out">
+          <p class="muted">
+            Load a configuration, or build your own with the switches, then press
+            <b>Audit this configuration</b>. Eleven checks, run against the containers.
+          </p>
+        </div>
+      </div>
+
+      <div class="pane" data-pane="rules"><pre class="out" id="rules-out">…</pre></div>
+
+      <div class="pane" data-pane="script">
+        <pre class="out" id="script-out">…</pre>
+        <button type="button" class="btn" id="copy-btn" style="margin-top:8px">Copy the script</button>
+        <p class="foot">
+          The same commands chapter 13 has you type by hand. Paste them at three Lima VMs and
+          you get the same outcome, on machines this lab did not create.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <footer class="foot">
+    <p>
+      The commands in this guide change firewall and login settings, and can lock you out of a
+      machine. Practise on something disposable first — this lab is that thing. Everything here
+      is provided <b>as is</b>, with no warranty: you accept the risk of running it.
+    </p>
+  </footer>
+</div>
+
+<button type="button" class="themebtn" id="theme">theme</button>
+<script src="app.js"></script>
+</body>
+</html>
