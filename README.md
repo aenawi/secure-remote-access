@@ -61,7 +61,7 @@ python3 -m http.server -d . 8080   # then visit http://localhost:8080
 ## Structure
 
 ```text
-secure-remote-dev-guide/
+secure-remote-access/
 ├── index.html
 ├── assets/
 │   ├── style.css      design tokens, layout, components, SVG theming hooks
