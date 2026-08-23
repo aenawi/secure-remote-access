@@ -1,8 +1,14 @@
-# Secure Remote Dev Environment — a guide
+# Secure Remote Access — a guide
 
-A self-contained HTML guide to reaching your MacBook Pro, Linux VPS and Ubuntu
-laptop from an iPhone — privately, and without losing work when the connection
+A self-contained HTML guide to reaching your own laptops, servers and phones
+from anywhere — privately, and without losing your session when the connection
 drops.
+
+It is built in two separable layers. The **network layer** (chapters 01, 02 and
+the per-machine hardening chapters) gives you private reachability and is useful
+whatever you point at it. The **session layer** (chapters 03 and 04 — Mosh and
+tmux) is what turns that into somewhere you can work for hours from a phone on a
+moving train. Build the first alone if that is all you need.
 
 ## Open it
 
@@ -21,12 +27,12 @@ python3 -m http.server -d . 8080   # then visit http://localhost:8080
 
 | # | Chapter | Covers |
 |---|---------|--------|
-| — | `index.html` | The whole picture: four machines, three planes, how the layers stack |
+| — | `index.html` | The whole picture: four machines, three planes, how the layers stack (the phone role covers both iOS and Android) |
 | 01 | Tailscale & WireGuard | Cryptokey routing, NAT traversal, DERP, ACLs, tailnet lock |
 | 02 | SSH, keys & hardening | The auth handshake, key types, `sshd_config`, macOS PAM/SACL |
 | 03 | Mosh & Blink Shell | Why SSH dies on mobile, the state-sync protocol, Secure Enclave keys |
 | 04 | tmux & Herdr | Session persistence, agent multiplexing, the prefix collision |
-| 05 | Securing the MacBook Pro | FileVault, port audit, sshd as a launchd daemon, tailnet-only bind, reaching a dev server from the phone |
+| 05 | Securing the MacBook Pro | FileVault, port audit, sshd as a launchd daemon, tailnet-only bind, reaching a local service from the phone |
 | 06 | The iPhone client | Device hardening, Blink setup, Mosh, saved hosts |
 | 07 | The Android client | Termux, key custody without an enclave, Doze and per-vendor app killing |
 | 08 | Hardening a Linux VPS | First ten minutes, UFW, closing public SSH, Docker's UFW bypass |

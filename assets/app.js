@@ -54,8 +54,8 @@
               'stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>' +
             '<path d="M8.6 12.2 11 14.6l4.6-4.8" stroke="currentColor" stroke-width="1.8" ' +
               'stroke-linecap="round" stroke-linejoin="round"/>' +
-          '</svg>Secure Remote Dev</span>' +
-        '<span class="sub">MacBook &middot; iPhone &middot; VPS &middot; Ubuntu, joined by one tailnet</span>' +
+          '</svg>Secure Remote Access</span>' +
+        '<span class="sub">VPS &middot; Laptops &middot; Phones, joined by one tailnet</span>' +
       '</a></div>' +
       '<div class="nav-search"><input type="search" id="navq" placeholder="Filter chapters…" ' +
         'autocomplete="off" spellcheck="false" aria-label="Filter chapters"></div>' +
@@ -103,7 +103,7 @@
     bar.className = "topbar";
     var cur = (window.GUIDE_FLAT || []).filter(function (i) { return i.id === PAGE; })[0];
     bar.innerHTML = '<button type="button" aria-label="Open navigation">☰</button>' +
-                    '<span class="tt">' + (cur ? cur.n + " · " + cur.title : "Secure Remote Dev") + "</span>";
+                    '<span class="tt">' + (cur ? cur.n + " · " + cur.title : "Secure Remote Access") + "</span>";
     document.body.insertBefore(bar, document.body.firstChild);
 
     var scrim = document.createElement("div");

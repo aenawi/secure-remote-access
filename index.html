@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Secure Remote Dev Environment</title>
-<meta name="description" content="Reach your MacBook, VPS and Ubuntu laptop from an iPhone — privately, and without losing your work when the connection drops.">
+<title>Secure Remote Access</title>
+<meta name="description" content="Reach your own laptops, servers and phones from anywhere — privately, and without losing your session when the connection drops.">
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="assets/style.css">
 </head>
@@ -15,10 +15,10 @@
     <div class="content">
 
       <p class="eyebrow">The whole picture</p>
-      <h1>A dev environment you can reach from your pocket</h1>
+      <h1>Reach your own machines from anywhere</h1>
       <p class="lede">
-        The goal is narrow and worth stating precisely: open your phone anywhere in the world, get a
-        real shell on your own machines in under two seconds, and lose nothing when the train enters
+        The goal is narrow and worth stating precisely: open a phone or a laptop anywhere in the
+        world, reach your own machines in under two seconds, and lose nothing when the train enters
         a tunnel. Everything in this guide exists to serve that sentence.
       </p>
 
@@ -29,6 +29,17 @@
         kind of failure. This guide aims at a third thing: a network where your machines are
         <em>invisible</em> to everyone but you, and a session layer that treats disconnection as
         normal rather than exceptional.
+      </p>
+
+      <p>
+        Those are two separable layers, and it is worth knowing which one you actually need. The
+        <strong>network layer</strong> — Tailscale and SSH, plus the hardening chapter for each
+        machine — gives you private reachability, and it is useful whatever you point at it: a
+        database that should never touch the public internet, a home server, a NAS, a web app you
+        are not ready to publish. The <strong>session layer</strong> — Mosh and tmux, chapters 03
+        and 04 — is what turns that connection into somewhere you can work for hours from a phone on
+        a moving train. Build the first on its own if that is all you want; the second earns its
+        keep only if you live in a terminal.
       </p>
 
       <h2>The four machines</h2>
@@ -47,7 +58,7 @@
           <button type="button" class="sim-scn" data-scenario="coordoff" aria-pressed="false">Coordinator offline</button>
         </div>
 
-        <svg viewBox="0 0 900 500" role="img" aria-label="Four devices — an iPhone, a MacBook Pro, an Ubuntu laptop and a Linux VPS — register their public keys with a Tailscale coordination server, receive addresses in the 100.64.0.0/10 range, and then exchange traffic directly with each other, falling back to an encrypted DERP relay when a NAT refuses to cooperate.">
+        <svg viewBox="0 0 900 500" role="img" aria-label="Four devices — a phone, a MacBook Pro, an Ubuntu laptop and a Linux VPS — register their public keys with a Tailscale coordination server, receive addresses in the 100.64.0.0/10 range, and then exchange traffic directly with each other, falling back to an encrypted DERP relay when a NAT refuses to cooperate.">
           <defs>
             <marker id="tp-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
               <path d="M0 0 L10 5 L0 10 z" class="svg-accent"/>
@@ -64,9 +75,9 @@
           <g data-at="0+" class="sim-pop">
             <rect x="28" y="120" width="184" height="84" rx="10" class="svg-card svg-stroke" stroke-width="1.5"/>
             <rect x="28" y="120" width="4" height="84" rx="2" class="svg-accent"/>
-            <text x="48" y="148" class="svg-label">iPhone</text>
-            <text x="48" y="167" class="svg-sub">Blink Shell + Mosh</text>
-            <text x="48" y="185" class="svg-sub">key in Secure Enclave</text>
+            <text x="48" y="148" class="svg-label">Phone</text>
+            <text x="48" y="167" class="svg-sub">Blink or Termux + Mosh</text>
+            <text x="48" y="185" class="svg-sub">no port listens here</text>
           </g>
           <g data-at="0+" class="sim-pop">
             <rect x="688" y="120" width="184" height="84" rx="10" class="svg-card svg-stroke" stroke-width="1.5"/>
@@ -361,7 +372,7 @@
           <text data-at="0+" data-scn="reboot" x="737" y="374" text-anchor="middle" class="svg-mono-warn">host restarted</text>
 
           <text data-at="0+" data-scn="ip" data-poster x="250" y="384" class="svg-sub">the handoff happens mid-sentence — your IP changes</text>
-          <text data-at="0+" data-scn="sleep" x="250" y="384" class="svg-sub">iOS suspends the app and the radio goes quiet</text>
+          <text data-at="0+" data-scn="sleep" x="250" y="384" class="svg-sub">the phone suspends the app and the radio sleeps</text>
           <text data-at="0+" data-scn="kill" x="250" y="384" class="svg-sub">the client is gone, and so is anything it held</text>
           <text data-at="0+" data-scn="reboot" x="250" y="384" class="svg-sub">the machine you were working on restarts</text>
 
@@ -492,8 +503,8 @@
 
         <div class="sim-term" aria-hidden="true">
           <div data-at="0" data-scn="ip"><span class="tp">#</span> the train leaves the station<br><span class="tdim">en0 down · pdp_ip0 up — new public IP</span></div>
-          <div data-at="0" data-scn="sleep"><span class="tp">#</span> phone into pocket, screen off<br><span class="tdim">iOS suspends Blink after a few seconds</span></div>
-          <div data-at="0" data-scn="kill"><span class="tp">#</span> you swipe Blink away<br><span class="tdim">no client process, no local state, nothing held</span></div>
+          <div data-at="0" data-scn="sleep"><span class="tp">#</span> phone into pocket, screen off<br><span class="tdim">the phone suspends the app after a few seconds</span></div>
+          <div data-at="0" data-scn="kill"><span class="tp">#</span> you swipe the terminal away<br><span class="tdim">no client process, no local state, nothing held</span></div>
           <div data-at="0" data-scn="reboot"><span class="tp">$</span> sudo reboot<br><span class="tdim">Connection to macbook closed by remote host.</span></div>
 
           <div data-at="1"><span class="tp">$</span> tailscale ip -4<br>100.117.202.65 <span class="tok">— unchanged</span></div>
@@ -517,8 +528,8 @@
 
         <ol class="sim-steps" aria-live="polite">
           <li data-at="0" data-scn="ip" data-poster><b>Your IP changes</b>The train leaves the station and the phone hands off from Wi-Fi to LTE. Your public address changes mid-sentence. Nothing you did caused it and nothing warns you first — this is the most common failure of the four by a wide margin.</li>
-          <li data-at="0" data-scn="sleep"><b>Twenty minutes in a pocket</b>The screen goes off, iOS suspends the app, and the radio goes quiet. From the server's point of view your client simply stopped talking, which is indistinguishable from your client having died.</li>
-          <li data-at="0" data-scn="kill"><b>You close Blink</b>Not a network problem at all. The client process is gone, and so is everything it was holding in memory. Anything that lived only on the phone is now unrecoverable.</li>
+          <li data-at="0" data-scn="sleep"><b>Twenty minutes in a pocket</b>The screen goes off, the phone suspends the app, and the radio goes quiet. From the server's point of view your client simply stopped talking, which is indistinguishable from your client having died.</li>
+          <li data-at="0" data-scn="kill"><b>You close the terminal</b>Not a network problem at all. The client process is gone, and so is everything it was holding in memory. Anything that lived only on the phone is now unrecoverable.</li>
           <li data-at="0" data-scn="reboot"><b>The host reboots</b>A kernel update, a power cut, or you typing <code>sudo reboot</code>. This one is different from the other three: the failure is on the far side, where all of your actual work lives.</li>
 
           <li data-at="1"><b>1 · WireGuard / Tailscale holds</b>The tailnet address is tied to the device, not to whatever network it is standing on. It survives the handoff, comes back on wake, and returns at boot. This layer is about <em>reachability and identity</em> — it has no opinion at all about your session.</li>
