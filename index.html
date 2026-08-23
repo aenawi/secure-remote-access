@@ -37,84 +37,218 @@
         machines you work on, and each is hardened in its own chapter.
       </p>
 
-      <figure class="diagram">
-        <svg viewBox="0 0 900 470" role="img" aria-label="Topology: four devices joined by a Tailscale mesh, with a coordination server issuing keys and a DERP relay as fallback path">
+      <figure class="diagram sim" data-sim data-step-ms="4000" tabindex="0"
+              aria-label="Interactive walkthrough of how four machines end up on one private network. Pick what is going on, then step through joining, addressing, and the path the packets actually take. Use the left and right arrow keys to step through it.">
+
+        <div class="sim-bar">
+          <span class="sim-bar-label">What is going on</span>
+          <button type="button" class="sim-scn is-on" data-scenario="direct" aria-pressed="true">Everything up</button>
+          <button type="button" class="sim-scn" data-scenario="relay" aria-pressed="false">A NAT that refuses</button>
+          <button type="button" class="sim-scn" data-scenario="coordoff" aria-pressed="false">Coordinator offline</button>
+        </div>
+
+        <svg viewBox="0 0 900 500" role="img" aria-label="Four devices — an iPhone, a MacBook Pro, an Ubuntu laptop and a Linux VPS — register their public keys with a Tailscale coordination server, receive addresses in the 100.64.0.0/10 range, and then exchange traffic directly with each other, falling back to an encrypted DERP relay when a NAT refuses to cooperate.">
           <defs>
-            <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <marker id="tp-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
               <path d="M0 0 L10 5 L0 10 z" class="svg-accent"/>
             </marker>
-            <marker id="arm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-              <path d="M0 0 L10 5 L0 10 z" fill="currentColor" opacity=".5"/>
+            <marker id="tp-m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="currentColor" opacity=".45"/>
+            </marker>
+            <marker id="tp-w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" class="svg-warn"/>
             </marker>
           </defs>
 
-          <!-- control plane -->
-          <rect x="330" y="18" width="240" height="76" rx="10" class="svg-card svg-stroke" stroke-width="1.5" stroke-dasharray="5 3"/>
-          <text x="450" y="42" text-anchor="middle" class="svg-label">Tailscale coordination server</text>
-          <text x="450" y="60" text-anchor="middle" class="svg-sub">exchanges public keys</text>
-          <text x="450" y="78" text-anchor="middle" class="svg-sub">never sees traffic</text>
-
-          <!-- control lines -->
-          <path d="M450 94 L450 196" class="svg-muted-s" stroke-width="1.4" stroke-dasharray="4 4" fill="none"/>
-          <text x="462" y="147" class="svg-sub">control plane</text>
-
-          <!-- tailnet hub -->
-          <rect x="336" y="196" width="228" height="104" rx="12" class="svg-card svg-accent-s" stroke-width="2"/>
-          <text x="450" y="228" text-anchor="middle" class="svg-label">Your tailnet</text>
-          <text x="450" y="248" text-anchor="middle" class="svg-sub">100.64.0.0/10</text>
-          <text x="450" y="266" text-anchor="middle" class="svg-sub">WireGuard · end-to-end</text>
-          <text x="450" y="286" text-anchor="middle" class="svg-sub">ACLs enforced per packet</text>
-
-          <!-- devices -->
-          <g>
-            <rect x="40" y="116" width="176" height="82" rx="10" class="svg-card svg-stroke" stroke-width="1.5"/>
-            <text x="60" y="144" class="svg-label">iPhone</text>
-            <text x="60" y="163" class="svg-sub">Blink Shell + Mosh</text>
-            <text x="60" y="180" class="svg-sub">key in Secure Enclave</text>
-            <rect x="40" y="116" width="4" height="82" rx="2" class="svg-accent"/>
+          <!-- ============ the four machines (always present) ============ -->
+          <g data-at="0+" class="sim-pop">
+            <rect x="28" y="120" width="184" height="84" rx="10" class="svg-card svg-stroke" stroke-width="1.5"/>
+            <rect x="28" y="120" width="4" height="84" rx="2" class="svg-accent"/>
+            <text x="48" y="148" class="svg-label">iPhone</text>
+            <text x="48" y="167" class="svg-sub">Blink Shell + Mosh</text>
+            <text x="48" y="185" class="svg-sub">key in Secure Enclave</text>
           </g>
-          <g>
-            <rect x="684" y="116" width="176" height="82" rx="10" class="svg-card svg-stroke" stroke-width="1.5"/>
-            <text x="704" y="144" class="svg-label">MacBook Pro</text>
-            <text x="704" y="163" class="svg-sub">sshd bound to tailnet IP</text>
-            <text x="704" y="180" class="svg-sub">tmux + Herdr</text>
-            <rect x="684" y="116" width="4" height="82" rx="2" class="svg-accent"/>
+          <g data-at="0+" class="sim-pop">
+            <rect x="688" y="120" width="184" height="84" rx="10" class="svg-card svg-stroke" stroke-width="1.5"/>
+            <rect x="688" y="120" width="4" height="84" rx="2" class="svg-accent"/>
+            <text x="708" y="148" class="svg-label">MacBook Pro</text>
+            <text x="708" y="167" class="svg-sub">sshd on the tailnet IP</text>
+            <text x="708" y="185" class="svg-sub">tmux + Herdr</text>
           </g>
-          <g>
-            <rect x="40" y="318" width="176" height="82" rx="10" class="svg-card svg-stroke" stroke-width="1.5"/>
-            <text x="60" y="346" class="svg-label">Ubuntu laptop</text>
-            <text x="60" y="365" class="svg-sub">LUKS + UFW</text>
-            <text x="60" y="382" class="svg-sub">roams networks</text>
-            <rect x="40" y="318" width="4" height="82" rx="2" class="svg-accent"/>
+          <g data-at="0+" class="sim-pop">
+            <rect x="28" y="326" width="184" height="84" rx="10" class="svg-card svg-stroke" stroke-width="1.5"/>
+            <rect x="28" y="326" width="4" height="84" rx="2" class="svg-accent"/>
+            <text x="48" y="354" class="svg-label">Ubuntu laptop</text>
+            <text x="48" y="373" class="svg-sub">LUKS + UFW</text>
+            <text x="48" y="391" class="svg-sub">roams networks</text>
           </g>
-          <g>
-            <rect x="684" y="318" width="176" height="82" rx="10" class="svg-card svg-stroke" stroke-width="1.5"/>
-            <text x="704" y="346" class="svg-label">Linux VPS</text>
-            <text x="704" y="365" class="svg-sub">public IP · always on</text>
-            <text x="704" y="382" class="svg-sub">Tailscale SSH available</text>
-            <rect x="684" y="318" width="4" height="82" rx="2" class="svg-accent"/>
+          <g data-at="0+" class="sim-pop">
+            <rect x="688" y="326" width="184" height="84" rx="10" class="svg-card svg-stroke" stroke-width="1.5"/>
+            <rect x="688" y="326" width="4" height="84" rx="2" class="svg-accent"/>
+            <text x="708" y="354" class="svg-label">Linux VPS</text>
+            <text x="708" y="373" class="svg-sub">public IP · always on</text>
+            <text x="708" y="391" class="svg-sub">Tailscale SSH ready</text>
           </g>
 
-          <!-- data plane links -->
-          <path d="M216 157 C 280 157, 300 210, 336 224" class="svg-accent-s" stroke-width="2" fill="none" marker-end="url(#ar)"/>
-          <path d="M684 157 C 620 157, 600 210, 564 224" class="svg-accent-s" stroke-width="2" fill="none" marker-end="url(#ar)"/>
-          <path d="M216 359 C 280 359, 300 306, 336 292" class="svg-accent-s" stroke-width="2" fill="none" marker-end="url(#ar)"/>
-          <path d="M684 359 C 620 359, 600 306, 564 292" class="svg-accent-s" stroke-width="2" fill="none" marker-end="url(#ar)"/>
+          <!-- ============ step 1 · the control plane ============ -->
+          <g data-at="1+" class="sim-pop">
+            <rect x="316" y="14" width="268" height="64" rx="10" class="svg-card svg-stroke" stroke-width="1.5" stroke-dasharray="5 3"/>
+            <text x="450" y="40" text-anchor="middle" class="svg-label">Tailscale coordination server</text>
+            <text x="450" y="62" text-anchor="middle" class="svg-sub">public keys and ACL policy</text>
+          </g>
 
-          <!-- DERP -->
-          <rect x="342" y="392" width="216" height="56" rx="10" class="svg-surface svg-stroke" stroke-width="1.4" stroke-dasharray="5 3"/>
-          <text x="450" y="415" text-anchor="middle" class="svg-label">DERP relay</text>
-          <text x="450" y="433" text-anchor="middle" class="svg-sub">fallback when NAT blocks direct</text>
-          <path d="M450 300 L450 392" class="svg-muted-s" stroke-width="1.4" stroke-dasharray="4 4" fill="none"/>
+          <g data-at="1">
+            <path data-flow="muted" data-count="2" data-speed="0.2"
+                  d="M212 140 C 254 112, 284 74, 316 46"
+                  class="svg-muted-s" stroke-width="1.4" stroke-dasharray="4 4" fill="none" marker-end="url(#tp-m)"/>
+            <path data-flow="muted" data-count="2" data-speed="0.2"
+                  d="M688 140 C 646 112, 616 74, 584 46"
+                  class="svg-muted-s" stroke-width="1.4" stroke-dasharray="4 4" fill="none" marker-end="url(#tp-m)"/>
+            <path data-flow="muted" data-count="3" data-speed="0.2"
+                  d="M28 348 L16 348 L16 40 L316 40"
+                  class="svg-muted-s" stroke-width="1.4" stroke-dasharray="4 4" fill="none" marker-end="url(#tp-m)"/>
+            <path data-flow="muted" data-count="3" data-speed="0.2"
+                  d="M872 348 L884 348 L884 40 L584 40"
+                  class="svg-muted-s" stroke-width="1.4" stroke-dasharray="4 4" fill="none" marker-end="url(#tp-m)"/>
+          </g>
 
-          <text x="236" y="196" class="svg-sub">encrypted</text>
-          <text x="600" y="196" class="svg-sub">encrypted</text>
+          <!-- ============ step 2 · the tailnet itself ============ -->
+          <path data-at="2+" d="M450 78 L450 196" class="svg-muted-s" stroke-width="1.4" stroke-dasharray="4 4" fill="none"/>
+          <text data-at="2+" x="462" y="165" class="svg-sub">control plane</text>
+
+          <g data-at="2+" class="sim-pop">
+            <rect x="330" y="196" width="240" height="110" rx="12" class="svg-card svg-accent-s" stroke-width="2"/>
+            <text x="450" y="224" text-anchor="middle" class="svg-label">Your tailnet</text>
+            <text x="450" y="246" text-anchor="middle" class="svg-sub">100.64.0.0/10</text>
+            <text x="450" y="267" text-anchor="middle" class="svg-sub">WireGuard · end to end</text>
+            <text x="450" y="288" text-anchor="middle" class="svg-sub">ACLs enforced per packet</text>
+          </g>
+
+          <text data-at="2+" x="48" y="224" class="svg-mono-accent">100.126.245.94</text>
+          <text data-at="2+" x="708" y="224" class="svg-mono-accent">100.117.202.65</text>
+          <text data-at="2+" x="48" y="430" class="svg-mono-accent">100.71.19.4</text>
+          <text data-at="2+" x="708" y="430" class="svg-mono-accent">100.98.140.2</text>
+
+          <g data-at="2+" class="svg-muted-s" stroke-width="1.6" fill="none">
+            <path d="M212 162 C 262 168, 292 200, 330 222"/>
+            <path d="M688 162 C 638 168, 608 200, 570 222"/>
+            <path d="M212 368 C 262 362, 292 306, 330 284"/>
+            <path d="M688 368 C 638 362, 608 306, 570 284"/>
+          </g>
+
+          <!-- ============ step 3 · traffic, and the standby relay ============ -->
+          <g data-at="3+" class="sim-pop">
+            <rect x="336" y="398" width="228" height="56" rx="10" class="svg-surface svg-stroke" stroke-width="1.4" stroke-dasharray="5 3"/>
+            <text x="450" y="422" text-anchor="middle" class="svg-label">DERP relay</text>
+            <text x="450" y="442" text-anchor="middle" class="svg-sub">encrypted · cannot read it</text>
+          </g>
+          <path data-at="3+" d="M450 306 L450 398" class="svg-muted-s" stroke-width="1.4" stroke-dasharray="4 4" fill="none"/>
+          <text data-at="3+" x="234" y="210" class="svg-sub">encrypted</text>
+          <text data-at="3+" x="666" y="210" text-anchor="end" class="svg-sub">encrypted</text>
+
+          <g data-at="3" data-scn="direct relay coordoff">
+            <path data-flow="accent" data-count="3" data-speed="0.26" data-r="4"
+                  d="M212 162 C 262 168, 292 200, 330 222"
+                  class="svg-accent-s" stroke-width="2.2" fill="none" marker-end="url(#tp-a)"/>
+            <path data-flow="accent" data-count="3" data-speed="0.26" data-r="4"
+                  d="M688 162 C 638 168, 608 200, 570 222"
+                  class="svg-accent-s" stroke-width="2.2" fill="none" marker-end="url(#tp-a)"/>
+            <path data-flow="accent" data-count="3" data-speed="0.26" data-r="4"
+                  d="M212 368 C 262 362, 292 306, 330 284"
+                  class="svg-accent-s" stroke-width="2.2" fill="none" marker-end="url(#tp-a)"/>
+            <path data-flow="accent" data-count="3" data-speed="0.26" data-r="4"
+                  d="M688 368 C 638 362, 608 306, 570 284"
+                  class="svg-accent-s" stroke-width="2.2" fill="none" marker-end="url(#tp-a)"/>
+          </g>
+
+          <!-- ============ step 4 · which path won ============ -->
+          <g data-at="4" data-scn="direct coordoff" data-poster>
+            <path data-flow="accent" data-count="3" data-speed="0.3" data-r="4.5"
+                  d="M212 162 C 262 168, 292 200, 330 222"
+                  class="svg-accent-s" stroke-width="2.4" fill="none" marker-end="url(#tp-a)"/>
+            <path data-flow="accent" data-count="3" data-speed="0.3" data-r="4.5"
+                  d="M688 162 C 638 168, 608 200, 570 222"
+                  class="svg-accent-s" stroke-width="2.4" fill="none" marker-end="url(#tp-a)"/>
+            <path data-flow="accent" data-count="3" data-speed="0.3" data-r="4.5"
+                  d="M212 368 C 262 362, 292 306, 330 284"
+                  class="svg-accent-s" stroke-width="2.4" fill="none" marker-end="url(#tp-a)"/>
+            <path data-flow="accent" data-count="3" data-speed="0.3" data-r="4.5"
+                  d="M688 368 C 638 362, 608 306, 570 284"
+                  class="svg-accent-s" stroke-width="2.4" fill="none" marker-end="url(#tp-a)"/>
+          </g>
+          <text data-at="4" data-scn="direct" data-poster x="20" y="478" class="svg-mono-accent">direct · encrypted end to end · ~48 ms</text>
+          <text data-at="4" data-scn="direct" data-poster x="316" y="430" text-anchor="end" class="svg-sub">idle — no traffic</text>
+
+          <g data-at="4" data-scn="relay">
+            <path d="M212 162 C 262 168, 292 200, 330 222"
+                  class="svg-warn-s" stroke-width="1.6" stroke-dasharray="3 6" fill="none" opacity=".7"/>
+            <path d="M688 162 C 638 168, 608 200, 570 222"
+                  class="svg-warn-s" stroke-width="1.6" stroke-dasharray="3 6" fill="none" opacity=".7"/>
+            <path data-flow="accent" data-count="3" data-speed="0.3" data-r="4.5"
+                  d="M212 368 C 262 362, 292 306, 330 284"
+                  class="svg-accent-s" stroke-width="2.4" fill="none" marker-end="url(#tp-a)"/>
+            <path data-flow="accent" data-count="3" data-speed="0.3" data-r="4.5"
+                  d="M688 368 C 638 362, 608 306, 570 284"
+                  class="svg-accent-s" stroke-width="2.4" fill="none" marker-end="url(#tp-a)"/>
+            <path data-flow="warn" data-count="3" data-speed="0.22" data-r="4"
+                  d="M450 306 L450 398"
+                  class="svg-warn-s" stroke-width="2.2" fill="none" marker-end="url(#tp-w)"/>
+            <rect x="336" y="398" width="228" height="56" rx="10" fill="none" class="svg-warn-s" stroke-width="2.4"/>
+            <text x="316" y="430" text-anchor="end" class="svg-mono-warn">carrying it now</text>
+            <text x="20" y="478" class="svg-mono-warn">relayed · same encryption · ~620 ms</text>
+          </g>
+
+          <g data-at="4" data-scn="coordoff">
+            <rect x="316" y="14" width="268" height="64" rx="10" fill="none" class="svg-danger-s" stroke-width="2.4"/>
+            <text x="450" y="98" text-anchor="middle" class="svg-mono-danger">offline — keys already handed out</text>
+            <circle cx="450" cy="128" r="11" class="svg-card svg-danger-s" stroke-width="1.4"/>
+            <path d="M445.5 123.5 L454.5 132.5 M454.5 123.5 L445.5 132.5" class="svg-danger-s" stroke-width="2" fill="none" stroke-linecap="round"/>
+            <text x="20" y="478" class="svg-mono-accent">traffic unaffected · no new device can join</text>
+          </g>
         </svg>
+
+        <div class="sim-controls">
+          <button type="button" class="sim-btn" data-act="prev" aria-label="Previous step"><span class="sim-glyph">◀</span></button>
+          <button type="button" class="sim-btn sim-btn-play" data-act="play" aria-label="Play">
+            <span class="sim-glyph">▶</span><span class="sim-btn-text">Play</span>
+          </button>
+          <button type="button" class="sim-btn" data-act="next" aria-label="Next step"><span class="sim-glyph">▶</span></button>
+          <div class="sim-track" role="group" aria-label="Jump to step">
+            <button type="button" class="sim-dot" data-goto="0" aria-label="Step 0, four separate machines">0</button>
+            <button type="button" class="sim-dot" data-goto="1" aria-label="Step 1, joining the tailnet">1</button>
+            <button type="button" class="sim-dot" data-goto="2" aria-label="Step 2, addresses">2</button>
+            <button type="button" class="sim-dot" data-goto="3" aria-label="Step 3, traffic">3</button>
+            <button type="button" class="sim-dot" data-goto="4" aria-label="Step 4, which path won">4</button>
+          </div>
+          <div class="sim-progress" aria-hidden="true"><span></span></div>
+        </div>
+
+        <div class="sim-term" aria-hidden="true">
+          <div data-at="0"><span class="tp">$</span> tailscale status<br><span class="tdim">Tailscale is stopped.</span></div>
+          <div data-at="1"><span class="tp">$</span> sudo tailscale up<br><span class="tdim">authenticating with controlplane.tailscale.com…</span></div>
+          <div data-at="2"><span class="tp">$</span> tailscale status<br>100.117.202.65 macbook macOS <span class="tok">-</span> &nbsp; 100.126.245.94 iphone iOS <span class="tok">-</span></div>
+          <div data-at="3"><span class="tp">$</span> tailscale ping macbook<br>pong from macbook (100.117.202.65) via <span class="twarn">DERP(dbi)</span> in 618ms</div>
+          <div data-at="4" data-scn="direct"><span class="tp">$</span> tailscale ping macbook<br>pong from macbook (100.117.202.65) via <span class="tok">192.168.1.222:41641</span> in 48ms</div>
+          <div data-at="4" data-scn="relay"><span class="tp">$</span> tailscale ping macbook<br>pong from macbook (100.117.202.65) via <span class="twarn">DERP(dbi)</span> in 621ms</div>
+          <div data-at="4" data-scn="coordoff"><span class="tp">$</span> tailscale status<br><span class="twarn"># Health check: not in sync with the control server</span> <span class="tdim">— sessions still up</span></div>
+        </div>
+
+        <ol class="sim-steps" aria-live="polite">
+          <li data-at="0"><b>Four machines, no shared network</b>A phone, two laptops and a server. Three of them sit behind NAT with no reachable public port, and nothing here can address anything else. This is the honest starting point.</li>
+          <li data-at="1"><b>1 · Each device registers</b>Every machine sends its <em>public</em> key and a list of candidate endpoints to the coordination server, and gets back the keys and ACL policy for the others. Private keys are generated on-device and never move.</li>
+          <li data-at="2"><b>2 · The tailnet exists</b>Each device now holds a stable <code>100.x</code> address that follows it between Wi-Fi, LTE and ethernet. Rules are written against these identities, not against whatever public IP the café hands you today.</li>
+          <li data-at="3"><b>3 · Traffic flows between devices</b>Packets go device to device, sealed with WireGuard keys the coordination server has never held. It handed out public keys and policy and then got out of the way — it is not on this path.</li>
+          <li data-at="4" data-scn="direct" data-poster><b>4 · Direct, and fast</b>Both ends punched through their NATs, so packets take the shortest route the internet will give them. The relay sits idle. This is the ordinary case, and it is why a shell from your phone feels local.</li>
+          <li data-at="4" data-scn="relay"><b>4 · Relayed, and still private</b>One NAT refused to cooperate, so that pair falls back to a DERP relay. The relay forwards sealed packets it has no key to open: you pay latency, not confidentiality. Never disable it to "force security" — you will just lose connectivity.</li>
+          <li data-at="4" data-scn="coordoff"><b>4 · The coordinator goes away</b>Your traffic does not care. Devices already hold each other's keys, so existing paths keep carrying packets. What you lose is the control plane: no new device can join, and ACL changes will not propagate until it is back.</li>
+        </ol>
+
         <figcaption>
           <b>The coordination server never carries your traffic.</b> It distributes public keys and
           policy, then gets out of the way — packets flow directly between devices, encrypted with
-          keys the server has never held. When two devices sit behind NATs that refuse to cooperate,
-          traffic falls back to an encrypted DERP relay, which still cannot read it.
+          keys the server has never held. Switch to <b>A NAT that refuses</b> above to watch a pair
+          fall back to an encrypted DERP relay that still cannot read them, and to
+          <b>Coordinator offline</b> to see how little the control plane matters once the keys are out.
         </figcaption>
       </figure>
 
@@ -151,67 +285,268 @@
         Each one survives a failure the layer below it cannot.
       </p>
 
-      <figure class="diagram">
-        <svg viewBox="0 0 860 396" role="img" aria-label="Stack diagram: from untrusted network at the bottom through WireGuard, SSH, Mosh, tmux and Herdr, each surviving a different failure">
-          <text x="20" y="22" class="svg-sub">LAYER</text>
-          <text x="440" y="22" class="svg-sub">GIVES YOU</text>
-          <text x="700" y="22" class="svg-sub">SURVIVES</text>
+      <figure class="diagram sim" data-sim data-step-ms="3600" tabindex="0"
+              aria-label="Interactive walkthrough of the session stack. Pick something that goes wrong, then climb from the hostile network up through WireGuard, SSH, Mosh, tmux and Herdr, and watch which layer actually saves you. Use the left and right arrow keys to step through it.">
 
-          <g>
-            <rect x="20" y="34" width="820" height="52" rx="9" class="svg-card svg-accent-s" stroke-width="1.8"/>
-            <rect x="20" y="34" width="5" height="52" rx="2.5" class="svg-accent"/>
-            <text x="42" y="58" class="svg-label">Herdr</text>
-            <text x="42" y="76" class="svg-sub">agent multiplexer</text>
-            <text x="440" y="58" class="svg-sub">panes that know if an agent is working,</text>
-            <text x="440" y="74" class="svg-sub">blocked or idle</text>
-            <text x="700" y="66" class="svg-sub">server restart</text>
+        <div class="sim-bar">
+          <span class="sim-bar-label">What goes wrong</span>
+          <button type="button" class="sim-scn is-on" data-scenario="ip" aria-pressed="true">Your IP changes</button>
+          <button type="button" class="sim-scn" data-scenario="sleep" aria-pressed="false">20 min in a pocket</button>
+          <button type="button" class="sim-scn" data-scenario="kill" aria-pressed="false">You close Blink</button>
+          <button type="button" class="sim-scn" data-scenario="reboot" aria-pressed="false">The host reboots</button>
+        </div>
+
+        <svg viewBox="0 0 880 430" role="img" aria-label="Six stacked layers, read from the bottom: the hostile network, WireGuard and Tailscale, SSH, Mosh, tmux, and Herdr. For a chosen failure, each layer reports whether it holds, dies, or was never involved, so you can see which single layer is the one that saves your work.">
+
+          <text x="16" y="22" class="svg-sub">LAYER</text>
+          <text x="250" y="22" class="svg-sub">WHAT IT GIVES YOU</text>
+          <text x="612" y="22" class="svg-sub">IN THIS FAILURE</text>
+
+          <!-- ============ the stack itself (always present) ============ -->
+          <g data-at="0+">
+            <path d="M8 392 L8 48" class="svg-muted-s" stroke-width="1.4" stroke-dasharray="4 4" fill="none"/>
+            <g class="svg-muted-s" stroke-width="1.2" fill="none">
+              <path d="M8 61 L16 61"/><path d="M8 123 L16 123"/><path d="M8 185 L16 185"/>
+              <path d="M8 247 L16 247"/><path d="M8 309 L16 309"/><path d="M8 368 L16 368"/>
+            </g>
+
+            <rect x="16" y="34" width="848" height="54" rx="9" class="svg-card svg-accent-s" stroke-width="1.8"/>
+            <rect x="16" y="34" width="5" height="54" rx="2.5" class="svg-accent"/>
+            <text x="36" y="56" class="svg-label">Herdr</text>
+            <text x="36" y="74" class="svg-sub">agent multiplexer</text>
+            <text x="250" y="56" class="svg-sub">panes that know which agent is blocked on you</text>
+
+            <rect x="16" y="96" width="848" height="54" rx="9" class="svg-card svg-accent-s" stroke-width="1.8"/>
+            <rect x="16" y="96" width="5" height="54" rx="2.5" class="svg-accent"/>
+            <text x="36" y="118" class="svg-label">tmux</text>
+            <text x="36" y="136" class="svg-sub">session persistence</text>
+            <text x="250" y="118" class="svg-sub">processes that keep running, nothing attached</text>
+
+            <rect x="16" y="158" width="848" height="54" rx="9" class="svg-card svg-accent-s" stroke-width="1.8"/>
+            <rect x="16" y="158" width="5" height="54" rx="2.5" class="svg-accent"/>
+            <text x="36" y="180" class="svg-label">Mosh</text>
+            <text x="36" y="198" class="svg-sub">roaming transport</text>
+            <text x="250" y="180" class="svg-sub">UDP state sync and local echo, no TCP to break</text>
+
+            <rect x="16" y="220" width="848" height="54" rx="9" class="svg-card svg-stroke" stroke-width="1.6"/>
+            <text x="36" y="242" class="svg-label">SSH</text>
+            <text x="36" y="260" class="svg-sub">authenticated channel</text>
+            <text x="250" y="242" class="svg-sub">proves who you are, then carries the PTY</text>
+
+            <rect x="16" y="282" width="848" height="54" rx="9" class="svg-card svg-stroke" stroke-width="1.6"/>
+            <text x="36" y="304" class="svg-label">WireGuard / Tailscale</text>
+            <text x="36" y="322" class="svg-sub">private network</text>
+            <text x="250" y="304" class="svg-sub">encryption, identity, and no reachable port</text>
+
+            <rect x="16" y="344" width="848" height="48" rx="9" class="svg-surface svg-danger-s" stroke-width="1.5" stroke-dasharray="5 3"/>
+            <text x="36" y="366" class="svg-label">Wi-Fi · LTE · the internet</text>
+            <text x="36" y="384" class="svg-sub">assumed hostile</text>
           </g>
-          <g>
-            <rect x="20" y="94" width="820" height="52" rx="9" class="svg-card svg-accent-s" stroke-width="1.8"/>
-            <rect x="20" y="94" width="5" height="52" rx="2.5" class="svg-accent"/>
-            <text x="42" y="118" class="svg-label">tmux</text>
-            <text x="42" y="136" class="svg-sub">session persistence</text>
-            <text x="440" y="118" class="svg-sub">processes keep running with no</text>
-            <text x="440" y="134" class="svg-sub">terminal attached at all</text>
-            <text x="700" y="126" class="svg-sub">client killed</text>
+
+          <!-- ============ the climb ============ -->
+          <path data-at="0" data-flow="accent" data-count="1" data-speed="0.14" data-r="3.5" d="M8 392 L8 366" stroke="none" fill="none"/>
+          <path data-at="1" data-flow="accent" data-count="2" data-speed="0.14" data-r="3.5" d="M8 392 L8 309" stroke="none" fill="none"/>
+          <path data-at="2" data-flow="accent" data-count="2" data-speed="0.14" data-r="3.5" d="M8 392 L8 247" stroke="none" fill="none"/>
+          <path data-at="3" data-flow="accent" data-count="3" data-speed="0.14" data-r="3.5" d="M8 392 L8 185" stroke="none" fill="none"/>
+          <path data-at="4" data-flow="accent" data-count="3" data-speed="0.14" data-r="3.5" d="M8 392 L8 123" stroke="none" fill="none"/>
+          <path data-at="5" data-flow="accent" data-count="4" data-speed="0.14" data-r="3.5" d="M8 392 L8 61" stroke="none" fill="none"/>
+
+          <!-- ============ step 0 · the network, and what happened ============ -->
+          <g data-at="0+" data-scn="ip sleep kill reboot" data-poster class="sim-pop">
+            <rect x="612" y="357" width="250" height="26" rx="7" class="svg-surface svg-stroke" stroke-width="1.3" stroke-dasharray="5 4"/>
           </g>
-          <g>
-            <rect x="20" y="154" width="820" height="52" rx="9" class="svg-card svg-accent-s" stroke-width="1.8"/>
-            <rect x="20" y="154" width="5" height="52" rx="2.5" class="svg-accent"/>
-            <text x="42" y="178" class="svg-label">Mosh</text>
-            <text x="42" y="196" class="svg-sub">roaming transport</text>
-            <text x="440" y="178" class="svg-sub">UDP state sync, local echo,</text>
-            <text x="440" y="194" class="svg-sub">no TCP connection to break</text>
-            <text x="700" y="186" class="svg-sub">IP change, sleep</text>
+          <text data-at="0+" data-scn="ip" data-poster x="737" y="374" text-anchor="middle" class="svg-mono-warn">Wi-Fi → LTE</text>
+          <text data-at="0+" data-scn="sleep" x="737" y="374" text-anchor="middle" class="svg-mono-warn">20 min asleep</text>
+          <text data-at="0+" data-scn="kill" x="737" y="374" text-anchor="middle" class="svg-mono-warn">client closed</text>
+          <text data-at="0+" data-scn="reboot" x="737" y="374" text-anchor="middle" class="svg-mono-warn">host restarted</text>
+
+          <text data-at="0+" data-scn="ip" data-poster x="250" y="384" class="svg-sub">the handoff happens mid-sentence — your IP changes</text>
+          <text data-at="0+" data-scn="sleep" x="250" y="384" class="svg-sub">iOS suspends the app and the radio goes quiet</text>
+          <text data-at="0+" data-scn="kill" x="250" y="384" class="svg-sub">the client is gone, and so is anything it held</text>
+          <text data-at="0+" data-scn="reboot" x="250" y="384" class="svg-sub">the machine you were working on restarts</text>
+
+          <rect data-at="0" data-scn="ip sleep kill reboot" x="16" y="344" width="848" height="48" rx="9"
+                fill="none" class="svg-warn-s" stroke-width="2.6"/>
+
+          <!-- ============ step 1 · WireGuard / Tailscale ============ -->
+          <g data-at="1+" data-scn="ip sleep kill reboot" data-poster class="sim-pop">
+            <rect x="612" y="295" width="250" height="28" rx="7" class="svg-card svg-accent-s" stroke-width="1.5"/>
           </g>
-          <g>
-            <rect x="20" y="214" width="820" height="52" rx="9" class="svg-card svg-stroke" stroke-width="1.6"/>
-            <text x="42" y="238" class="svg-label">SSH</text>
-            <text x="42" y="256" class="svg-sub">authenticated channel</text>
-            <text x="440" y="238" class="svg-sub">proves who you are, bootstraps</text>
-            <text x="440" y="254" class="svg-sub">Mosh, carries the PTY</text>
-            <text x="700" y="246" class="svg-sub">nothing — it is TCP</text>
+          <text data-at="1+" data-scn="ip" data-poster x="737" y="313" text-anchor="middle" class="svg-mono-accent">holds · same 100.x</text>
+          <text data-at="1+" data-scn="sleep" x="737" y="313" text-anchor="middle" class="svg-mono-accent">reconnects on wake</text>
+          <text data-at="1+" data-scn="kill" x="737" y="313" text-anchor="middle" class="svg-mono-accent">nothing left to carry</text>
+          <text data-at="1+" data-scn="reboot" x="737" y="313" text-anchor="middle" class="svg-mono-accent">rejoins at boot</text>
+
+          <text data-at="1+" data-scn="ip" data-poster x="250" y="322" class="svg-sub">the tailnet address does not change with the network</text>
+          <text data-at="1+" data-scn="sleep" x="250" y="322" class="svg-sub">the tunnel comes back by itself, same address</text>
+          <text data-at="1+" data-scn="kill" x="250" y="322" class="svg-sub">the tunnel is fine — there is simply no client on it</text>
+          <text data-at="1+" data-scn="reboot" x="250" y="322" class="svg-sub">tailscaled starts on boot and takes the same address</text>
+
+          <rect data-at="1" data-scn="ip sleep kill reboot" x="16" y="282" width="848" height="54" rx="9"
+                fill="none" class="svg-accent-s" stroke-width="2.6"/>
+
+          <!-- ============ step 2 · SSH ============ -->
+          <g data-at="2+" data-scn="ip sleep kill reboot" data-poster class="sim-pop">
+            <rect x="612" y="233" width="250" height="28" rx="7" class="svg-card svg-danger-s" stroke-width="1.7"/>
           </g>
-          <g>
-            <rect x="20" y="274" width="820" height="52" rx="9" class="svg-card svg-stroke" stroke-width="1.6"/>
-            <text x="42" y="298" class="svg-label">WireGuard / Tailscale</text>
-            <text x="42" y="316" class="svg-sub">private network</text>
-            <text x="440" y="298" class="svg-sub">encryption + identity, and makes</text>
-            <text x="440" y="314" class="svg-sub">the port unreachable to everyone else</text>
-            <text x="700" y="306" class="svg-sub">network change</text>
+          <text data-at="2+" data-scn="ip" data-poster x="737" y="251" text-anchor="middle" class="svg-mono-danger">dead · broken pipe</text>
+          <text data-at="2+" data-scn="sleep" x="737" y="251" text-anchor="middle" class="svg-mono-danger">dead · timed out</text>
+          <text data-at="2+" data-scn="kill" x="737" y="251" text-anchor="middle" class="svg-mono-danger">dead with the client</text>
+          <text data-at="2+" data-scn="reboot" x="737" y="251" text-anchor="middle" class="svg-mono-danger">dead · host restarted</text>
+
+          <text data-at="2+" data-scn="ip" data-poster x="250" y="260" class="svg-sub">TCP is pinned to the old IP — it cannot follow you</text>
+          <text data-at="2+" data-scn="sleep" x="250" y="260" class="svg-sub">the TCP session expired while the app was suspended</text>
+          <text data-at="2+" data-scn="kill" x="250" y="260" class="svg-sub">the connection lived inside the process you closed</text>
+          <text data-at="2+" data-scn="reboot" x="250" y="260" class="svg-sub">every session on that machine ended at once</text>
+
+          <rect data-at="2" data-scn="ip sleep kill reboot" x="16" y="220" width="848" height="54" rx="9"
+                fill="none" class="svg-danger-s" stroke-width="2.6"/>
+
+          <!-- ============ step 3 · Mosh ============ -->
+          <g data-at="3+" data-scn="ip sleep" data-poster class="sim-pop">
+            <rect x="612" y="171" width="250" height="28" rx="7" class="svg-card svg-accent-s" stroke-width="1.5"/>
           </g>
-          <g>
-            <rect x="20" y="334" width="820" height="46" rx="9" class="svg-surface svg-danger-s" stroke-width="1.5" stroke-dasharray="5 3"/>
-            <text x="42" y="356" class="svg-label">Wi-Fi · LTE · the internet</text>
-            <text x="42" y="372" class="svg-sub">assumed hostile</text>
-            <text x="700" y="362" class="svg-sub">—</text>
+          <g data-at="3+" data-scn="kill reboot" class="sim-pop">
+            <rect x="612" y="171" width="250" height="28" rx="7" class="svg-card svg-danger-s" stroke-width="1.7"/>
           </g>
+          <text data-at="3+" data-scn="ip" data-poster x="737" y="189" text-anchor="middle" class="svg-mono-accent">survives · re-homes</text>
+          <text data-at="3+" data-scn="sleep" x="737" y="189" text-anchor="middle" class="svg-mono-accent">resumes in seconds</text>
+          <text data-at="3+" data-scn="kill" x="737" y="189" text-anchor="middle" class="svg-mono-danger">gone with the client</text>
+          <text data-at="3+" data-scn="reboot" x="737" y="189" text-anchor="middle" class="svg-mono-danger">gone · it is a process</text>
+
+          <text data-at="3+" data-scn="ip" data-poster x="250" y="198" class="svg-sub">no connection to break — it just uses the new IP</text>
+          <text data-at="3+" data-scn="sleep" x="250" y="198" class="svg-sub">the client re-syncs screen state on wake and catches up</text>
+          <text data-at="3+" data-scn="kill" x="250" y="198" class="svg-sub">mosh-client held the state; closing it ends the session</text>
+          <text data-at="3+" data-scn="reboot" x="250" y="198" class="svg-sub">mosh-server died with everything else on the host</text>
+
+          <rect data-at="3" data-scn="ip sleep" x="16" y="158" width="848" height="54" rx="9"
+                fill="none" class="svg-accent-s" stroke-width="2.6"/>
+          <rect data-at="3" data-scn="kill reboot" x="16" y="158" width="848" height="54" rx="9"
+                fill="none" class="svg-danger-s" stroke-width="2.6"/>
+
+          <!-- ============ step 4 · tmux ============ -->
+          <g data-at="4+" data-scn="ip sleep kill" data-poster class="sim-pop">
+            <rect x="612" y="109" width="250" height="28" rx="7" class="svg-card svg-accent-s" stroke-width="1.5"/>
+          </g>
+          <g data-at="4+" data-scn="reboot" class="sim-pop">
+            <rect x="612" y="109" width="250" height="28" rx="7" class="svg-card svg-danger-s" stroke-width="1.7"/>
+          </g>
+          <text data-at="4+" data-scn="ip sleep" data-poster x="737" y="127" text-anchor="middle" class="svg-mono-accent">never noticed</text>
+          <text data-at="4+" data-scn="kill" x="737" y="127" text-anchor="middle" class="svg-mono-accent">your work is alive</text>
+          <text data-at="4+" data-scn="reboot" x="737" y="127" text-anchor="middle" class="svg-mono-danger">gone · the honest limit</text>
+
+          <text data-at="4+" data-scn="ip sleep" data-poster x="250" y="136" class="svg-sub">it was never attached to your phone in the first place</text>
+          <text data-at="4+" data-scn="kill" x="250" y="136" class="svg-sub">processes keep running with no terminal attached at all</text>
+          <text data-at="4+" data-scn="reboot" x="250" y="136" class="svg-sub">tmux is a process too — sessions do not survive a reboot</text>
+
+          <rect data-at="4" data-scn="ip sleep kill" x="16" y="96" width="848" height="54" rx="9"
+                fill="none" class="svg-accent-s" stroke-width="2.6"/>
+          <rect data-at="4" data-scn="reboot" x="16" y="96" width="848" height="54" rx="9"
+                fill="none" class="svg-danger-s" stroke-width="2.6"/>
+
+          <!-- ============ step 5 · Herdr ============ -->
+          <g data-at="5" data-scn="ip sleep kill" data-poster class="sim-pop">
+            <rect x="612" y="47" width="250" height="28" rx="7" class="svg-card svg-accent-s" stroke-width="1.5"/>
+          </g>
+          <g data-at="5" data-scn="reboot" class="sim-pop">
+            <rect x="612" y="47" width="250" height="28" rx="7" class="svg-card svg-warn-s" stroke-width="1.7"/>
+          </g>
+          <text data-at="5" data-scn="ip" data-poster x="737" y="65" text-anchor="middle" class="svg-mono-accent">panes carry through</text>
+          <text data-at="5" data-scn="sleep" x="737" y="65" text-anchor="middle" class="svg-mono-accent">shows what changed</text>
+          <text data-at="5" data-scn="kill" x="737" y="65" text-anchor="middle" class="svg-mono-accent">reattach, unchanged</text>
+          <text data-at="5" data-scn="reboot" x="737" y="65" text-anchor="middle" class="svg-mono-warn">brings the panes back</text>
+
+          <text data-at="5" data-scn="ip" data-poster x="250" y="74" class="svg-sub">every agent kept running and kept its status</text>
+          <text data-at="5" data-scn="sleep" x="250" y="74" class="svg-sub">which agents finished, and which are waiting on you</text>
+          <text data-at="5" data-scn="kill" x="250" y="74" class="svg-sub">one command puts you back in front of the same panes</text>
+          <text data-at="5" data-scn="reboot" x="250" y="74" class="svg-sub">resume_agents_on_restore restores the conversations</text>
+
+          <rect data-at="5" data-scn="ip sleep kill" x="16" y="34" width="848" height="54" rx="9"
+                fill="none" class="svg-accent-s" stroke-width="2.6"/>
+          <rect data-at="5" data-scn="reboot" x="16" y="34" width="848" height="54" rx="9"
+                fill="none" class="svg-warn-s" stroke-width="2.6"/>
+
+          <!-- ============ the verdict ============ -->
+          <text data-at="5" data-scn="ip" data-poster x="16" y="418" class="svg-mono-accent">you never noticed — Mosh absorbed the whole thing</text>
+          <text data-at="5" data-scn="sleep" x="16" y="418" class="svg-mono-accent">a second of catch-up on wake, then you are typing again</text>
+          <text data-at="5" data-scn="kill" x="16" y="418" class="svg-mono-accent">one command and you are back where you were</text>
+          <text data-at="5" data-scn="reboot" x="16" y="418" class="svg-mono-warn">the one failure that costs you work — plan reboots</text>
         </svg>
+
+        <div class="sim-controls">
+          <button type="button" class="sim-btn" data-act="prev" aria-label="Previous step"><span class="sim-glyph">◀</span></button>
+          <button type="button" class="sim-btn sim-btn-play" data-act="play" aria-label="Play">
+            <span class="sim-glyph">▶</span><span class="sim-btn-text">Play</span>
+          </button>
+          <button type="button" class="sim-btn" data-act="next" aria-label="Next step"><span class="sim-glyph">▶</span></button>
+          <div class="sim-track" role="group" aria-label="Jump to layer">
+            <button type="button" class="sim-dot" data-goto="0" aria-label="Step 0, the network">0</button>
+            <button type="button" class="sim-dot" data-goto="1" aria-label="Layer 1, WireGuard and Tailscale">1</button>
+            <button type="button" class="sim-dot" data-goto="2" aria-label="Layer 2, SSH">2</button>
+            <button type="button" class="sim-dot" data-goto="3" aria-label="Layer 3, Mosh">3</button>
+            <button type="button" class="sim-dot" data-goto="4" aria-label="Layer 4, tmux">4</button>
+            <button type="button" class="sim-dot" data-goto="5" aria-label="Layer 5, Herdr">5</button>
+          </div>
+          <div class="sim-progress" aria-hidden="true"><span></span></div>
+        </div>
+
+        <div class="sim-term" aria-hidden="true">
+          <div data-at="0" data-scn="ip"><span class="tp">#</span> the train leaves the station<br><span class="tdim">en0 down · pdp_ip0 up — new public IP</span></div>
+          <div data-at="0" data-scn="sleep"><span class="tp">#</span> phone into pocket, screen off<br><span class="tdim">iOS suspends Blink after a few seconds</span></div>
+          <div data-at="0" data-scn="kill"><span class="tp">#</span> you swipe Blink away<br><span class="tdim">no client process, no local state, nothing held</span></div>
+          <div data-at="0" data-scn="reboot"><span class="tp">$</span> sudo reboot<br><span class="tdim">Connection to macbook closed by remote host.</span></div>
+
+          <div data-at="1"><span class="tp">$</span> tailscale ip -4<br>100.117.202.65 <span class="tok">— unchanged</span></div>
+
+          <div data-at="2" data-scn="ip sleep"><span class="tp">$</span> ssh macbook<br><span class="twarn">client_loop: send disconnect: Broken pipe</span></div>
+          <div data-at="2" data-scn="kill"><span class="tp">#</span> the ssh process went with the app<br><span class="twarn">no session, no PTY, nothing to reattach to</span></div>
+          <div data-at="2" data-scn="reboot"><span class="tp">#</span> every sshd session on the host ended<br><span class="twarn">Connection reset by peer</span></div>
+
+          <div data-at="3" data-scn="ip"><span class="tp">$</span> mosh macbook<br><span class="tok">[mosh] roaming to 10.44.7.19 — no reconnect needed</span></div>
+          <div data-at="3" data-scn="sleep"><span class="tp">$</span> mosh macbook<br><span class="twarn">[mosh] Last contact 21:04:11 …</span> <span class="tok">resumed</span></div>
+          <div data-at="3" data-scn="kill"><span class="tdim"># mosh-client is gone, and it held the session state</span><br><span class="twarn">[mosh] no client to resume from</span></div>
+          <div data-at="3" data-scn="reboot"><span class="tdim"># mosh-server is a process on the host</span><br><span class="twarn">it died with everything else</span></div>
+
+          <div data-at="4" data-scn="ip sleep"><span class="tp">$</span> tmux ls<br>phone: 3 windows (created Mon Aug 18) <span class="tok">(attached)</span></div>
+          <div data-at="4" data-scn="kill"><span class="tp">$</span> tmux ls<br>phone: 3 windows (created Mon Aug 18) <span class="tok">— still running, detached</span></div>
+          <div data-at="4" data-scn="reboot"><span class="tp">$</span> tmux ls<br><span class="twarn">no server running on /tmp/tmux-501/default</span></div>
+
+          <div data-at="5" data-scn="ip sleep kill"><span class="tp">$</span> mosh macbook -- tmux new -A -s phone<br><span class="tok">herdr · 5 panes · 1 blocked</span> <span class="tdim">— exactly where you left it</span></div>
+          <div data-at="5" data-scn="reboot"><span class="tp">$</span> mosh macbook -- tmux new -A -s phone<br><span class="twarn">herdr · panes restored, scrollback gone</span> <span class="tdim">— start the agents again</span></div>
+        </div>
+
+        <ol class="sim-steps" aria-live="polite">
+          <li data-at="0" data-scn="ip" data-poster><b>Your IP changes</b>The train leaves the station and the phone hands off from Wi-Fi to LTE. Your public address changes mid-sentence. Nothing you did caused it and nothing warns you first — this is the most common failure of the four by a wide margin.</li>
+          <li data-at="0" data-scn="sleep"><b>Twenty minutes in a pocket</b>The screen goes off, iOS suspends the app, and the radio goes quiet. From the server's point of view your client simply stopped talking, which is indistinguishable from your client having died.</li>
+          <li data-at="0" data-scn="kill"><b>You close Blink</b>Not a network problem at all. The client process is gone, and so is everything it was holding in memory. Anything that lived only on the phone is now unrecoverable.</li>
+          <li data-at="0" data-scn="reboot"><b>The host reboots</b>A kernel update, a power cut, or you typing <code>sudo reboot</code>. This one is different from the other three: the failure is on the far side, where all of your actual work lives.</li>
+
+          <li data-at="1"><b>1 · WireGuard / Tailscale holds</b>The tailnet address is tied to the device, not to whatever network it is standing on. It survives the handoff, comes back on wake, and returns at boot. This layer is about <em>reachability and identity</em> — it has no opinion at all about your session.</li>
+
+          <li data-at="2"><b>2 · SSH dies — in every one of the four</b>SSH is a TCP connection, and TCP is pinned to a pair of addresses for its whole life. Change one, stay quiet too long, kill either end, and it is over: <code>client_loop: send disconnect: Broken pipe</code>. SSH is not a persistence layer and was never trying to be.</li>
+
+          <li data-at="3" data-scn="ip" data-poster><b>3 · Mosh does not care</b>There is no connection to break. Mosh syncs screen <em>state</em> over UDP, so a new IP is just a new return address. You keep typing — with local echo, the keystrokes were never waiting on the network anyway.</li>
+          <li data-at="3" data-scn="sleep"><b>3 · Mosh picks up where it stopped</b>On wake, the client sends its last known state and the server sends the difference. A second of catch-up, no reconnect, no lost scrollback. This is the layer that makes a phone a usable terminal.</li>
+          <li data-at="3" data-scn="kill"><b>3 · Mosh goes with the client</b>The session state lived in <code>mosh-client</code>. Closing the app took it with you, and a fresh client cannot adopt the old session. Mosh survives bad networks, not a dead client — which is exactly what the layer above it is for.</li>
+          <li data-at="3" data-scn="reboot"><b>3 · Mosh is a process on that host</b><code>mosh-server</code> died with everything else when the machine went down. No transport can survive the disappearance of the thing it was talking to.</li>
+
+          <li data-at="4" data-scn="ip sleep" data-poster><b>4 · tmux never noticed</b>Your processes were never attached to the phone. They are attached to a tmux server on the far machine, which spent the whole incident doing nothing unusual. Nothing here needed rescuing — but the two failures below did not need this layer either.</li>
+          <li data-at="4" data-scn="kill"><b>4 · tmux is what saves you</b>This is the failure the layer exists for. Your shells, builds and agents keep running with no terminal attached at all, because they never depended on one. The phone was a window, not a container.</li>
+          <li data-at="4" data-scn="reboot"><b>4 · tmux is the honest limit</b>tmux is a process too. When the host restarts, the tmux server and every process inside it go with it. Nothing in this stack survives a reboot of the machine your work runs on — which is why long jobs belong in something that writes to disk.</li>
+
+          <li data-at="5" data-scn="ip" data-poster><b>5 · Herdr carried straight through</b>Every agent pane kept running and kept its status. Five layers, one failure, and the only one that had to do any work was Mosh. Each layer sits idle until the specific failure it owns shows up. <b>That idleness is the design, not waste.</b></li>
+          <li data-at="5" data-scn="sleep"><b>5 · Herdr tells you what changed</b>You come back to a page that already says which agents finished while you were away and which are blocked on you. Twenty minutes of not looking cost you nothing, and you do not have to open five panes to find out.</li>
+          <li data-at="5" data-scn="kill"><b>5 · Reattach, unchanged</b><code>mosh macbook -- tmux new -A -s phone</code> puts you back in front of the same panes with the same agents. Closing the app was never destructive, which is what makes the phone usable as a real client.</li>
+          <li data-at="5" data-scn="reboot"><b>5 · Herdr rebuilds the room, not the work</b>With <code>resume_agents_on_restore</code> set, Herdr brings the agent conversations back after its server restarts. Your layout and context return; the scrollback and any half-finished build do not. This is the failure worth planning for — the other three plan for themselves.</li>
+        </ol>
+
         <figcaption>
           <b>Read it from the bottom.</b> SSH alone survives nothing: it rides on a TCP connection, and
           when your phone's IP changes or iOS suspends the app, that connection is gone —
           <code>client_loop: send disconnect: Broken pipe</code>. Mosh removes the TCP dependency.
-          tmux removes the client dependency entirely. Herdr adds awareness of what your agents are doing.
+          tmux removes the client dependency entirely. Herdr adds awareness of what your agents are
+          doing. Switch the failure above and watch how few layers do any work in each one — that
+          idleness is the design, not waste.
         </figcaption>
       </figure>
 
@@ -261,6 +596,7 @@
 </div>
 <script src="assets/nav.js"></script>
 <script src="assets/app.js"></script>
+<script src="assets/anim.js"></script>
 <script>
 (function () {
   var host = document.getElementById("cards");
