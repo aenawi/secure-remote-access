@@ -589,6 +589,61 @@ td code { font-size: 12.5px; }
 }
 .pp-chip:hover { color: var(--text); border-color: var(--accent); }
 
+/* ---- named configurations ---- */
+.pp-presets { display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px; }
+.pp-preset {
+  font: inherit; text-align: left; cursor: pointer; padding: 9px 11px;
+  border-radius: 7px; background: var(--bg-raised);
+  border: 1px solid var(--border); border-left-width: 3px;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.pp-preset:hover { border-color: var(--border-strong); }
+.pp-preset b { font-size: 13px; font-weight: 660; color: var(--text); }
+.pp-preset span { font-size: 11px; color: var(--text-faint); line-height: 1.45; }
+.pp-preset.is-ok   { border-left-color: var(--ok); }
+.pp-preset.is-ok:hover   { border-color: var(--ok); }
+.pp-preset.is-warn { border-left-color: var(--warn); }
+.pp-preset.is-warn:hover { border-color: var(--warn); }
+.pp-preset.is-bad  { border-left-color: var(--danger); }
+.pp-preset.is-bad:hover  { border-color: var(--danger); }
+.pp-audit { width: 100%; }
+
+/* ---- the scorecard ---- */
+.sb-score {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  padding: 12px 14px; border-radius: 8px; margin-bottom: 12px;
+  border: 1px solid var(--border); border-left: 3px solid var(--text-faint);
+  background: var(--bg-sunken);
+}
+.sb-score b { font-family: var(--mono); font-size: 24px; font-weight: 700; line-height: 1; }
+.sb-score span { font-size: 12px; color: var(--text-muted); }
+.sb-score.is-ok   { background: var(--ok-soft);     border-left-color: var(--ok); }
+.sb-score.is-ok b { color: var(--ok); }
+.sb-score.is-warn { background: var(--warn-soft);   border-left-color: var(--warn); }
+.sb-score.is-warn b { color: var(--warn); }
+.sb-score.is-bad  { background: var(--danger-soft); border-left-color: var(--danger); }
+.sb-score.is-bad b { color: var(--danger); }
+
+.sb-audit-group {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--text-faint); font-weight: 700; margin: 14px 0 6px;
+}
+.sb-check { display: flex; gap: 9px; align-items: flex-start; padding: 6px 0; }
+.ck-mark { font-family: var(--mono); font-size: 13px; line-height: 1.4; flex: 0 0 auto; width: 14px; }
+.sb-check.is-ok  .ck-mark { color: var(--ok); }
+.sb-check.is-bad .ck-mark { color: var(--danger); font-weight: 700; }
+.ck-body { display: flex; flex-direction: column; min-width: 0; }
+.ck-label { font-size: 12.5px; color: var(--text); line-height: 1.4; }
+.sb-check.is-bad .ck-label { color: var(--danger); }
+.ck-why { font-size: 11.5px; color: var(--text-faint); line-height: 1.5; }
+
+.sb-compare { display: flex; flex-direction: column; gap: 5px; }
+.cmp-row { display: grid; grid-template-columns: 74px 1fr 44px; gap: 8px; align-items: center; }
+.cmp-name { font-size: 11.5px; color: var(--text-muted); }
+.cmp-bar { height: 6px; border-radius: 3px; background: var(--bg-sunken); overflow: hidden; }
+.cmp-bar > span { display: block; height: 100%; background: var(--accent); }
+.cmp-score { font-family: var(--mono); font-size: 11px; color: var(--text-muted); text-align: right; }
+
 /* ---- attacks ---- */
 .pp-attacks { display: flex; flex-direction: column; gap: 5px; }
 .pp-attack {
@@ -603,10 +658,13 @@ td code { font-size: 12.5px; }
 .pp-attack.is-danger { border-color: var(--danger); background: var(--danger-soft); }
 
 /* ---- the readout ---- */
-.sb-tabs { display: flex; gap: 4px; margin-bottom: 8px; }
+/* Five tabs do not fit a 320px column. Let the strip scroll rather than
+   letting its min-content width push the whole page sideways. */
+.sb-tabs { display: flex; gap: 4px; margin-bottom: 8px; overflow-x: auto; scrollbar-width: none; }
+.sb-tabs::-webkit-scrollbar { display: none; }
 .sb-tab {
   font: inherit; font-family: var(--mono); font-size: 11.5px; line-height: 1;
-  padding: 8px 12px; border-radius: 7px 7px 0 0; cursor: pointer;
+  padding: 8px 12px; border-radius: 7px 7px 0 0; cursor: pointer; flex: 0 0 auto;
   background: transparent; color: var(--text-faint);
   border: 1px solid transparent; border-bottom: 2px solid transparent;
 }
@@ -615,14 +673,17 @@ td code { font-size: 12.5px; }
 
 .sb-pane { display: none; }
 .sb-pane.is-on { display: block; }
+/* The readout column is sticky, so its panes must never exceed the viewport —
+   past that, sticky positioning strands the bottom of the content off-screen. */
 .sb-pane pre {
-  margin: 0; max-height: 460px; overflow: auto;
+  margin: 0; max-height: calc(100vh - 130px); overflow: auto;
   font-size: 11.5px; line-height: 1.65; white-space: pre;
   background: var(--bg-code); border: 1px solid var(--border); border-radius: 8px;
 }
-.sb-pane[data-pane="packets"] { max-height: 460px; overflow-y: auto;
+.sb-pane[data-pane="packets"] { max-height: calc(100vh - 130px); overflow-y: auto;
   display: none; flex-direction: column; gap: 7px; }
 .sb-pane[data-pane="packets"].is-on { display: flex; }
+.sb-pane[data-pane="audit"] { max-height: calc(100vh - 130px); overflow-y: auto; padding-right: 4px; }
 .sb-empty { font-size: 12.5px; color: var(--text-faint); line-height: 1.55; margin: 0; padding: 10px 2px; }
 .pp-foot { font-size: 11.5px; color: var(--text-faint); margin: 8px 0 0; line-height: 1.5; }
 
@@ -650,6 +711,10 @@ td code { font-size: 12.5px; }
 @media (max-width: 900px) {
   .sb-grid { grid-template-columns: 1fr; }
   .sb-col-readout { position: static; }
+  /* not sticky any more, so the panes can be a comfortable fixed height again */
+  .sb-pane pre,
+  .sb-pane[data-pane="packets"],
+  .sb-pane[data-pane="audit"] { max-height: 70vh; }
 }
 @media (max-width: 620px) {
   .sandbox { margin-left: -12px; margin-right: -12px; padding: 12px; border-radius: 0; }
@@ -699,6 +764,12 @@ td code { font-size: 12.5px; }
 .pager .dir { font-size: 11px; color: var(--text-faint); font-family: var(--mono); text-transform: uppercase; letter-spacing: .08em; }
 .pager .ttl { font-weight: 660; font-size: 14.5px; margin-top: 3px; }
 .pager a.next { text-align: right; }
+
+.site-foot {
+  margin: 34px 0 0; padding-top: 14px; border-top: 1px solid var(--border);
+  font-size: 11.5px; line-height: 1.6; color: var(--text-faint);
+}
+.site-foot b { color: var(--text-muted); font-weight: 660; }
 
 .badge {
   display: inline-block; font-family: var(--mono); font-size: 10.5px; font-weight: 700;

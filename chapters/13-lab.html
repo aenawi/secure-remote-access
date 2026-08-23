@@ -44,6 +44,24 @@
         </p>
       </div>
 
+      <div class="callout danger">
+        <div class="ct">A green lab is evidence, not a guarantee</div>
+        <p>
+          The whole point of building this is to make mistakes cheaply, and it works — but a rig that
+          passes is telling you about <em>the rig</em>. Your VPS has a different provider's
+          networking, your laptop a different distribution, your phone a carrier you do not control.
+          Carry the confidence across, not the assumption.
+        </p>
+        <p>
+          When you do move to the real machines: keep a proven second way in before you change
+          anything, follow <a href="11-runbooks.html">chapter 11</a>'s build order rather than your
+          memory of it, and read each command instead of pasting a block. Everything in this guide is
+          provided <b>as is</b> with no warranty and you accept the risk of using it — see
+          <a href="../index.html#disclaimer">the disclaimer</a> and the
+          <a href="../LICENSE">MIT licence</a>.
+        </p>
+      </div>
+
       <h2>The trap: a lab that proves the boring half</h2>
       <p>
         The obvious lab is three virtual machines on one laptop. It is also nearly useless for this
@@ -670,6 +688,8 @@ tart delete lab-mac          # if you built one</code></pre>
       </ul>
 
       <nav class="pager"></nav>
+
+      <p class="site-foot">The commands in this guide change firewall and login settings, and can lock you out of a machine. Practise on something disposable first. Everything here is provided <b>as is</b>, with no warranty — you accept the risk of running it. <a href="../index.html#disclaimer">Read the disclaimer</a>.</p>
     </div>
   </main>
   <aside class="toc"></aside>

@@ -600,7 +600,56 @@
         </p>
       </div>
 
+      <h2 id="disclaimer">Disclaimer</h2>
+      <p>
+        This guide is published under the <a href="LICENSE">MIT licence</a>, which means it comes
+        with <strong>no warranty of any kind</strong>. Read that as it is meant: nobody who wrote,
+        reviewed or contributed to this is responsible for what happens on your machines.
+      </p>
+      <p>
+        Take that seriously rather than as boilerplate, because of what the commands here actually
+        do. They change firewall rules, disable password login, rewrite <code>sshd_config</code>,
+        and deliberately remove the only route into a machine you may be a long way from. Done in
+        the wrong order, on a box you cannot walk over to, several of them will lock you out — and
+        the guide says so, loudly, at every point where that is a real risk. Those warnings are not
+        decoration.
+      </p>
+
+      <div class="callout danger">
+        <div class="ct">Before you run any of it against something you care about</div>
+        <ul>
+          <li>
+            <b>Your environment is not this one.</b> Versions drift, distributions differ, your
+            provider's networking is its own. A command that is correct here can be wrong for you.
+            Understand what a line does before you run it — the guide explains the why for exactly
+            this reason.
+          </li>
+          <li>
+            <b>Practise somewhere disposable.</b>
+            <a href="chapters/14-sandbox.html">Chapter 14</a> is a simulation and costs nothing;
+            <a href="chapters/13-lab.html">chapter 13</a> builds throwaway VMs. Neither is your
+            production box, and a green result in either is not a promise about your real one.
+          </li>
+          <li>
+            <b>Keep a second way in.</b> A second SSH session, your provider's web console, physical
+            access — proven working <em>before</em> you change anything, not assumed.
+          </li>
+          <li>
+            <b>The decision is yours, and so is the outcome.</b> You accept the risk of running any
+            of this. If something breaks, that is not a fault of this repository, its owner, or any
+            contributor.
+          </li>
+        </ul>
+      </div>
+
+      <p>
+        None of that is a reason not to do the work. It is a reason to do it in the order the guide
+        gives you, on something you can afford to break first.
+      </p>
+
       <nav class="pager"></nav>
+
+      <p class="site-foot">The commands in this guide change firewall and login settings, and can lock you out of a machine. Practise on something disposable first. Everything here is provided <b>as is</b>, with no warranty — you accept the risk of running it. <a href="#disclaimer">Read the disclaimer</a>.</p>
     </div>
   </main>
   <aside class="toc"></aside>

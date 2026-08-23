@@ -114,6 +114,34 @@ Its engine walks the chapter 12 ladder in order and always returns the rung that
 decided the outcome, never a bare pass/fail — that is the thing worth preserving if
 you extend it. State round-trips through the URL hash, so a configuration is a link.
 
+## Disclaimer
+
+Published under the [MIT licence](LICENSE), which means **no warranty of any
+kind**. Nobody who wrote, reviewed or contributed to this is responsible for
+what happens on your machines.
+
+That is worth reading as more than boilerplate, because of what the commands
+here do. They change firewall rules, disable password login, rewrite
+`sshd_config`, and deliberately remove the only route into a machine you may be
+a long way from. In the wrong order, on a box you cannot walk over to, several
+of them will lock you out. The guide says so at every point where that is a
+real risk; those warnings are not decoration.
+
+Before running any of it against something you care about:
+
+- **Your environment is not this one.** Versions drift and providers differ.
+  Understand what a line does before you run it.
+- **Practise somewhere disposable.** Chapter 14 is a simulation and costs
+  nothing; chapter 13 builds throwaway VMs. A green result in either is not a
+  promise about your production box.
+- **Keep a second way in** — another SSH session, a provider console, physical
+  access — proven working *before* you change anything.
+- **The decision is yours, and so is the outcome.** If something breaks, that is
+  not a fault of this repository, its owner, or any contributor.
+
+None of which is a reason to skip the work. It is a reason to do it in the order
+given, on something you can afford to break first.
+
 ## A note on accuracy
 
 Commands were written against macOS 26, Ubuntu 24.04 LTS, OpenSSH 10.x and

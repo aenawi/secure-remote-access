@@ -36,6 +36,25 @@
         </p>
       </div>
 
+      <div class="callout danger">
+        <div class="ct">Nothing here can hurt you. What you carry out of here can</div>
+        <p>
+          Inside this page there is no risk at all — no packet leaves your browser and no machine
+          exists to break. The <b>script</b> tab is the exception, because it hands you real commands
+          that delete firewall rules and rewrite <code>sshd_config</code>. Run those on a machine you
+          rely on, in the wrong order, and you will lock yourself out of it.
+        </p>
+        <p>
+          A green result here is a statement about a model, not a promise about your network. Your
+          versions, your provider and your topology are not these. Practise on the throwaway VMs in
+          <a href="13-lab.html">chapter 13</a>, keep a proven second way in, and read each line
+          before you run it. Everything in this guide is provided <b>as is</b> with no warranty and
+          you accept the risk of using it — the full terms are in
+          <a href="../index.html#disclaimer">the disclaimer</a> and the
+          <a href="../LICENSE">MIT licence</a>.
+        </p>
+      </div>
+
       <section class="sandbox" data-sandbox>
 
         <div class="sb-poster">
@@ -141,6 +160,40 @@
         <div class="sb-grid">
 
           <div class="sb-col">
+
+            <section class="sb-panel">
+              <h3 class="pp-title">Configurations</h3>
+              <p class="pp-note">
+                Four states, each one somebody's real machine. Load one, then audit it.
+              </p>
+              <div class="pp-presets">
+                <button type="button" class="pp-preset is-bad" data-preset="day-one">
+                  <b>Day one</b>
+                  <span>A fresh VPS, an hour old. Root, a password, and a public address the scanners already know</span>
+                </button>
+                <button type="button" class="pp-preset is-warn" data-preset="typical">
+                  <b>Typical</b>
+                  <span>The half-done state most people are in: keys and a tailnet, then it stopped</span>
+                </button>
+                <button type="button" class="pp-preset is-bad" data-preset="weak">
+                  <b>Weak</b>
+                  <span>Every protection that got in somebody's way, switched off on purpose</span>
+                </button>
+                <button type="button" class="pp-preset is-ok" data-preset="hardened">
+                  <b>Hardened</b>
+                  <span>What chapters 01 through 11 build towards</span>
+                </button>
+              </div>
+              <button type="button" class="pp-btn is-primary pp-audit" data-act="audit">
+                Audit this configuration
+              </button>
+              <p class="pp-foot">
+                Eleven checks, the same eleven every time — including two that ask whether
+                <em>you</em> can still get in, because a configuration that locks you out is not
+                secure, it is broken.
+              </p>
+            </section>
+
             <div data-sandbox-controls></div>
 
             <section class="sb-panel">
@@ -226,12 +279,20 @@
             <div class="sb-tabs" role="tablist" aria-label="Readout">
               <button type="button" role="tab" class="sb-tab" data-tab="status">status</button>
               <button type="button" role="tab" class="sb-tab" data-tab="packets">packets</button>
+              <button type="button" role="tab" class="sb-tab" data-tab="audit">audit</button>
               <button type="button" role="tab" class="sb-tab" data-tab="rules">rules</button>
               <button type="button" role="tab" class="sb-tab" data-tab="script">script</button>
             </div>
 
             <div class="sb-pane" data-pane="status" role="tabpanel" aria-live="polite"><pre></pre></div>
             <div class="sb-pane" data-pane="packets" role="tabpanel" aria-live="polite"></div>
+            <div class="sb-pane" data-pane="audit" role="tabpanel" aria-live="polite">
+              <p class="sb-empty">
+                Load a configuration above, or build your own with the switches, then press
+                <b>Audit this configuration</b>. Eleven checks, scored, with every other
+                configuration alongside for comparison.
+              </p>
+            </div>
             <div class="sb-pane" data-pane="rules" role="tabpanel"><pre></pre></div>
             <div class="sb-pane" data-pane="script" role="tabpanel">
               <pre></pre>
@@ -415,6 +476,8 @@
       </ul>
 
       <nav class="pager"></nav>
+
+      <p class="site-foot">The commands in this guide change firewall and login settings, and can lock you out of a machine. Practise on something disposable first. Everything here is provided <b>as is</b>, with no warranty — you accept the risk of running it. <a href="../index.html#disclaimer">Read the disclaimer</a>.</p>
     </div>
   </main>
   <aside class="toc"></aside>

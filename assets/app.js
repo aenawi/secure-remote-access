@@ -263,6 +263,30 @@
     host.innerHTML = html;
   }
 
+  /* ---------- the standing safety notice ----------
+     One line, on every page, pointing at the full disclaimer on the index.
+     Deliberately short: the guide already carries a specific danger callout
+     at each point where a command can lock you out, and those are the ones
+     that actually prevent accidents. A long banner repeated fifteen times
+     would train people to skip all of it, including those.
+
+     It is written into each page statically, because a safety notice that
+     only exists when JavaScript runs is missing exactly when the reader is
+     on a locked-down browser. This is the safety net for a page that forgot
+     it — a new chapter, most likely — not the primary copy. */
+  function buildFoot() {
+    var content = document.querySelector(".content");
+    if (!content || document.querySelector(".site-foot")) return;
+    var f = document.createElement("p");
+    f.className = "site-foot";
+    f.innerHTML =
+      "The commands in this guide change firewall and login settings, and can lock you out of a " +
+      "machine. Practise on something disposable first. Everything here is provided <b>as is</b>, " +
+      "with no warranty — you accept the risk of running it. " +
+      '<a href="' + DEPTH + 'index.html#disclaimer">Read the disclaimer</a>.';
+    content.appendChild(f);
+  }
+
   /* ---------- go ---------- */
   function ready(fn) {
     if (document.readyState !== "loading") fn();
@@ -276,5 +300,6 @@
     initCopy();
     initChecklists();
     buildPager();
+    buildFoot();
   });
 })();
