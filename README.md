@@ -41,6 +41,7 @@ python3 -m http.server -d . 8080   # then visit http://localhost:8080
 | 11 | Runbooks & checklists | Build order, onboarding, rotation, the full deployment checklist |
 | 12 | Troubleshooting | A five-rung diagnostic ladder and a symptom reference |
 | 13 | The lab | Three throwaway VMs, a deliberately hostile network, and a pass/fail test per chapter |
+| 14 | The sandbox | The same topology as an operable model: flip switches, add a hostile machine, read which rung stopped it |
 
 ## Features
 
@@ -50,6 +51,15 @@ python3 -m http.server -d . 8080   # then visit http://localhost:8080
   so you can watch a NAT punch through, an SSH replay get rejected, or a launchd
   job fall into a restart loop. With JavaScript off each one collapses to a
   readable static poster frame.
+- **A sandbox, not just diagrams.** Chapter 14 drops the timeline
+  entirely: it holds state, a rules engine and a render, so you change something and
+  it works out the consequence. Close a port, kill a link, leak a node key, put a
+  hostile machine on the wire — every probe reports the rung of the diagnostic ladder
+  that decided it, with round-trip times, byte counts and retransmits. The keypairs
+  and the AES-GCM seal are genuine WebCrypto, so when the attacker fails to decrypt a
+  captured frame it is the cipher refusing, in your browser. Everything you do there
+  also emits the real `nft` / `tc` / `ufw` / `tailscale` command, so the page doubles
+  as a script generator for the chapter 13 VMs.
 - **Persistent checklists.** Ticks are saved in `localStorage`, per chapter.
   The full deployment checklist in chapter 11 has a progress bar and a reset button.
 - **Dark and light themes**, following your system by default, with a toggle
@@ -69,9 +79,10 @@ secure-remote-access/
 │   ├── nav.js         the chapter index — edit here to add or reorder chapters
 │   ├── app.js         theme, sidebar, TOC, chapter filter, copy buttons, checklists
 │   ├── anim.js        the stepped diagram simulations
+│   ├── sandbox.js     the sandbox: state, the five-rung engine, the attacks
 │   └── favicon.svg
 └── chapters/
-    └── 01-…-12-….html
+    └── 01-…-14-….html
 ```
 
 `nav.js` is the single source of truth for navigation. Add an entry there and the
@@ -94,6 +105,42 @@ setting deliberately on any new simulation.
 Navigation is defined as a plain global rather than fetched, because `fetch()` is
 blocked on the `file:` scheme — this is what lets the guide work by double-clicking
 `index.html`.
+
+`sandbox.js` follows the same opt-in rule as `anim.js`: only a page containing
+`[data-sandbox]` loads it. It builds its control panels from a declarative spec and
+mutates the topology SVG through `data-el` and `data-route` hooks, so with scripting
+off the page keeps a readable static figure and a poster explaining what it does.
+Its engine walks the chapter 12 ladder in order and always returns the rung that
+decided the outcome, never a bare pass/fail — that is the thing worth preserving if
+you extend it. State round-trips through the URL hash, so a configuration is a link.
+
+## Disclaimer
+
+Published under the [MIT licence](LICENSE), which means **no warranty of any
+kind**. Nobody who wrote, reviewed or contributed to this is responsible for
+what happens on your machines.
+
+That is worth reading as more than boilerplate, because of what the commands
+here do. They change firewall rules, disable password login, rewrite
+`sshd_config`, and deliberately remove the only route into a machine you may be
+a long way from. In the wrong order, on a box you cannot walk over to, several
+of them will lock you out. The guide says so at every point where that is a
+real risk; those warnings are not decoration.
+
+Before running any of it against something you care about:
+
+- **Your environment is not this one.** Versions drift and providers differ.
+  Understand what a line does before you run it.
+- **Practise somewhere disposable.** Chapter 14 is a simulation and costs
+  nothing; chapter 13 builds throwaway VMs. A green result in either is not a
+  promise about your production box.
+- **Keep a second way in** — another SSH session, a provider console, physical
+  access — proven working *before* you change anything.
+- **The decision is yours, and so is the outcome.** If something breaks, that is
+  not a fault of this repository, its owner, or any contributor.
+
+None of which is a reason to skip the work. It is a reason to do it in the order
+given, on something you can afford to break first.
 
 ## A note on accuracy
 

@@ -67,6 +67,17 @@
         not matter if the key is not in <code>authorized_keys</code>.
       </p>
 
+      <div class="callout tip">
+        <div class="ct">Put an attacker on the wire and see which layer answers</div>
+        <p>
+          The <a href="14-sandbox.html">sandbox</a> has a hostile machine you can add to
+          the topology, and each attack it runs tells you which layer stopped it rather than merely
+          that something did. A stolen node key dies at tailnet lock; a legitimately-joined machine
+          dies at the ACL; a port scan dies at the firewall. Those are three different defences, and
+          knowing which one is carrying you is the whole point of this chapter.
+        </p>
+      </div>
+
       <figure class="diagram sim" data-sim data-step-ms="3600" tabindex="0"
               aria-label="Interactive defence-in-depth model. Pick who is knocking, then work inward through the five rings and watch which one actually stops them. Use the left and right arrow keys to step through it.">
 
@@ -731,6 +742,8 @@
       </ul>
 
       <nav class="pager"></nav>
+
+      <p class="site-foot">The commands in this guide change firewall and login settings, and can lock you out of a machine. Practise on something disposable first. Everything here is provided <b>as is</b>, with no warranty — you accept the risk of running it. <a href="../index.html#disclaimer">Read the disclaimer</a>.</p>
     </div>
   </main>
   <aside class="toc"></aside>

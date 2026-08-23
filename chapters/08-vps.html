@@ -109,6 +109,17 @@ sudo ufw status verbose</code></pre>
         SSH no longer needs to be reachable from the internet at all.
       </p>
 
+      <div class="callout tip">
+        <div class="ct">Do it once somewhere harmless first</div>
+        <p>
+          Deleting the rule that is currently keeping you logged in is the move people postpone for
+          weeks, and reasonably so. In the <a href="14-sandbox.html">sandbox</a> it is a
+          checkbox: turn off <code>allow 22/tcp from anywhere</code>, confirm the tailnet probe still
+          gets in, then scan the public address and watch it time out. The same page reproduces the
+          Docker bypass below in one click, which is worth more than reading about it.
+        </p>
+      </div>
+
       <figure class="diagram sim" data-sim data-step-ms="3600" tabindex="0"
               aria-label="Interactive walkthrough of closing the public SSH port. Pick a viewpoint, then step through the six changes and watch what each one does — and does not — change. Use the left and right arrow keys to step through it.">
 
@@ -559,6 +570,8 @@ curl -fsSL https://herdr.dev/install.sh | sh</code></pre>
       </ul>
 
       <nav class="pager"></nav>
+
+      <p class="site-foot">The commands in this guide change firewall and login settings, and can lock you out of a machine. Practise on something disposable first. Everything here is provided <b>as is</b>, with no warranty — you accept the risk of running it. <a href="../index.html#disclaimer">Read the disclaimer</a>.</p>
     </div>
   </main>
   <aside class="toc"></aside>
