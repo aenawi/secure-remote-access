@@ -34,6 +34,99 @@
     </p>
   </div>
 
+  <!-- The same drawing as chapter 14, with the model taken out of it. Every
+       address below was read back from a container, and the shape of the line
+       is whatever `tailscale ping` last reported, not what a script decided. -->
+  <div class="stage">
+    <svg viewBox="0 0 860 320" role="img"
+         aria-label="The lab topology: lab-roam, evil-box and lab-ubuntu on the left, each behind its own NAT router, connected to a box holding the coordination server and the DERP relay, with lab-vps on the right. A band along the bottom marks the segment standing in for the public internet. One route is drawn at a time, between the two machines last probed, and its shape says which path it took: straight across the middle for a direct tailnet path, up through the centre box when relayed through DERP, and dipping into the band at the bottom when it crosses the public segment.">
+
+      <rect data-el="seg-shared" class="sb-svg-seg is-hidden" x="6" y="96" width="166" height="146" rx="12"/>
+      <text data-el="seg-label" class="svg-sub sb-svg-seg-label is-hidden" x="14" y="256">on-path — every packet lab-ubuntu sends goes through evil-box</text>
+
+      <text x="14" y="20" class="svg-sub">THE MACHINES</text>
+
+      <rect data-el="public-lane" class="sb-svg-lane" x="258" y="256" width="588" height="36" rx="10"/>
+      <!-- Right-aligned, because the probe caption in the bottom-left carries a
+           rung and a round-trip time and grows into the middle of the row. -->
+      <text data-el="public-lane-label" x="846" y="306" text-anchor="end" class="sb-svg-lane-label">THE PUBLIC SEGMENT — anyone on it, to lab-vps</text>
+
+      <!-- one NAT router per machine -->
+      <rect x="186" y="30"  width="58" height="56" rx="8" class="svg-card svg-stroke" stroke-width="1.2"/>
+      <text x="215" y="62"  text-anchor="middle" class="svg-sub">NAT</text>
+      <g data-el="nat-evil-box" class="is-hidden">
+        <rect x="186" y="104" width="58" height="56" rx="8" class="svg-card svg-stroke" stroke-width="1.2"/>
+        <text x="215" y="136" text-anchor="middle" class="svg-sub">NAT</text>
+      </g>
+      <rect x="186" y="178" width="58" height="56" rx="8" class="svg-card svg-stroke" stroke-width="1.2"/>
+      <text x="215" y="212" text-anchor="middle" class="svg-sub">NAT</text>
+
+      <!-- the tailnet -->
+      <rect x="322" y="24" width="196" height="134" rx="10" class="svg-surface svg-stroke" stroke-width="1.3"/>
+      <text x="334" y="42" class="svg-sub">THE TAILNET</text>
+      <g data-el="tailnet-services">
+        <rect x="334" y="50" width="172" height="26" rx="6" class="svg-card svg-stroke" stroke-width="1.1"/>
+        <text x="420" y="67" text-anchor="middle" class="svg-sub">headscale · coordination</text>
+        <rect x="334" y="86" width="172" height="26" rx="6" class="svg-card svg-stroke" stroke-width="1.1"/>
+        <text x="420" y="103" text-anchor="middle" class="svg-sub">DERP relay · lab</text>
+      </g>
+      <rect data-el="chip-path-box" x="334" y="122" width="172" height="26" rx="6"
+            class="svg-card svg-accent-s" stroke-width="1.4"/>
+      <text data-el="chip-path" x="420" y="139" text-anchor="middle" class="svg-mono-accent">reading the lab…</text>
+
+      <!-- each machine into its own NAT -->
+      <path d="M164 58 L186 58" class="sb-svg-wire"/>
+      <path data-el="path-evil-stub" class="sb-svg-wire is-hidden" d="M164 132 L186 132"/>
+      <path d="M164 206 L186 206" class="sb-svg-wire"/>
+
+      <!-- the route between whichever pair was last probed -->
+      <path data-route="relay" data-leg="in"  class="sb-svg-route is-hidden"/>
+      <path data-route="relay" data-leg="out" class="sb-svg-route is-hidden"/>
+      <path data-route="direct" class="sb-svg-route is-hidden"/>
+      <path data-route="public" class="sb-svg-route is-hidden"/>
+      <path data-route="lan" class="sb-svg-route is-hidden"/>
+      <path data-el="path-evil-tap" class="sb-svg-tap is-hidden" d="M89 160 L89 178"/>
+
+      <!-- the machines -->
+      <g data-el="node-lab-roam">
+        <rect x="14" y="30" width="150" height="56" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
+        <text x="26" y="49" class="svg-label">lab-roam</text>
+        <text data-el="cond-lab-roam" x="26" y="63" class="svg-sub">the phone's stand-in</text>
+        <text data-el="ip-lab-roam" x="26" y="77" class="svg-sub">…</text>
+      </g>
+
+      <g data-el="node-evil-box" class="is-hidden">
+        <rect x="14" y="104" width="150" height="56" rx="9" class="svg-surface svg-danger-s" stroke-width="1.5"/>
+        <text x="26" y="123" class="svg-label">evil-box</text>
+        <text data-el="cond-evil-box" x="26" y="137" class="svg-sub">a hostile machine</text>
+        <text data-el="ip-evil-box" x="26" y="151" class="svg-sub">…</text>
+      </g>
+
+      <g data-el="node-lab-ubuntu">
+        <rect x="14" y="178" width="150" height="56" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
+        <text x="26" y="197" class="svg-label">lab-ubuntu</text>
+        <text data-el="cond-lab-ubuntu" x="26" y="211" class="svg-sub">the laptop</text>
+        <text data-el="ip-lab-ubuntu" x="26" y="225" class="svg-sub">…</text>
+      </g>
+
+      <g data-el="node-lab-vps">
+        <rect x="676" y="178" width="170" height="56" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
+        <text x="688" y="197" class="svg-label">lab-vps</text>
+        <text data-el="cond-lab-vps" x="688" y="211" class="svg-sub">the public box</text>
+        <text data-el="ip-lab-vps" x="688" y="225" class="svg-sub">…</text>
+      </g>
+
+      <text data-el="focus-label" x="14" y="308" class="svg-mono-accent">…</text>
+    </svg>
+  </div>
+
+  <p class="legend">
+    <b>The height of the line is the point.</b> Straight across the middle and it never left the
+    tailnet. Bending up through the box in the centre and it is being relayed through DERP.
+    <b>Dipping into the red band</b> and it crossed the public segment, where anyone on it can
+    reach you. Run a probe and the shape changes to whatever really happened.
+  </p>
+
   <div class="verdict" id="verdict">Reading the lab…</div>
 
   <div class="grid">

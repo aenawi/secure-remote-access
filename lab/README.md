@@ -95,6 +95,23 @@ Everything below is one click in the UI. The command shown is what actually
 runs, and the **script** tab collects them all in order so you can paste them at
 the three Lima VMs in [chapter 13](../chapters/13-lab.html).
 
+### The picture
+
+The same drawing as chapter 14, at the top of the page, with the model taken
+out of it. Every address on it was read back from a container, and the shape of
+the line is whatever `tailscale ping` last reported:
+
+- **straight across the middle** — direct, the punch completed;
+- **bending up through the box in the centre** — relayed through DERP;
+- **dipping into the red band** — it crossed the public segment, and the band
+  lights up to say so.
+
+Before you probe anything it says **idle · run a probe**, and it means it. An
+idle Tailscale peer reports no current address, which looks exactly like a relay
+if you take it at face value; saying "relay" about a pair that has simply not
+spoken yet would be the most misleading thing this page could do. So it waits
+until there is something true to draw.
+
 ### Panels
 
 Four, with the same names and the same switches as the sandbox page:
@@ -203,6 +220,12 @@ yourself out of scores nearly perfectly and "closed" reads as "secure".
 The audit takes about a minute, because five of the eleven really do join and
 unjoin the attacker. It needs `evil-box`; without it the lab refuses to produce
 a score rather than reporting one with five holes in it.
+
+One check is marked **cannot pass here** rather than failed, and the verdict says
+so: it still counts against the score, because a number that flatters itself is
+worth nothing, but you should not spend an evening hunting for a switch that does
+not exist. `hardened` therefore reads *"10 of 11 held, and the one that did not
+cannot pass in this lab at all"* — see the next section for why.
 
 ---
 

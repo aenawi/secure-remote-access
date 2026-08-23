@@ -92,6 +92,53 @@ h1 { font-size: 26px; line-height: 1.25; margin: 4px 0 6px; letter-spacing: -.01
 .callout.warn   { border-left-color: var(--warn);   background: var(--warn-soft); }
 .callout.info   { border-left-color: var(--info);   background: var(--info-soft); }
 
+/* ---- the topology ----
+   Same viewBox, same coordinates and the same class names as the sandbox on
+   chapter 14, so the two drawings read as one picture of one network. The
+   difference is where the numbers come from: every address and every path here
+   was read back out of a container. */
+.stage {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--bg-raised); padding: 10px; margin-bottom: 12px;
+  box-shadow: var(--shadow);
+}
+.stage svg { display: block; width: 100%; height: auto; }
+.legend { font-size: 12.5px; color: var(--text-muted); margin: -4px 0 14px; }
+
+.is-hidden { display: none; }
+
+.svg-surface  { fill: var(--bg-sunken); }
+.svg-card     { fill: var(--bg-raised); }
+.svg-stroke   { stroke: var(--border-strong); }
+.svg-label    { fill: var(--text); font-family: var(--sans); font-size: 12px; font-weight: 600; }
+.svg-sub      { fill: var(--text-muted); font-family: var(--mono); font-size: 10px; }
+.svg-accent-s { stroke: var(--accent); }
+.svg-danger-s { stroke: var(--danger); }
+.svg-warn-s   { stroke: var(--warn); }
+.svg-mono-accent { fill: var(--accent); font-family: var(--mono); font-size: 11px; }
+.svg-mono-warn   { fill: var(--warn);   font-family: var(--mono); font-size: 11px; }
+.svg-mono-danger { fill: var(--danger); font-family: var(--mono); font-size: 11px; }
+
+.sb-svg-seg { fill: var(--danger-soft); stroke: var(--danger); stroke-width: 1.2; stroke-dasharray: 5 4; }
+.sb-svg-seg-label { fill: var(--danger); }
+.sb-svg-lane { fill: var(--danger-soft); stroke: var(--danger); stroke-width: 1.2; opacity: .45; }
+.sb-svg-lane.is-live { opacity: 1; }
+.sb-svg-lane-label { fill: var(--text-faint); font-family: var(--mono); font-size: 10px; }
+.sb-svg-lane-label.is-live { fill: var(--danger); }
+.sb-svg-cond { font-size: 10px; }
+.sb-svg-wire { stroke: var(--text-faint); stroke-width: 1.3; }
+.sb-svg-tap  { stroke: var(--danger); stroke-width: 2; stroke-dasharray: 3 3; }
+.sb-svg-route { stroke: var(--border-strong); stroke-width: 2.4; stroke-linecap: round; fill: none; }
+.sb-svg-route.is-live { stroke: var(--accent); stroke-dasharray: 7 6; }
+.sb-svg-route.is-dead { stroke: var(--danger); stroke-dasharray: 2 5; }
+.stage [data-el].is-off { opacity: .38; }
+
+@keyframes sb-svg-march { to { stroke-dashoffset: -26; } }
+.sb-svg-route.is-live { animation: sb-svg-march 1.1s linear infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .sb-svg-route.is-live { animation: none !important; }
+}
+
 .verdict {
   border: 1px solid var(--border); border-radius: var(--radius);
   padding: 12px 14px; margin: 0 0 18px; background: var(--bg-raised);
@@ -259,6 +306,12 @@ pre.out.live { max-height: 46vh; }
 .mark { flex: none; width: 18px; font-weight: 700; }
 .check.pass .mark { color: var(--ok); }
 .check.fail .mark { color: var(--danger); }
+.check.ceiling .mark { color: var(--text-faint); }
+.check .tag {
+  font-family: var(--mono); font-size: 10.5px; text-transform: uppercase;
+  letter-spacing: .04em; padding: 1px 6px; border-radius: 999px;
+  border: 1px solid var(--border-strong); color: var(--text-muted); white-space: nowrap;
+}
 .check .why { color: var(--text-muted); font-size: 12.5px; }
 .check .rule { font-family: var(--mono); font-size: 11.5px; color: var(--text-faint); }
 .group { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin: 12px 0 2px; }

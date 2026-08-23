@@ -34,6 +34,14 @@ type Check struct {
 	Rung    int    `json:"rung,omitempty"`
 	Rule    string `json:"rule,omitempty"`
 	Measure string `json:"measure,omitempty"`
+
+	// Ceiling marks a check that cannot pass in this lab no matter how the
+	// configuration is set — not because anything is misconfigured, but because
+	// the stack underneath does not expose the thing being checked. It still
+	// counts as a failure in the score, because pretending otherwise would make
+	// the number dishonest; it is flagged so a reader does not spend an evening
+	// hunting for a mistake they did not make.
+	Ceiling bool `json:"ceiling,omitempty"`
 }
 
 var AuditGroups = map[string]string{
@@ -47,6 +55,7 @@ type AuditReport struct {
 	Total     int     `json:"total"`
 	Passed    int     `json:"passed"`
 	LockedOut bool    `json:"lockedOut"`
+	Ceiling   int     `json:"ceiling,omitempty"` // failures that cannot pass here
 	Tone      string  `json:"tone"`
 	Verdict   string  `json:"verdict"`
 	Note      string  `json:"note,omitempty"`
@@ -193,12 +202,21 @@ func (c *Controller) Audit(ctx context.Context) AuditReport {
 		v.PermitRoot, 5, "sshd -T | grep permitrootlogin",
 		"docker exec lab-vps sshd -T | grep -i permitrootlogin")
 
-	expiry, expiryRule := c.expiryHonoured(ctx)
-	add(Check{Kind: "config", Want: true, Label: "A lost device stops being a member on its own",
-		Why: "Key expiry is on, so an unattended device drops out.",
+	expiry, expiryRule, expiryCeiling := c.expiryHonoured(ctx)
+	expiryCheck := Check{Kind: "config", Want: true,
+		Label: "A lost device stops being a member on its own",
+		Why:   "Key expiry is on, so an unattended device drops out.",
 		Fail: "Key expiry is off. The phone you left in a taxi is a member forever, or until " +
-			"you remember to remove it."},
-		expiry, 1, expiryRule, "headscale nodes list -o json | jq '.[].expiry'")
+			"you remember to remove it."}
+	if expiryCeiling {
+		expiryCheck.Ceiling = true
+		expiryCheck.Fail = "This one cannot pass in this lab, and it is not your configuration's " +
+			"fault. Headscale records a node expiry only when the registration asks for one, " +
+			"a pre-auth-key registration does not, and it will not let you add one afterwards " +
+			"— `tailscale debug set-expire` comes back with \"extending key is not allowed\". " +
+			"Real Tailscale sets 180 days for you. So 10 of 11 is the ceiling here."
+	}
+	add(expiryCheck, expiry, 1, expiryRule, "headscale nodes list -o json | jq '.[].expiry'")
 
 	exposed := v.SSHDListen == "tailnet" || !v.AllowPublic22
 	add(Check{Kind: "config", Want: true, Label: "sshd is not exposed on the public interface",
@@ -216,7 +234,12 @@ func (c *Controller) Audit(ctx context.Context) AuditReport {
 		if ch.Kind == "access" && !ch.Pass {
 			rep.LockedOut = true
 		}
+		if !ch.Pass && ch.Ceiling {
+			rep.Ceiling++
+		}
 	}
+	failed := rep.Total - rep.Passed
+
 	switch {
 	case rep.LockedOut:
 		rep.Tone = "bad"
@@ -227,6 +250,19 @@ func (c *Controller) Audit(ctx context.Context) AuditReport {
 		rep.Verdict = "All " + itoa(rep.Total) + " held. Everything the attacker was allowed " +
 			"to try was refused, and you can still work. This is the configuration the " +
 			"guide builds towards — measured on real kernels, not modelled."
+
+	// Everything that can be closed is closed, and the only thing left is
+	// something this stack cannot do. Say that plainly instead of leaving the
+	// reader to hunt for a switch that does not exist.
+	case failed > 0 && failed == rep.Ceiling:
+		rep.Tone = "ok"
+		rep.Verdict = plur(rep.Passed, rep.Total) + " held, and the " +
+			map[bool]string{true: "one", false: "ones"}[failed == 1] +
+			" that did not cannot pass in this lab at all. Everything you can " +
+			"control is closed. The remainder is a gap in Headscale, not in your " +
+			"configuration — read it below, then read the same eleven in the sandbox, " +
+			"where it does pass."
+
 	case rep.Passed >= rep.Total-3:
 		rep.Tone = "warn"
 		rep.Verdict = plur(rep.Passed, rep.Total) + " held. Each failure below names what it costs you."
@@ -237,16 +273,23 @@ func (c *Controller) Audit(ctx context.Context) AuditReport {
 	rep.Note = "Run the same eleven in the sandbox on chapter 14 with the same configuration " +
 		"loaded. If the two scores disagree, the model is wrong about something real, and " +
 		"that is worth an issue."
+	if rep.Ceiling > 0 && failed > rep.Ceiling {
+		rep.Note = "One of the failures below cannot pass in this lab at all — it is marked, " +
+			"and it is a gap in Headscale rather than in your configuration. " + rep.Note
+	}
 	return rep
 }
 
 // expiryHonoured reads the real expiry the coordination server holds for each
 // node, rather than a switch somebody set. Headscale has no per-node "disable
 // key expiry", so this check can only ever observe — see setExpiry.
-func (c *Controller) expiryHonoured(ctx context.Context) (bool, string) {
+// The third return says whether a failure here is the lab's ceiling rather than
+// a configuration mistake: an expiry that was never recorded cannot be added
+// later, so no arrangement of the switches above will turn this one green.
+func (c *Controller) expiryHonoured(ctx context.Context) (bool, string, bool) {
 	ns, err := c.nodes(ctx)
 	if err != nil || len(ns) == 0 {
-		return false, "the coordination server listed no nodes"
+		return false, "the coordination server listed no nodes", false
 	}
 	seen := 0
 	for _, n := range ns {
@@ -260,20 +303,20 @@ func (c *Controller) expiryHonoured(ctx context.Context) (bool, string) {
 		seen++
 		exp := n.Expiry.Time()
 		if exp.IsZero() {
-			return false, n.GivenName + " has no expiry at all, so it is a member until " +
-				"somebody remembers to remove it. Headscale records an expiry only when the " +
-				"registration asked for one — see \"Where the lab and the sandbox disagree\" " +
-				"in lab/README.md"
+			return false, n.GivenName + " has no expiry at all, and one cannot be added: " +
+				"Headscale refuses to extend a key that never expires. This is the lab's " +
+				"ceiling, not a setting you missed — see \"Where this lab and the sandbox " +
+				"disagree\" in lab/README.md", true
 		}
 		if exp.Before(time.Now()) {
 			return false, n.GivenName + " expired at " + exp.Format(time.RFC3339) +
-				" and has not been reauthenticated"
+				" and has not been reauthenticated", false
 		}
 	}
 	if seen == 0 {
-		return false, "none of your three machines are registered"
+		return false, "none of your three machines are registered", false
 	}
-	return true, "every machine you own carries a real expiry in the future"
+	return true, "every machine you own carries a real expiry in the future", false
 }
 
 func itoa(n int) string {

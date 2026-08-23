@@ -158,6 +158,180 @@
         (ms.pathTo ? " (" + ms.pathTo + ")" : "");
     });
     $("#status-out").setAttribute("data-machines", bits.join(" · "));
+    paintDiagram();
+  }
+
+  /* ---- the topology -----------------------------------------------
+     Same geometry as assets/sandbox.js in the guide, deliberately: the two
+     drawings should be the same picture of the same network. What differs is
+     the input. There, a model decides the shape of the line. Here it is
+     whichever path the last probe actually took, and the addresses are the ones
+     the containers report about themselves. */
+
+  var ANCHOR = { "lab-roam": 58, "evil-box": 132, "lab-ubuntu": 206, "lab-vps": 206 };
+  var VPS_X = 676, LEFT_X = 164, LANE_Y = 274, CORRIDOR = 292;
+  var svg = document.querySelector(".stage svg");
+  var lastPath = null;   /* the probe result the drawing is currently showing */
+
+  function el(name) { return svg ? svg.querySelector('[data-el="' + name + '"]') : null; }
+
+  function routeD(kind, from, to) {
+    if (from === to) return null;
+    var a = from, b = to;
+    if (a === "lab-vps") { a = to; b = "lab-vps"; }
+    var sy = ANCHOR[a], dy = ANCHOR[b];
+    if (sy == null || dy == null) return null;
+
+    if (kind === "lan") return { in: "M89 160 L89 178" };
+
+    /* Neither end is the public box: loop through the corridor between the NAT
+       column and the tailnet rather than pretending to cross the page. */
+    if (b !== "lab-vps") {
+      return { in: "M" + LEFT_X + " " + sy + " L258 " + sy +
+                   " C " + CORRIDOR + " " + sy + " " + CORRIDOR + " " + dy + " 258 " + dy +
+                   " L" + LEFT_X + " " + dy };
+    }
+    if (kind === "relay") {
+      var ey = Math.min(150, Math.max(36, sy));
+      return {
+        in: "M" + LEFT_X + " " + sy + " L258 " + sy +
+            " C " + CORRIDOR + " " + sy + " " + CORRIDOR + " " + ey + " 322 " + ey,
+        out: "M518 118 C 592 118 634 170 " + VPS_X + " " + dy
+      };
+    }
+    if (kind === "direct") {
+      return { in: "M" + LEFT_X + " " + sy + " L258 " + sy +
+                   " C " + CORRIDOR + " " + sy + " " + CORRIDOR + " " + dy + " 322 " + dy +
+                   " L" + VPS_X + " " + dy };
+    }
+    /* public: down into the band, across, and up into the box */
+    return { in: "M" + LEFT_X + " " + sy + " L258 " + sy +
+                 " C " + CORRIDOR + " " + sy + " " + CORRIDOR + " " + LANE_Y + " 316 " + LANE_Y +
+                 " L640 " + LANE_Y + " C 668 " + LANE_Y + " 672 " + (dy + 34) + " " +
+                 VPS_X + " " + (dy + 14) };
+  }
+
+  function paintDiagram() {
+    if (!svg || !state || !meta) return;
+
+    meta.catalog.forEach(function (m) {
+      var ms = state.machines[m.id] || {};
+      var link = state.links[m.id] || {};
+      var live = !!(ms.online && link.up);
+      var gone = !!(m.hostile && !ms.online);
+
+      var g = el("node-" + m.id);
+      if (g) {
+        g.classList.toggle("is-off", !live);
+        g.classList.toggle("is-hidden", gone);
+      }
+      var nat = el("nat-" + m.id);
+      if (nat) nat.classList.toggle("is-hidden", gone);
+
+      /* The address a machine answers on is not a fact about the machine, it is
+         a fact about the path you are taking to it. Show the tailnet address
+         when it has a session, and the address the ordinary network would use
+         when it does not. */
+      var ip = el("ip-" + m.id);
+      if (ip) {
+        ip.textContent = !ms.online ? "stopped"
+          : ms.tsAddr ? ms.tsAddr
+          : (ms.wanAddr || ms.lanAddr || "?") + " (no tailnet)";
+      }
+
+      var cond = el("cond-" + m.id);
+      if (cond) {
+        var bits = [];
+        if (!link.up) bits.push("eth0 DOWN");
+        if (link.loss) bits.push(link.loss + "% loss");
+        if (link.delay) bits.push(link.delay + "ms");
+        if (link.udpBlocked) bits.push("udp dropped");
+        cond.textContent = bits.length ? bits.join(" · ") : m.role;
+        cond.setAttribute("class", bits.length ? "svg-mono-warn sb-svg-cond" : "svg-sub");
+      }
+    });
+
+    var evilUp = !!(state.machines["evil-box"] || {}).online;
+    var seg = el("seg-shared"), segLabel = el("seg-label");
+    if (seg) seg.classList.toggle("is-hidden", !state.segmentShared);
+    if (segLabel) segLabel.classList.toggle("is-hidden", !state.segmentShared);
+    var stub = el("path-evil-stub");
+    if (stub) stub.classList.toggle("is-hidden", !evilUp);
+    var tap = el("path-evil-tap");
+    if (tap) tap.classList.toggle("is-hidden", !(evilUp && state.segmentShared));
+
+    /* The route is whatever the last probe found. Before anything has been
+       probed, fall back to the path the machines report they are already using
+       — the state stream carries it, so the drawing is live from the moment the
+       page loads rather than blank until you press something. */
+    var view = lastPath;
+    if (!view) {
+      var seed = ["lab-ubuntu", "lab-roam"].filter(function (id) {
+        return (state.machines[id] || {}).pathTo;
+      })[0];
+      if (seed) {
+        view = { from: seed, to: "lab-vps", path: state.machines[seed].pathTo,
+                 ok: true, live: true };
+      }
+    }
+    var kind = view && view.path ? view.path : null;
+    var d = kind ? routeD(kind, view.from, view.to) : null;
+
+    ["direct", "relay", "public", "lan"].forEach(function (k) {
+      Array.prototype.forEach.call(svg.querySelectorAll('[data-route="' + k + '"]'), function (p) {
+        var leg = p.getAttribute("data-leg") === "out" ? "out" : "in";
+        var geom = kind === k && d ? d[leg] : null;
+        if (geom) p.setAttribute("d", geom);
+        var on = !!geom;
+        p.classList.toggle("is-live", on && !!view.ok);
+        p.classList.toggle("is-dead", on && !view.ok);
+        p.classList.toggle("is-hidden", !on);
+      });
+    });
+
+    /* The chip sits inside the tailnet box, so it has to describe the tailnet's
+       involvement rather than just name the path — otherwise "public segment"
+       printed in there reads as though the tailnet were carrying it. */
+    var usesTailnet = kind === "direct" || kind === "relay";
+    var chip = el("chip-path"), chipBox = el("chip-path-box");
+    if (chip) {
+      var anyOnTailnet = meta.catalog.some(function (m) {
+        return (state.machines[m.id] || {}).tsAddr;
+      });
+      chip.textContent = !view ? (anyOnTailnet ? "idle · run a probe" : "nothing on the tailnet")
+        : !kind ? "no path at all"
+        : kind === "relay" ? "relay · DERP \"lab\""
+        : kind === "direct" ? "direct · punched"
+        : kind === "lan" ? "not used · same wire"
+        : "not used · public path";
+      chip.setAttribute("class",
+        !view ? "svg-sub" : !kind ? "svg-mono-danger"
+          : usesTailnet ? "svg-mono-accent" : "svg-mono-warn");
+    }
+    if (chipBox) {
+      chipBox.setAttribute("class", "svg-card " +
+        (!view ? "svg-stroke" : !kind ? "svg-danger-s"
+          : usesTailnet ? "svg-accent-s" : "svg-warn-s"));
+    }
+    var services = el("tailnet-services");
+    if (services) services.classList.toggle("is-off", !usesTailnet);
+
+    ["public-lane", "public-lane-label"].forEach(function (n) {
+      var node = el(n);
+      if (node) node.classList.toggle("is-live", kind === "public");
+    });
+
+    /* Kept short on purpose: the public-segment caption starts at x=258 and a
+       long line here runs straight into it. */
+    var focus = el("focus-label");
+    if (focus) {
+      focus.textContent = !view ? "no probe yet"
+        : view.live ? view.from + " → " + view.to + " · live"
+        : view.from + " → " + view.to + (view.port ? ":" + view.port : "") +
+          " · rung " + view.rung + (view.rttMs ? " · " + view.rttMs.toFixed(1) + "ms" : "");
+      focus.setAttribute("class",
+        !view ? "svg-sub" : view.ok ? "svg-mono-accent" : "svg-mono-danger");
+    }
   }
 
   function renderPresets() {
@@ -177,6 +351,13 @@
 
   /* ---- the packet log --------------------------------------------- */
   function trace(res, title) {
+    /* Anything that names two machines is a path the drawing can show, whether
+       or not it worked. A failure with no path at all is worth drawing too —
+       that is what "no path at all" in the chip means. */
+    if (res.from && res.to) {
+      lastPath = res;
+      paintDiagram();
+    }
     var tone = res.danger ? "warn" : res.ok ? "ok" : "bad";
     var head = [res.from, res.to].filter(Boolean).join(" → ") + (res.port ? ":" + res.port : "");
     var nums = [];
@@ -222,17 +403,27 @@
       verdict(rep.tone || "warn", rep.verdict);
       return;
     }
+    var ceilingNote = rep.ceiling
+      ? ' <span class="muted">· ' + rep.ceiling + " of the failures cannot pass in this lab</span>"
+      : "";
     var html = '<p><span class="score">' + rep.passed + " / " + rep.total +
-      '</span> <span class="muted">checks held</span></p>';
+      '</span> <span class="muted">checks held</span>' + ceilingNote + "</p>";
 
     ["access", "attack", "config"].forEach(function (kind) {
       var rows = rep.checks.filter(function (c) { return c.kind === kind; });
       if (!rows.length) return;
       html += '<p class="group">' + esc(meta.groups[kind]) + "</p>";
       rows.forEach(function (c) {
-        html += '<div class="check ' + (c.pass ? "pass" : "fail") + '">' +
-          '<span class="mark">' + (c.pass ? "✓" : "✗") + "</span><div>" +
-          "<div>" + esc(c.label) + "</div>" +
+        /* A ceiling check still counts as a failure in the score — the number
+           has to stay honest — but it is marked differently, because "you
+           cannot fix this" and "you have not fixed this" are different things
+           to tell somebody at eleven at night. */
+        var state = c.pass ? "pass" : c.ceiling ? "ceiling" : "fail";
+        var mark = c.pass ? "✓" : c.ceiling ? "—" : "✗";
+        html += '<div class="check ' + state + '">' +
+          '<span class="mark">' + mark + "</span><div>" +
+          "<div>" + esc(c.label) +
+          (c.ceiling && !c.pass ? ' <span class="tag">cannot pass here</span>' : "") + "</div>" +
           '<div class="why">' + esc(c.pass ? c.why : c.fail) + "</div>" +
           (c.rule ? '<div class="rule">' + (c.rung ? "rung " + c.rung + " · " : "") + esc(c.rule) + "</div>" : "") +
           "</div></div>";

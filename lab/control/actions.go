@@ -998,6 +998,21 @@ func (c *Controller) Reset(ctx context.Context) Result {
 	if c.lab.Running(ctx, "lab-ubuntu") {
 		_, _ = c.lab.Exec(ctx, "lab-ubuntu", "ip", "route", "replace", "default", "via", c.gatewayFor("lab-ubuntu"))
 	}
+
+	// Put the three machines back on the tailnet. The `day-one` configuration
+	// takes them off it deliberately, and without this there is no way back to
+	// the boot state except loading another configuration — which is not what a
+	// button called "Reset everything" should mean.
+	for _, m := range []string{"lab-vps", "lab-ubuntu", "lab-roam"} {
+		if !c.lab.Running(ctx, m) {
+			continue
+		}
+		_, _ = c.lab.Sh(ctx, m, `tailscale status --json | grep -q '"BackendState": *"Running"' || `+
+			`tailscale up --login-server=https://headscale:8443 --authkey="$(cat /lab/state/authkey)" `+
+			`--hostname=`+m+` --accept-routes=false --accept-dns=false --timeout=30s`)
+	}
+	res.Cmds = append(res.Cmds, "tailscale up --login-server=…   # on any machine that was taken off")
+
 	d := defaultState()
 	c.with(func(s *State) { s.ACL = d.ACL })
 	_ = c.applyPolicy(ctx)

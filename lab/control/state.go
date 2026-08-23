@@ -331,17 +331,26 @@ func (c *Controller) Observe(ctx context.Context) {
 			}
 			if st, err := c.tailscaleStatus(ctx, m.ID); err == nil {
 				ms.OnTailnet = st.BackendState == "Running"
-				if len(st.Self.TailAddr) > 0 {
+				// Only while there is a session. tailscaled keeps reporting the
+				// address it was last given after `tailscale down`, and showing
+				// it then says "this machine is on the tailnet" when it is not.
+				if ms.OnTailnet && len(st.Self.TailAddr) > 0 {
 					ms.TSAddr = st.Self.TailAddr[0]
 				}
+				// Only while the session is actually carrying something. An idle
+				// peer reports no current address, which reads as "relay" — and
+				// saying "relay" about a pair that has simply not spoken yet is
+				// the most misleading thing this whole page could do. Left empty
+				// instead, so the drawing says "idle" and invites a probe.
 				if m.ID != "lab-vps" {
 					for _, p := range st.Peer {
-						if p.HostName == "lab-vps" {
-							if p.Relay != "" && p.CurAddr == "" {
-								ms.PathTo = "relay"
-							} else if p.CurAddr != "" {
-								ms.PathTo = "direct"
-							}
+						if p.HostName != "lab-vps" || !p.Active {
+							continue
+						}
+						if p.CurAddr != "" {
+							ms.PathTo = "direct"
+						} else if p.Relay != "" {
+							ms.PathTo = "relay"
 						}
 					}
 				}
