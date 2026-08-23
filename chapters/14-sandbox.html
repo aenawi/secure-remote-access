@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>The sandbox — Secure Remote Access</title>
-<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../assets/style.css">
 </head>
-<body data-page="sandbox">
+<body data-page="sandbox" data-depth="1">
 <div class="layout">
   <aside class="sidebar"></aside>
   <main class="main">
@@ -32,7 +32,7 @@
           give you is a surprise — it only knows what has been modelled, and the real world does
           not agree to be modelled. When you want the real thing, everything you do here can be
           exported as a script and run against the three VMs in
-          <a href="chapters/13-lab.html">chapter 13</a>.
+          <a href="13-lab.html">chapter 13</a>.
         </p>
       </div>
 
@@ -45,7 +45,7 @@
           is real either way: three machines behind three NATs, a tailnet in the middle, and a
           public address on <code>lab-vps</code> that anyone in the world can reach.
           Everything the console would let you prove is also written out longhand in
-          <a href="chapters/13-lab.html">chapter 13</a>, as commands you can run yourself.
+          <a href="13-lab.html">chapter 13</a>, as commands you can run yourself.
         </div>
 
         <div class="sb-stage">
@@ -237,7 +237,7 @@
               <pre></pre>
               <button type="button" class="pp-btn" data-act="copy-script">Copy the script</button>
               <p class="pp-foot">
-                Paste it at the three VMs from <a href="chapters/13-lab.html">chapter 13</a> and you
+                Paste it at the three VMs from <a href="13-lab.html">chapter 13</a> and you
                 get the same outcome on real kernels.
               </p>
             </div>
@@ -251,7 +251,7 @@
       <p>
         The engine never answers <em>yes</em> or <em>no</em>. It answers <em>which rung</em>, because
         that is the only answer you can act on. These are the same five rungs
-        <a href="chapters/12-troubleshooting.html">chapter 12</a> teaches, in the same order, and
+        <a href="12-troubleshooting.html">chapter 12</a> teaches, in the same order, and
         every probe stops at exactly one of them.
       </p>
 
@@ -312,7 +312,7 @@
         Under <b>The host</b>, turn off <code>allow 22/tcp from anywhere</code>. Then run the
         <b>ssh from the laptop</b> probe: still fine, over the tailnet. Then run
         <b>the attacker, to :22</b>: gone. That is the whole of
-        <a href="chapters/08-vps.html">chapter 08</a> in two clicks, and it is the move people
+        <a href="08-vps.html">chapter 08</a> in two clicks, and it is the move people
         postpone for weeks on a real VPS.
       </p>
 
@@ -321,7 +321,7 @@
         Press <b>Run the build order wrong</b>. It removes the public rule <em>and</em> the
         <code>tailscale0</code> rule, which is the mistake that reads as harmless right up until
         you press return. Both probes fail. On a real box that is a console session and an
-        apologetic email. <a href="chapters/11-runbooks.html">Chapter 11</a>'s build order exists
+        apologetic email. <a href="11-runbooks.html">Chapter 11</a>'s build order exists
         entirely to stop this, and it is much cheaper to feel it here.
       </p>
 
@@ -332,7 +332,7 @@
         <code>direct</code> to <code>relay "fra"</code>, the round-trip time in the packet log
         roughly quadruples, and <code>tailscale netcheck</code> now reports
         <code>UDP: false</code>. Nothing else changed. This is what a hotel network does to you,
-        and <a href="chapters/01-tailscale.html">chapter 01</a> is about why it still works at all.
+        and <a href="01-tailscale.html">chapter 01</a> is about why it still works at all.
       </p>
 
       <h3>4 · Publish a Docker port</h3>
@@ -358,7 +358,7 @@
         and press it again. With lock on it dies at rung 2 — no peer will complete a handshake with
         a key nobody signed, so the ACL is never even consulted. With lock off, the key is a login,
         and the only thing between it and your machines is the policy file.
-        <a href="chapters/10-threat-model.html">Chapter 10</a> is about which of those two worlds
+        <a href="10-threat-model.html">Chapter 10</a> is about which of those two worlds
         you are living in.
       </p>
 
@@ -393,7 +393,7 @@
           It cannot surprise you. Every outcome here was put in by someone who already understood
           the system, which makes this an excellent way to <em>learn</em> the shape of the thing and
           a poor way to <em>discover</em> that your assumptions are wrong. For that you need real
-          kernels — the three VMs in <a href="chapters/13-lab.html">chapter 13</a>, or a machine you
+          kernels — the three VMs in <a href="13-lab.html">chapter 13</a>, or a machine you
           are willing to break. Use the <b>script</b> tab: it turns everything you did here into
           the commands that do it for real.
         </p>
@@ -411,7 +411,7 @@
         <li>Turned a default-deny ACL into an allow-all one and seen what membership then buys.</li>
         <li>Let a key expire and watched the node fall out on its own.</li>
         <li>Bound <code>sshd</code> to the tailnet address and seen a rung-5 failure that no firewall rule explains.</li>
-        <li>Exported the script and read it against <a href="chapters/13-lab.html">chapter 13</a>.</li>
+        <li>Exported the script and read it against <a href="13-lab.html">chapter 13</a>.</li>
       </ul>
 
       <nav class="pager"></nav>
@@ -419,8 +419,8 @@
   </main>
   <aside class="toc"></aside>
 </div>
-<script src="assets/nav.js"></script>
-<script src="assets/app.js"></script>
-<script src="assets/sandbox.js"></script>
+<script src="../assets/nav.js"></script>
+<script src="../assets/app.js"></script>
+<script src="../assets/sandbox.js"></script>
 </body>
 </html>

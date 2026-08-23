@@ -41,7 +41,7 @@ python3 -m http.server -d . 8080   # then visit http://localhost:8080
 | 11 | Runbooks & checklists | Build order, onboarding, rotation, the full deployment checklist |
 | 12 | Troubleshooting | A five-rung diagnostic ladder and a symptom reference |
 | 13 | The lab | Three throwaway VMs, a deliberately hostile network, and a pass/fail test per chapter |
-| 14 | `sandbox.html` | The same topology as an operable model: flip switches, add a hostile machine, read which rung stopped it |
+| 14 | The sandbox | The same topology as an operable model: flip switches, add a hostile machine, read which rung stopped it |
 
 ## Features
 
@@ -51,7 +51,7 @@ python3 -m http.server -d . 8080   # then visit http://localhost:8080
   so you can watch a NAT punch through, an SSH replay get rejected, or a launchd
   job fall into a restart loop. With JavaScript off each one collapses to a
   readable static poster frame.
-- **A sandbox, not just diagrams.** `sandbox.html` drops the timeline
+- **A sandbox, not just diagrams.** Chapter 14 drops the timeline
   entirely: it holds state, a rules engine and a render, so you change something and
   it works out the consequence. Close a port, kill a link, leak a node key, put a
   hostile machine on the wire — every probe reports the rung of the diagnostic ladder
@@ -74,7 +74,6 @@ python3 -m http.server -d . 8080   # then visit http://localhost:8080
 ```text
 secure-remote-access/
 ├── index.html
-├── sandbox.html  the operable model (chapter 14)
 ├── assets/
 │   ├── style.css      design tokens, layout, components, SVG theming hooks
 │   ├── nav.js         the chapter index — edit here to add or reorder chapters
@@ -83,7 +82,7 @@ secure-remote-access/
 │   ├── sandbox.js     the sandbox: state, the five-rung engine, the attacks
 │   └── favicon.svg
 └── chapters/
-    └── 01-…-13-….html
+    └── 01-…-14-….html
 ```
 
 `nav.js` is the single source of truth for navigation. Add an entry there and the
