@@ -311,7 +311,7 @@
       <h2>Creating the tailnet</h2>
       <p>
         Everything above is what the network does. This is how you get one. It is step one of the
-        <a href="10-runbooks.html">build order</a> for a reason: nothing else in this guide has an address
+        <a href="11-runbooks.html">build order</a> for a reason: nothing else in this guide has an address
         to bind to until the tailnet exists and every device has joined it.
       </p>
 
@@ -347,8 +347,8 @@
             <td>
               <code>curl -fsSL https://tailscale.com/install.sh | sh</code>, then
               <code>sudo tailscale up</code>. Installs a real system daemon, so the tailnet is up at boot
-              without anyone logging in. Details in <a href="07-vps.html">chapter 07</a> and
-              <a href="08-ubuntu.html">chapter 08</a>.
+              without anyone logging in. Details in <a href="08-vps.html">chapter 08</a> and
+              <a href="09-ubuntu.html">chapter 09</a>.
             </td>
           </tr>
           <tr>
@@ -711,7 +711,7 @@ tailscale debug prefs | grep -i runssh</code></pre>
         The idea: you nominate some devices as <strong>trusted signers</strong>. From then on, a new node
         cannot join the tailnet until one of them signs it. The coordination server can still distribute
         keys, but it can no longer invent a node of its own — which is exactly the property the threat
-        model in <a href="09-threat-model.html">chapter 09</a> wants.
+        model in <a href="10-threat-model.html">chapter 10</a> wants.
       </p>
       <pre><code># 1. On EACH device you want as a signer, read its tailnet lock key
 tailscale lock status
@@ -749,7 +749,7 @@ tailscale lock log</code></pre>
         <p>
           Enrolling four machines is easier before signing is required than after. Do the whole build,
           confirm every device is online, then initialise lock — and treat the signing step as part of
-          the onboarding runbook in <a href="10-runbooks.html">chapter 10</a> from then on.
+          the onboarding runbook in <a href="11-runbooks.html">chapter 11</a> from then on.
         </p>
       </div>
 

@@ -1,0 +1,583 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Android client — Secure Remote Dev</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body data-page="android" data-depth="1">
+<div class="layout">
+  <aside class="sidebar"></aside>
+  <main class="main">
+    <div class="content">
+
+      <p class="eyebrow">Chapter 07 · Build <span class="badge android">Android</span></p>
+      <h1>The Android client</h1>
+      <p class="lede">
+        Android reaches the same tailnet, runs the same Mosh, and attaches to the same tmux session as
+        the iPhone in <a href="06-iphone.html">chapter 06</a>. Two things are different, and both matter:
+        your private key cannot hide in hardware the way it can on iOS, and whether your session
+        survives a pocket is decided by your handset vendor rather than by Android.
+      </p>
+
+      <p>
+        The chain is the same five links as the iPhone chapter, so the two read side by side. What
+        changes is where they break. On iOS the interesting question was <em>where does the key live</em>.
+        On Android the key answer is fixed — it lives in a file — and the interesting question moves to
+        the last link: <em>will this phone still be running your terminal in twenty minutes?</em>
+      </p>
+
+      <figure class="diagram sim" data-sim data-step-ms="3800" tabindex="0"
+              aria-label="Interactive walkthrough of one connection from an Android phone. Pick which Android you are holding, then step through the five things that have to happen before a keystroke reaches tmux, and what each one costs you. Use the left and right arrow keys to step through it.">
+
+        <div class="sim-bar">
+          <span class="sim-bar-label">Which Android you are holding</span>
+          <button type="button" class="sim-scn is-on" data-scenario="pixel" aria-pressed="true">Pixel · stock, tuned once</button>
+          <button type="button" class="sim-scn" data-scenario="samsung" aria-pressed="false">Samsung · One UI defaults</button>
+          <button type="button" class="sim-scn" data-scenario="xiaomi" aria-pressed="false">Xiaomi · HyperOS defaults</button>
+        </div>
+
+        <svg viewBox="0 0 880 384" role="img" aria-label="A chain of the five things that have to happen between opening Termux on an Android phone and typing into tmux — bring the tunnel up, resolve the name, sign the handshake, start the session, and survive twenty minutes in a pocket — each showing how it went on the selected handset. Beside it, a panel describing what the phone is doing at that point, a list of what actually lives on the phone, and a bar showing what losing the phone would cost you.">
+
+          <text x="16" y="22" class="svg-sub">WHAT HAS TO HAPPEN, IN ORDER</text>
+          <text x="470" y="22" class="svg-sub">WHAT THE PHONE IS DOING</text>
+
+          <!-- ============ the chain frame (always present) ============ -->
+          <g data-at="0+">
+            <path d="M26 24 L26 272" class="svg-muted-s" stroke-width="1.4" stroke-dasharray="4 4" fill="none"/>
+
+            <rect x="40" y="32" width="412" height="48" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
+            <path d="M26 56 L40 56" class="svg-muted-s" stroke-width="1.3" fill="none"/>
+            <text x="56" y="52" class="svg-label">1 · Bring the tunnel up</text>
+            <text x="56" y="70" class="svg-sub">Tailscale as an Android VpnService</text>
+
+            <rect x="40" y="86" width="412" height="48" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
+            <path d="M26 110 L40 110" class="svg-muted-s" stroke-width="1.3" fill="none"/>
+            <text x="56" y="106" class="svg-label">2 · Resolve the name</text>
+            <text x="56" y="124" class="svg-sub">MagicDNS — and what overrides it</text>
+
+            <rect x="40" y="140" width="412" height="48" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
+            <path d="M26 164 L40 164" class="svg-muted-s" stroke-width="1.3" fill="none"/>
+            <text x="56" y="160" class="svg-label">3 · Sign the handshake</text>
+            <text x="56" y="178" class="svg-sub">an ordinary key file, on every Android</text>
+
+            <rect x="40" y="194" width="412" height="48" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
+            <path d="M26 218 L40 218" class="svg-muted-s" stroke-width="1.3" fill="none"/>
+            <text x="56" y="214" class="svg-label">4 · Start the session</text>
+            <text x="56" y="232" class="svg-sub">mosh over UDP, launched from Termux</text>
+
+            <rect x="40" y="248" width="412" height="48" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
+            <path d="M26 272 L40 272" class="svg-muted-s" stroke-width="1.3" fill="none"/>
+            <text x="56" y="268" class="svg-label">5 · Twenty minutes in a pocket</text>
+            <text x="56" y="286" class="svg-sub">Doze, plus whatever your vendor added</text>
+
+            <text x="16" y="322" class="svg-sub">IF THIS PHONE IS LOST TONIGHT</text>
+            <rect x="16" y="330" width="436" height="14" rx="7" class="svg-surface svg-stroke" stroke-width="1.2"/>
+
+            <text x="470" y="172" class="svg-sub">WHAT LIVES ON THIS PHONE</text>
+            <rect x="470" y="182" width="394" height="118" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
+            <text x="486" y="204" class="svg-sub">Tailscale · a WireGuard node key, in the app's store</text>
+            <text x="486" y="226" class="svg-sub">Termux · ~/.ssh, your config, and shell history</text>
+            <text x="486" y="248" class="svg-sub">the SSH key · a file — there is no enclave option here</text>
+            <text x="486" y="270" class="svg-sub">known_hosts · the fingerprints you accepted on day one</text>
+            <text x="486" y="290" class="svg-sub">nothing listening · unless you started sshd yourself</text>
+          </g>
+
+          <text x="16" y="368" class="svg-sub">the vendor decides whether the session survives — it never changes what losing the phone costs you</text>
+
+          <!-- ============ progress down the chain ============ -->
+          <path data-at="1" data-flow="accent" data-count="1" data-speed="0.16" data-r="3.5"
+                d="M26 24 L26 56" stroke="none" fill="none"/>
+          <path data-at="2" data-flow="accent" data-count="2" data-speed="0.16" data-r="3.5"
+                d="M26 24 L26 110" stroke="none" fill="none"/>
+          <path data-at="3" data-flow="accent" data-count="2" data-speed="0.16" data-r="3.5"
+                d="M26 24 L26 164" stroke="none" fill="none"/>
+          <path data-at="4" data-flow="accent" data-count="3" data-speed="0.16" data-r="3.5"
+                d="M26 24 L26 218" stroke="none" fill="none"/>
+          <path data-at="5" data-flow="accent" data-count="3" data-speed="0.16" data-r="3.5"
+                d="M26 24 L26 272" stroke="none" fill="none"/>
+
+          <!-- ============ rung verdict chips · Pixel ============ -->
+          <g data-at="1+" data-scn="pixel" data-poster class="sim-pop">
+            <rect x="294" y="44" width="150" height="24" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="369" y="60" text-anchor="middle" class="svg-mono-accent">always-on, from boot</text>
+          </g>
+          <g data-at="2+" data-scn="pixel" data-poster class="sim-pop">
+            <rect x="294" y="98" width="150" height="24" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="369" y="114" text-anchor="middle" class="svg-mono-accent">one word: macbook</text>
+          </g>
+          <g data-at="3+" data-scn="pixel" data-poster class="sim-pop">
+            <rect x="294" y="152" width="150" height="24" rx="6" class="svg-card svg-warn-s" stroke-width="1.4"/>
+            <text x="369" y="168" text-anchor="middle" class="svg-mono-warn">a file, in Termux</text>
+          </g>
+          <g data-at="4+" data-scn="pixel" data-poster class="sim-pop">
+            <rect x="294" y="206" width="150" height="24" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="369" y="222" text-anchor="middle" class="svg-mono-accent">mosh · UDP 60001</text>
+          </g>
+          <g data-at="5+" data-scn="pixel" data-poster class="sim-pop">
+            <rect x="294" y="260" width="150" height="24" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="369" y="276" text-anchor="middle" class="svg-mono-accent">still attached</text>
+          </g>
+
+          <!-- ============ rung verdict chips · Samsung One UI ============ -->
+          <g data-at="1+" data-scn="samsung" class="sim-pop">
+            <rect x="294" y="44" width="150" height="24" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="369" y="60" text-anchor="middle" class="svg-mono-accent">always-on, from boot</text>
+          </g>
+          <g data-at="2+" data-scn="samsung" class="sim-pop">
+            <rect x="294" y="98" width="150" height="24" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="369" y="114" text-anchor="middle" class="svg-mono-accent">one word: macbook</text>
+          </g>
+          <g data-at="3+" data-scn="samsung" class="sim-pop">
+            <rect x="294" y="152" width="150" height="24" rx="6" class="svg-card svg-warn-s" stroke-width="1.4"/>
+            <text x="369" y="168" text-anchor="middle" class="svg-mono-warn">a file, in Termux</text>
+          </g>
+          <g data-at="4+" data-scn="samsung" class="sim-pop">
+            <rect x="294" y="206" width="150" height="24" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="369" y="222" text-anchor="middle" class="svg-mono-accent">mosh · UDP 60001</text>
+          </g>
+          <g data-at="5+" data-scn="samsung" class="sim-pop">
+            <rect x="294" y="260" width="150" height="24" rx="6" class="svg-card svg-warn-s" stroke-width="1.4"/>
+            <text x="369" y="276" text-anchor="middle" class="svg-mono-warn">put to sleep</text>
+          </g>
+
+          <!-- ============ rung verdict chips · Xiaomi HyperOS ============ -->
+          <g data-at="1+" data-scn="xiaomi" class="sim-pop">
+            <rect x="294" y="44" width="150" height="24" rx="6" class="svg-card svg-warn-s" stroke-width="1.4"/>
+            <text x="369" y="60" text-anchor="middle" class="svg-mono-warn">needs Autostart on</text>
+          </g>
+          <g data-at="2+" data-scn="xiaomi" class="sim-pop">
+            <rect x="294" y="98" width="150" height="24" rx="6" class="svg-card svg-warn-s" stroke-width="1.4"/>
+            <text x="369" y="114" text-anchor="middle" class="svg-mono-warn">Private DNS wins</text>
+          </g>
+          <g data-at="3+" data-scn="xiaomi" class="sim-pop">
+            <rect x="294" y="152" width="150" height="24" rx="6" class="svg-card svg-warn-s" stroke-width="1.4"/>
+            <text x="369" y="168" text-anchor="middle" class="svg-mono-warn">a file, in Termux</text>
+          </g>
+          <g data-at="4+" data-scn="xiaomi" class="sim-pop">
+            <rect x="294" y="206" width="150" height="24" rx="6" class="svg-card svg-accent-s" stroke-width="1.4"/>
+            <text x="369" y="222" text-anchor="middle" class="svg-mono-accent">mosh · UDP 60001</text>
+          </g>
+          <g data-at="5+" data-scn="xiaomi" class="sim-pop">
+            <rect x="294" y="260" width="150" height="24" rx="6" class="svg-card svg-danger-s" stroke-width="1.6"/>
+            <text x="369" y="276" text-anchor="middle" class="svg-mono-danger">process killed</text>
+          </g>
+
+          <!-- ============ which rung this step is on ============ -->
+          <rect data-at="1" data-scn="pixel samsung" x="40" y="32"  width="412" height="48" rx="9" fill="none" class="svg-accent-s" stroke-width="2.6"/>
+          <rect data-at="1" data-scn="xiaomi"        x="40" y="32"  width="412" height="48" rx="9" fill="none" class="svg-warn-s"   stroke-width="2.6"/>
+          <rect data-at="2" data-scn="pixel samsung" x="40" y="86"  width="412" height="48" rx="9" fill="none" class="svg-accent-s" stroke-width="2.6"/>
+          <rect data-at="2" data-scn="xiaomi"        x="40" y="86"  width="412" height="48" rx="9" fill="none" class="svg-warn-s"   stroke-width="2.6"/>
+          <rect data-at="3" data-scn="pixel samsung xiaomi" x="40" y="140" width="412" height="48" rx="9" fill="none" class="svg-warn-s" stroke-width="2.6"/>
+          <rect data-at="4" data-scn="pixel samsung xiaomi" x="40" y="194" width="412" height="48" rx="9" fill="none" class="svg-accent-s" stroke-width="2.6"/>
+          <rect data-at="5" data-scn="pixel"         x="40" y="248" width="412" height="48" rx="9" fill="none" class="svg-accent-s" stroke-width="2.6"/>
+          <rect data-at="5" data-scn="samsung"       x="40" y="248" width="412" height="48" rx="9" fill="none" class="svg-warn-s"   stroke-width="2.6"/>
+          <rect data-at="5" data-scn="xiaomi"        x="40" y="248" width="412" height="48" rx="9" fill="none" class="svg-danger-s" stroke-width="2.6"/>
+
+          <!-- ============ what a lost phone costs — identical on all three ============ -->
+          <g data-at="0+" data-scn="pixel samsung xiaomi" data-poster>
+            <rect x="18" y="332" width="232" height="10" rx="5" class="svg-warn"/>
+            <rect x="470" y="322" width="394" height="24" rx="6" class="svg-card svg-stroke" stroke-width="1.2"/>
+            <text x="484" y="338" class="svg-mono-warn">an exportable key · rotate it on all three hosts</text>
+          </g>
+
+          <!-- ============ step 0 · you pick the phone up ============ -->
+          <g data-at="0" data-scn="pixel" class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-accent-s" stroke-width="1.6"/>
+            <text x="488" y="64" class="svg-mono-accent">Termux from F-Droid, and one tuned setting</text>
+            <text x="488" y="88" class="svg-sub">pkg install openssh mosh, and a ~/.ssh/config entry</text>
+            <text x="488" y="106" class="svg-sub">battery for Termux and Tailscale set to Unrestricted</text>
+            <text x="488" y="124" class="svg-sub">the command is mosh macbook -- tmux new -A -s phone</text>
+          </g>
+          <g data-at="0" data-scn="samsung" class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-warn-s" stroke-width="1.6"/>
+            <text x="488" y="64" class="svg-mono-warn">the same apps, and nothing changed in Settings</text>
+            <text x="488" y="88" class="svg-sub">One UI ships with Put unused apps to sleep enabled</text>
+            <text x="488" y="106" class="svg-sub">every rung below behaves identically until the last</text>
+            <text x="488" y="124" class="svg-sub">this is the most common Android setup, by volume</text>
+          </g>
+          <g data-at="0" data-scn="xiaomi" class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-danger-s" stroke-width="1.7"/>
+            <text x="488" y="64" class="svg-mono-danger">the same apps, on the most restrictive defaults</text>
+            <text x="488" y="88" class="svg-sub">HyperOS gates background work behind Autostart</text>
+            <text x="488" y="106" class="svg-sub">and this handset has Private DNS set to a provider</text>
+            <text x="488" y="124" class="svg-sub">two separate faults, on two separate rungs</text>
+          </g>
+
+          <!-- ============ step 1 · bring the tunnel up ============ -->
+          <g data-at="1" data-scn="pixel samsung" class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-accent-s" stroke-width="1.6"/>
+            <text x="488" y="64" class="svg-mono-accent">the VpnService is already up</text>
+            <text x="488" y="88" class="svg-sub">Always-on VPN raises it before you unlock the phone</text>
+            <text x="488" y="106" class="svg-sub">only tailnet addresses route through it, not all traffic</text>
+            <text x="488" y="124" class="svg-sub">the key icon is not an exit node unless you set one</text>
+          </g>
+          <g data-at="1" data-scn="xiaomi" class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-warn-s" stroke-width="1.7"/>
+            <text x="488" y="64" class="svg-mono-warn">the tunnel comes up late, or not at all</text>
+            <text x="488" y="88" class="svg-sub">HyperOS blocks the app from starting itself on boot</text>
+            <text x="488" y="106" class="svg-sub">Always-on VPN is set, but Autostart overrides it</text>
+            <text x="488" y="124" class="svg-sub">you open Tailscale by hand and it connects fine</text>
+          </g>
+
+          <!-- ============ step 2 · resolve the name ============ -->
+          <g data-at="2" data-scn="pixel samsung" class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-accent-s" stroke-width="1.6"/>
+            <text x="488" y="64" class="svg-mono-accent">macbook resolves to 100.x, on the phone</text>
+            <text x="488" y="88" class="svg-sub">MagicDNS answers inside the tunnel, not on cafe DNS</text>
+            <text x="488" y="106" class="svg-sub">the name survives a device being removed and re-added</text>
+            <text x="488" y="124" class="svg-sub">the 100.x address does not — never save that instead</text>
+          </g>
+          <g data-at="2" data-scn="xiaomi" class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-warn-s" stroke-width="1.7"/>
+            <text x="488" y="64" class="svg-mono-warn">Private DNS and MagicDNS both want port 53</text>
+            <text x="488" y="88" class="svg-sub">Private DNS set to a hostname takes every query</text>
+            <text x="488" y="106" class="svg-sub">a public resolver has never heard of macbook</text>
+            <text x="488" y="124" class="svg-sub">this is stock Android, not a Xiaomi behaviour</text>
+          </g>
+
+          <!-- ============ step 3 · sign the handshake ============ -->
+          <g data-at="3" data-scn="pixel samsung xiaomi" class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-warn-s" stroke-width="1.7"/>
+            <text x="488" y="64" class="svg-mono-warn">the file is read into Termux's memory to sign</text>
+            <text x="488" y="88" class="svg-sub">a real ed25519 private key, on a real filesystem</text>
+            <text x="488" y="106" class="svg-sub">Android has a hardware keystore — OpenSSH ignores it</text>
+            <text x="488" y="124" class="svg-sub">this rung is identical on every Android, by design</text>
+          </g>
+
+          <!-- ============ step 4 · start the session ============ -->
+          <g data-at="4" data-scn="pixel samsung xiaomi" class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-accent-s" stroke-width="1.6"/>
+            <text x="488" y="64" class="svg-mono-accent">ssh authenticates, then hands over to mosh</text>
+            <text x="488" y="88" class="svg-sub">mosh-server starts, prints a one-time key, ssh exits</text>
+            <text x="488" y="106" class="svg-sub">the session moves to UDP and stops caring about IPs</text>
+            <text x="488" y="124" class="svg-sub">Termux runs the real mosh client, not an emulation</text>
+          </g>
+
+          <!-- ============ step 5 · twenty minutes in a pocket ============ -->
+          <g data-at="5" data-scn="pixel" data-poster class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-accent-s" stroke-width="1.6"/>
+            <text x="488" y="64" class="svg-mono-accent">you unlock, and the pane is where you left it</text>
+            <text x="488" y="88" class="svg-sub">Doze suspended the radio; mosh reconnects from the new IP</text>
+            <text x="488" y="106" class="svg-sub">tmux new -A -s phone attached rather than started</text>
+            <text x="488" y="124" class="svg-sub">Unrestricted battery is the whole reason this worked</text>
+          </g>
+          <g data-at="5" data-scn="samsung" class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-warn-s" stroke-width="1.7"/>
+            <text x="488" y="64" class="svg-mono-warn">One UI moved Termux into Sleeping apps</text>
+            <text x="488" y="88" class="svg-sub">unused for a few days, so the OS deprioritised it</text>
+            <text x="488" y="106" class="svg-sub">the mosh client stopped; the server is still waiting</text>
+            <text x="488" y="124" class="svg-sub">reconnecting reattaches — you lost time, not work</text>
+          </g>
+          <g data-at="5" data-scn="xiaomi" class="sim-pop">
+            <rect x="470" y="34" width="394" height="112" rx="9" class="svg-card svg-danger-s" stroke-width="1.7"/>
+            <text x="488" y="64" class="svg-mono-danger">HyperOS reclaimed the RAM and killed Termux</text>
+            <text x="488" y="88" class="svg-sub">no warning, no notification, and no crash to read</text>
+            <text x="488" y="106" class="svg-sub">termux-wake-lock would not have helped — that is CPU</text>
+            <text x="488" y="124" class="svg-sub">only tmux on the far end saved the work itself</text>
+          </g>
+        </svg>
+
+        <div class="sim-controls">
+          <button type="button" class="sim-btn" data-act="prev" aria-label="Previous step"><span class="sim-glyph">◀</span></button>
+          <button type="button" class="sim-btn sim-btn-play" data-act="play" aria-label="Play">
+            <span class="sim-glyph">▶</span><span class="sim-btn-text">Play</span>
+          </button>
+          <button type="button" class="sim-btn" data-act="next" aria-label="Next step"><span class="sim-glyph">▶</span></button>
+          <div class="sim-track" role="group" aria-label="Jump to step">
+            <button type="button" class="sim-dot" data-goto="0" aria-label="Step 0, what is on the phone before you start">0</button>
+            <button type="button" class="sim-dot" data-goto="1" aria-label="Step 1, bring the tunnel up">1</button>
+            <button type="button" class="sim-dot" data-goto="2" aria-label="Step 2, resolve the name">2</button>
+            <button type="button" class="sim-dot" data-goto="3" aria-label="Step 3, sign the handshake">3</button>
+            <button type="button" class="sim-dot" data-goto="4" aria-label="Step 4, start the session">4</button>
+            <button type="button" class="sim-dot" data-goto="5" aria-label="Step 5, twenty minutes in a pocket">5</button>
+          </div>
+          <div class="sim-progress" aria-hidden="true"><span></span></div>
+        </div>
+
+        <div class="sim-term" aria-hidden="true">
+          <div data-at="0" data-scn="pixel" data-poster><span class="tp">$</span> pkg install openssh mosh<br><span class="tok">done</span> <span class="tdim">— Termux from F-Droid, not the Play Store build</span></div>
+          <div data-at="0" data-scn="samsung"><span class="tp">#</span> Settings → Battery → Background usage limits<br><span class="twarn">Put unused apps to sleep: ON</span> <span class="tdim">— the default</span></div>
+          <div data-at="0" data-scn="xiaomi"><span class="tp">#</span> Settings → Apps → Termux → Autostart<br><span class="twarn">Autostart: OFF</span> <span class="tdim">— also the default, and it is load-bearing</span></div>
+
+          <div data-at="1" data-scn="pixel samsung" data-poster><span class="tp">$</span> ping -c1 macbook<br>64 bytes from macbook (100.x.y.z) <span class="tok">— the tunnel was up</span></div>
+          <div data-at="1" data-scn="xiaomi"><span class="tp">$</span> ping -c1 macbook<br><span class="twarn">connect: Network is unreachable</span> <span class="tdim">— Tailscale never started</span></div>
+
+          <div data-at="2" data-scn="pixel samsung" data-poster><span class="tp">$</span> ping -c1 macbook<br>PING macbook (<span class="tok">100.x.y.z</span>) <span class="tdim">— MagicDNS answered inside the tunnel</span></div>
+          <div data-at="2" data-scn="xiaomi"><span class="tp">$</span> ping -c1 macbook<br><span class="twarn">ping: unknown host macbook</span> <span class="tdim">— Private DNS took the query</span></div>
+
+          <div data-at="3" data-scn="pixel samsung xiaomi" data-poster><span class="tp">$</span> head -1 ~/.ssh/id_ed25519<br><span class="twarn">-----BEGIN OPENSSH PRIVATE KEY-----</span> <span class="tdim">— a file, on every Android</span></div>
+
+          <div data-at="4" data-scn="pixel samsung xiaomi" data-poster><span class="tp">$</span> mosh macbook<br>MOSH CONNECT <span class="tok">60001</span> &lt;one-time key&gt; <span class="tdim">— ssh has already exited</span></div>
+
+          <div data-at="5" data-scn="pixel" data-poster><span class="tp">#</span> twenty minutes later, you unlock the phone<br>[<span class="tok">tmux</span>] attached to session phone <span class="tdim">— 3 windows, all alive</span></div>
+          <div data-at="5" data-scn="samsung"><span class="tp">#</span> twenty minutes later, you unlock the phone<br><span class="twarn">Termux restarted</span> <span class="tdim">— reconnect, and tmux reattaches</span></div>
+          <div data-at="5" data-scn="xiaomi"><span class="tp">#</span> twenty minutes later, you unlock the phone<br><span class="twarn">$</span> <span class="tdim">— a fresh Termux shell, as if you had never connected</span></div>
+        </div>
+
+        <ol class="sim-steps" aria-live="polite">
+          <li data-at="0" data-scn="pixel" data-poster><b>0 · Before you open anything</b>Termux installed from F-Droid, <code>openssh</code> and <code>mosh</code> installed inside it, a host entry in <code>~/.ssh/config</code>, and — the one thing people skip — battery usage for both Termux and Tailscale set to <strong>Unrestricted</strong>. That last setting is what separates this scenario from the other two.</li>
+          <li data-at="0" data-scn="samsung"><b>0 · Before you open anything</b>Identical software, and nothing touched in Settings. One UI ships with <strong>Put unused apps to sleep</strong> on, which quietly moves anything you have not opened in a few days into a restricted bucket. Every rung below behaves exactly like the Pixel until the last one.</li>
+          <li data-at="0" data-scn="xiaomi"><b>0 · Before you open anything</b>Identical software again, on the most restrictive defaults shipping today. HyperOS gates background work behind a per-app <strong>Autostart</strong> toggle that is off by default, and this handset also has Private DNS pointed at a public resolver. Those are two independent faults on two different rungs.</li>
+
+          <li data-at="1" data-scn="pixel samsung" data-poster><b>1 · The tunnel comes up first</b>Tailscale on Android runs as a <code>VpnService</code>, which is why the phone shows a key icon. Turn on <strong>Always-on VPN</strong> in Settings so the tunnel is up before you unlock. Only tailnet addresses route through it — it is not carrying your ordinary traffic unless you have picked an exit node.</li>
+          <li data-at="1" data-scn="xiaomi"><b>1 · The tunnel never came up</b>Always-on VPN is set, and it still did not start, because HyperOS blocks the app from launching itself at boot until you enable <strong>Autostart</strong> for it specifically. Opening Tailscale by hand connects instantly, which is exactly what makes this so confusing to diagnose — the app works, it just never runs on its own.</li>
+
+          <li data-at="2" data-scn="pixel samsung" data-poster><b>2 · The name resolves inside the tunnel</b>MagicDNS answers <code>macbook</code> from within the tailnet, not from whatever DNS the café hands you. Save the MagicDNS name, never the <code>100.x</code> address — the name survives a device being removed and re-added, and the address does not.</li>
+          <li data-at="2" data-scn="xiaomi"><b>2 · Private DNS took the query first</b>Android's <strong>Private DNS</strong> sends every lookup to a fixed DoT resolver, and that resolver has never heard of <code>macbook</code>. MagicDNS and Private DNS both want to be the answer for every name, and on Android they cannot both win. Set Private DNS to <em>Off</em> or <em>Automatic</em> while you use MagicDNS. This is stock Android behaviour and has nothing to do with Xiaomi — it is shown here only because it is the most common reason <code>ping macbook</code> fails on an Android and never on an iPhone.</li>
+
+          <li data-at="3" data-scn="pixel samsung xiaomi" data-poster><b>3 · The key is a file, and that is the whole story</b>Termux runs ordinary OpenSSH, which reads an ordinary private key from an ordinary filesystem. Android <em>has</em> a hardware-backed keystore, and OpenSSH in Termux does not use it — there is no Android equivalent of Blink's Secure Enclave key. Anything that can read Termux's data can copy this key. This rung is identical on every Android in the picker, and it is the one real security downgrade against <a href="06-iphone.html">chapter 06</a>.</li>
+
+          <li data-at="4" data-scn="pixel samsung xiaomi" data-poster><b>4 · SSH starts it, then gets out of the way</b>SSH authenticates, launches <code>mosh-server</code>, collects a one-time key, and exits. From then on the session is UDP and identified by that key rather than by your IP address — which is what lets it survive Wi-Fi to mobile data. Termux runs the genuine <code>mosh</code> client, so this rung is as strong as it is on the iPhone.</li>
+
+          <li data-at="5" data-scn="pixel" data-poster><b>5 · Twenty minutes later, it is still there</b>Doze suspended the radio while the screen was off, and the phone probably changed network on the way home. Mosh reconnects from whatever IP it now has, and <code>tmux new -A -s phone</code> <em>attaches</em> rather than starting anything. Setting battery usage to Unrestricted is the entire reason this scenario differs from the other two.</li>
+          <li data-at="5" data-scn="samsung"><b>5 · Twenty minutes later, the client had been slept</b>One UI decided Termux was not in active use and moved it to a restricted bucket, so the mosh client stopped. The <em>server</em> side is untouched and still waiting, so reopening Termux and reconnecting reattaches you to the same tmux session. You lost the round trip, not the work — which is the whole argument for tmux on the far end.</li>
+          <li data-at="5" data-scn="xiaomi"><b>5 · Twenty minutes later, the process is gone</b>HyperOS reclaimed the memory and killed Termux outright. There is no notification, no crash log to read, and nothing on the phone that explains it. <code>termux-wake-lock</code> does not prevent this — it holds the CPU awake, it does not stop the OS reclaiming RAM. The only thing that saved the work was tmux running on the machine at the other end.</li>
+        </ol>
+
+        <figcaption>
+          <b>Switch between the three handsets and watch which rungs move.</b> Rungs 3 and 4 never
+          change — the key is always a file, and Mosh always works. Rungs 1, 2 and 5 are entirely at
+          the mercy of settings your vendor chose for you, which is why the checklist at the end of this
+          chapter is mostly Settings paths rather than commands. The bar at the bottom never moves
+          either: on Android, losing the phone always costs you a key rotation.
+        </figcaption>
+      </figure>
+
+      <h2>Harden the device first</h2>
+      <p>
+        A phone that can open a shell on three machines deserves the same care as those machines.
+      </p>
+      <ul>
+        <li><strong>Six-digit PIN minimum</strong>, ideally an alphanumeric password. Fingerprint and face unlock are convenience on top of it — the PIN is what actually protects the encryption keys.</li>
+        <li><strong>Short screen timeout</strong>, and enable <strong>Lockdown</strong> (hold the power button → Lockdown). It disables biometrics until the PIN is entered again — useful in exactly the situation where someone can hold your phone to your face.</li>
+        <li><strong>Check your security patch level</strong> under <span class="kbd">Settings → About phone</span>, and check how long your vendor supports the model. This varies more on Android than anything else in this chapter — some vendors ship seven years of updates and some ship two.</li>
+        <li><strong>Face unlock is not equal across vendors.</strong> On most handsets it is camera-based and materially weaker than a fingerprint. Do not rely on it to gate anything.</li>
+        <li><strong>Be deliberate about sideloading.</strong> You are about to install Termux outside the Play Store, which is correct — but it means the "only install from the Play Store" habit no longer protects you. Install from F-Droid or the project's own GitHub releases, and nowhere else.</li>
+      </ul>
+
+      <h2>Install Termux from the right place</h2>
+      <div class="callout warn">
+        <div class="ct">The Play Store build is deprecated and will not update</div>
+        <p>
+          Termux's Play Store release is no longer maintained. Google Play's policies and Android's
+          W^X enforcement — which blocks an app targeting a modern API level from executing files in its
+          own home directory — made that build untenable, and the project moved to F-Droid and GitHub
+          as its only official sources. The builds are signed with <em>different keys</em>, so Android
+          will refuse to install one over the other: if you already have the Play Store version, back
+          up what you need, uninstall it, then install fresh.
+        </p>
+      </div>
+      <pre><code># Inside Termux, once installed from F-Droid or GitHub
+pkg update &amp;&amp; pkg upgrade
+pkg install openssh mosh
+
+# optional, but useful later
+pkg install termux-api</code></pre>
+
+      <h2>Tailscale on Android</h2>
+      <p>
+        Install Tailscale from the Play Store or F-Droid and sign in with the same account as your
+        other machines. Then four settings, in this order:
+      </p>
+      <ul>
+        <li><strong>Always-on VPN.</strong> <span class="kbd">Settings</span> → <span class="kbd">Network &amp; internet</span> → <span class="kbd">VPN</span> → <span class="kbd">Tailscale</span> → <span class="kbd">⚙</span>. This is the Android equivalent of connect-on-demand, and it is what makes the tunnel available before you open a terminal.</li>
+        <li><strong>Leave "Block connections without VPN" off</strong> unless you specifically want a kill switch. With it on, losing the tunnel loses all networking, which makes diagnosing anything harder.</li>
+        <li><strong>Turn Private DNS off or back to Automatic</strong> at <span class="kbd">Settings</span> → <span class="kbd">Network &amp; internet</span> → <span class="kbd">Private DNS</span> while you rely on MagicDNS. A Private DNS hostname captures every lookup on the device, and a public resolver cannot resolve your tailnet names.</li>
+        <li><strong>Approve the device</strong> in the admin console if you enabled device approval on the tailnet.</li>
+      </ul>
+      <pre><code># From Termux, once Tailscale is up
+ping -c1 macbook
+# then check the path from the Mac side
+tailscale ping android</code></pre>
+
+      <h2>The key question, answered honestly</h2>
+      <p>
+        <a href="06-iphone.html">Chapter 06</a> was built around one choice: put the iPhone's private key
+        in the Secure Enclave so it has no exportable form. <strong>There is no equivalent move on
+        Android with this toolchain.</strong> Termux runs standard OpenSSH, which reads a standard key
+        file. Android's hardware keystore exists and is genuinely good, but OpenSSH inside Termux does
+        not talk to it.
+      </p>
+      <p>
+        So the Android key is a file that can be copied. You cannot fix that here — you can only reduce
+        what it is worth:
+      </p>
+      <ol>
+        <li><strong>Give it a passphrase.</strong> Use <code>ssh-agent</code> in Termux so you are not retyping it constantly, but do not skip it — the passphrase is the only thing standing between a copied file and a working key.</li>
+        <li><strong>Give it its own entry</strong> in <code>authorized_keys</code> on every host, with a comment that names the device. You want to revoke this one key without touching the iPhone's.</li>
+        <li><strong>Constrain it to the tailnet</strong>, so it is useless from anywhere else even if a server is later exposed.</li>
+        <li><strong>Treat it as lower-trust than the iPhone key</strong> when you write your key custody notes in <a href="10-threat-model.html">chapter 10</a>. It is not equivalent, and pretending otherwise is how a threat model goes stale.</li>
+      </ol>
+      <pre><code># In Termux — passphrase-protected, and named for the device
+ssh-keygen -t ed25519 -C "android-termux" -f ~/.ssh/id_ed25519
+
+# On each machine, constrained to the tailnet
+from="100.64.0.0/10" ssh-ed25519 AAAAC3Nza... android-termux</code></pre>
+
+      <h3>Verify the host key on first connection</h3>
+      <pre><code>ssh yourname@macbook</code></pre>
+      <p>
+        The first connection asks you to trust a host key. Compare the fingerprint against what the
+        server reports before accepting — this is the one moment where a man-in-the-middle would be
+        invisible:
+      </p>
+      <pre><code># Run this ON the server, compare to what Termux shows
+for f in /etc/ssh/ssh_host_*_key.pub; do ssh-keygen -lf "$f"; done</code></pre>
+
+      <h3>Save a host so you type one word</h3>
+      <div class="filename">~/.ssh/config, inside Termux</div>
+      <pre><code>Host macbook
+  HostName macbook.your-tailnet.ts.net
+  User yourname
+  Port 2222
+  IdentityFile ~/.ssh/id_ed25519
+  ServerAliveInterval 30
+  ServerAliveCountMax 6</code></pre>
+      <p>
+        Use the MagicDNS name, not the <code>100.x</code> address — names survive a device being removed
+        and re-added.
+      </p>
+
+      <h2>Mosh and tmux — the daily command</h2>
+      <pre><code>mosh macbook -- tmux new -A -s phone</code></pre>
+      <p>
+        Identical to the iPhone. Mosh moves the session to UDP so it stops caring about your IP address,
+        and <code>tmux new -A</code> attaches to the existing session if there is one and creates it if
+        there is not. Connecting <em>is</em> attaching.
+      </p>
+      <div class="callout tip">
+        <div class="ct">Make the shell usable with thumbs</div>
+        <p>
+          Termux's extra-keys row gives you <span class="kbd">Ctrl</span>, <span class="kbd">Alt</span>
+          and arrows without a hardware keyboard — configure it in
+          <code>~/.termux/termux.properties</code>. Then turn on tmux's mouse mode (chapter 04), which
+          makes panes tappable and scrollback draggable. On a hardware keyboard, remap
+          <span class="kbd">Caps Lock</span> to <span class="kbd">Ctrl</span> in Android's physical
+          keyboard settings.
+        </p>
+      </div>
+
+      <h2>The battery problem</h2>
+      <p>
+        This is the part of Android that has no iPhone equivalent, and it is the reason most people
+        give up on Android as a remote-dev client. Two separate mechanisms are at work, and they are
+        often confused with each other:
+      </p>
+      <ul>
+        <li><strong>Doze and App Standby</strong> are stock Android. They suspend network access and defer background work when the screen is off. Mosh handles this well — the session resumes when the radio does.</li>
+        <li><strong>Vendor process-killing</strong> is not stock Android. It is an extra layer each OEM adds on top, and it terminates your app outright to reclaim memory. Mosh cannot survive this, because the client process no longer exists.</li>
+      </ul>
+      <div class="callout warn">
+        <div class="ct">What <code>termux-wake-lock</code> does and does not do</div>
+        <p>
+          <code>termux-wake-lock</code> holds a CPU wake lock so Termux keeps getting scheduled. It is
+          worth running, and it does <em>not</em> stop an OEM from killing the process to free RAM.
+          Those are different mechanisms, and only the settings below address the second one.
+        </p>
+      </div>
+
+      <h3>Notes per flavour</h3>
+      <p>
+        Apply these to <strong>both</strong> Termux and Tailscale. Paths drift between versions — the
+        names are the thing to search for, not the exact menu depth.
+      </p>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Flavour</th><th>What to change</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>Pixel / stock</strong></td>
+            <td><span class="kbd">Settings</span> → <span class="kbd">Apps</span> → <em>app</em> → <span class="kbd">Battery</span> → <span class="kbd">Unrestricted</span></td>
+            <td>Behaves the way the Android documentation describes. One setting is usually enough.</td>
+          </tr>
+          <tr>
+            <td><strong>Samsung One UI</strong></td>
+            <td>Battery → <strong>Unrestricted</strong>; remove the app from <strong>Sleeping apps</strong>; turn off <strong>Put unused apps to sleep</strong></td>
+            <td>The sleeping-apps list is the one people miss — an app can be Unrestricted and still be asleep.</td>
+          </tr>
+          <tr>
+            <td><strong>Xiaomi HyperOS / MIUI</strong></td>
+            <td><strong>Autostart</strong> on; Battery saver → <strong>No restrictions</strong>; lock the app in Recents (long-press the card → padlock)</td>
+            <td>The most restrictive defaults shipping. Settings can reset after an OS update — re-check them. The Recents lock is the single most effective one.</td>
+          </tr>
+          <tr>
+            <td><strong>OnePlus / OPPO / realme (ColorOS)</strong></td>
+            <td>Allow <strong>background running</strong>; disable <strong>battery optimisation</strong>; lock in Recents</td>
+            <td>Behaves much like Xiaomi. Some builds add a separate "auto-launch" toggle.</td>
+          </tr>
+          <tr>
+            <td><strong>GrapheneOS / CalyxOS</strong></td>
+            <td>Battery → Unrestricted. Check the per-app <strong>Network</strong> permission is granted.</td>
+            <td>No vendor process-killing, so rung 5 behaves like stock. The extra permission model is the thing that surprises people, not the battery.</td>
+          </tr>
+        </tbody>
+      </table>
+      </div>
+      <p>
+        If your handset is not listed, <a href="https://dontkillmyapp.com/" rel="noopener noreferrer">dontkillmyapp.com</a>
+        maintains per-vendor instructions and is kept more current than any guide can be.
+      </p>
+
+      <h3>Reconnect without ceremony</h3>
+      <p>
+        Termux's <strong>Boot</strong> add-on runs scripts from <code>~/.termux/boot/</code> at startup,
+        which is the tidiest way to hold a wake lock from the moment the phone comes up:
+      </p>
+      <div class="filename">~/.termux/boot/wake-lock.sh</div>
+      <pre><code>#!/data/data/com.termux/files/usr/bin/sh
+termux-wake-lock</code></pre>
+      <p>
+        Make it executable with <code>chmod +x</code>. This helps with Doze. It does not help with a
+        vendor that kills the process — nothing on the phone does, which is why tmux lives on the far
+        end.
+      </p>
+
+      <h2>If sessions still drop</h2>
+      <p>
+        Work through it in this order — it is ordered by how often each is the actual cause:
+      </p>
+      <ol>
+        <li><strong>Is battery usage set to Unrestricted</strong> for both Termux and Tailscale? This is the answer most of the time, and it has to be set per app.</li>
+        <li><strong>Check the vendor list above.</strong> On Samsung, check Sleeping apps. On Xiaomi, check Autostart and lock the app in Recents. These are separate from the battery setting and are not implied by it.</li>
+        <li><strong>Are you using Mosh, or did you fall back to SSH?</strong> The command is <code>mosh</code>, not <code>ssh</code>.</li>
+        <li><strong>Did the name fail to resolve rather than the session dropping?</strong> Check Private DNS. <code>ping macbook</code> failing with <em>unknown host</em> while <code>ping 100.x.y.z</code> works is that fault exactly.</li>
+        <li><strong>Is tmux running on the far end?</strong> If it is, a drop costs you a reconnect and nothing else, and the question becomes cosmetic.</li>
+      </ol>
+      <p>
+        A useful split: if the server logs <code>Connection reset by peer</code>, the phone died. If the
+        server logs nothing at all and the session simply goes quiet, the network died and Mosh will
+        resume on its own. The <a href="12-troubleshooting.html">diagnostic ladder in chapter 12</a>
+        covers the rest.
+      </p>
+
+      <h2>Checklist</h2>
+      <ul class="checklist">
+        <li>PIN or password set, short screen timeout, security patch level checked.</li>
+        <li>Termux installed from F-Droid or GitHub — <em>not</em> the Play Store build.</li>
+        <li><code>pkg install openssh mosh</code> completed.</li>
+        <li>Tailscale installed, signed in, approved in the admin console.</li>
+        <li>Always-on VPN enabled for Tailscale.</li>
+        <li>Private DNS set to Off or Automatic, and <code>ping macbook</code> resolves.</li>
+        <li>Key generated <em>with a passphrase</em>, named for the device.</li>
+        <li>Public key added to every machine with a <code>from=</code> restriction and an identifying comment.</li>
+        <li>Host key fingerprints verified on first connection.</li>
+        <li>A <code>~/.ssh/config</code> entry per machine.</li>
+        <li>Battery set to Unrestricted for Termux <em>and</em> Tailscale.</li>
+        <li>Vendor-specific settings applied from the table above.</li>
+        <li>Screen off for twenty minutes mid-session tested; the session reattached.</li>
+        <li>Wi-Fi → mobile data mid-session tested; the session survived.</li>
+      </ul>
+
+      <nav class="pager"></nav>
+    </div>
+  </main>
+  <aside class="toc"></aside>
+</div>
+<script src="../assets/nav.js"></script>
+<script src="../assets/app.js"></script>
+<script src="../assets/anim.js"></script>
+</body>
+</html>

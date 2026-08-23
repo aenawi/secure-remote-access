@@ -13,7 +13,7 @@
   <main class="main">
     <div class="content">
 
-      <p class="eyebrow">Chapter 10 · Operate</p>
+      <p class="eyebrow">Chapter 11 · Operate</p>
       <h1>Runbooks &amp; checklists</h1>
       <p class="lede">
         Procedures for the things you do rarely enough to forget. The build order in particular is not
@@ -214,7 +214,7 @@
             <rect x="560" y="266" width="300" height="64" rx="9" class="svg-surface svg-stroke" stroke-width="1.3" stroke-dasharray="5 4"/>
             <text x="578" y="289" class="svg-sub">not run</text>
             <text x="578" y="307" class="svg-sub">the VPS is unreachable. Recovery is</text>
-            <text x="578" y="323" class="svg-sub">the provider console — chapter 07.</text>
+            <text x="578" y="323" class="svg-sub">the provider console — chapter 08.</text>
           </g>
           <g data-at="4" data-scn="order">
             <rect x="48" y="266" width="146" height="66" rx="9" fill="none" class="svg-accent-s" stroke-width="2.6"/>
@@ -308,7 +308,7 @@
           <li data-at="2" data-scn="early"><b>2 · …and you close public :22 while you are in there</b>It feels efficient. Tailscale is installed and the box has a tailnet address, so the public rule looks redundant. It is not redundant — it is <em>untested</em>. A brand-new tailnet still allows everything by default, so this appears to work, which is exactly what makes it dangerous.</li>
 
           <li data-at="3" data-scn="order" data-poster><b>3 · Write the ACL policy</b>Default deny, then grant SSH only. Then prove it: <code>ssh</code> to the <code>100.x</code> address and get a shell. That test is the whole reason this step sits before any hardening.</li>
-          <li data-at="3" data-scn="early"><b>3 · The ACL shuts the only door left — stop here</b>Default deny with no SSH grant yet, so the tailnet path dies the moment you save the policy. The public path went in step 2. Both closed in one move, and neither was ever tested. <strong>Recovery is the provider's web console</strong> — <a href="07-vps.html">chapter 07</a> is where you checked that it works.</li>
+          <li data-at="3" data-scn="early"><b>3 · The ACL shuts the only door left — stop here</b>Default deny with no SSH grant yet, so the tailnet path dies the moment you save the policy. The public path went in step 2. Both closed in one move, and neither was ever tested. <strong>Recovery is the provider's web console</strong> — <a href="08-vps.html">chapter 08</a> is where you checked that it works.</li>
 
           <li data-at="4" data-scn="order" data-poster><b>4 · Harden each host</b>4a, 4b and 4c do not depend on each other, so take them in any order. This is where public <code>:22</code> finally closes on the VPS — safely, because steps 1 to 3 are done and proven, and because you keep a second session open while you change the rule.</li>
           <li data-at="4" data-scn="early"><b>4 · Not run</b>You cannot reach the VPS to harden it. Get back in through the console, restore the firewall rule, and start again from step 1 — this time closing nothing until step 4.</li>
