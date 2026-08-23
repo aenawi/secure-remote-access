@@ -69,7 +69,7 @@
 
         <div class="sb-stage">
           <svg viewBox="0 0 860 320" role="img"
-               aria-label="The lab topology: lab-roam, evil-box and lab-ubuntu on the left, each behind its own NAT, connected to a tailnet box holding a coordination server and a DERP relay, with lab-vps on the right. Three routes are drawn between lab-ubuntu and lab-vps — direct, relayed through DERP, and a public-internet path used by evil-box.">
+               aria-label="The lab topology: lab-roam, evil-box and lab-ubuntu on the left, each behind its own NAT, connected to a tailnet box holding a coordination server and a DERP relay, with lab-vps on the right. A band along the bottom marks the public internet. One route is drawn at a time, between the two machines currently being probed, and its shape says which path it took: straight across the middle for a direct tailnet path, up through the centre box when relayed through DERP, and dipping into the band at the bottom when it crosses the public internet.">
 
             <!-- shared layer-2 segment, when evil-box is put on lab-ubuntu's wire -->
             <rect data-el="seg-shared" class="sb-svg-seg is-hidden"
@@ -77,7 +77,14 @@
             <text data-el="seg-label" class="svg-sub sb-svg-seg-label is-hidden" x="14" y="256">one L2 segment — they can see each other's frames</text>
 
             <text x="14" y="20" class="svg-sub">THE MACHINES</text>
-            <text x="330" y="296" class="svg-sub">THE PUBLIC INTERNET — anyone, from anywhere, to 203.0.113.11</text>
+
+            <!-- The public internet, drawn as a place rather than a caption.
+                 A route that dips into this band has left the private network;
+                 one that stays at the top never touches it. Always present,
+                 brightened by sandbox.js only while something is using it. -->
+            <rect data-el="public-lane" class="sb-svg-lane"
+                  x="258" y="256" width="588" height="36" rx="10"/>
+            <text data-el="public-lane-label" x="258" y="306" class="sb-svg-lane-label">THE PUBLIC INTERNET — anyone, from anywhere, to 203.0.113.11</text>
 
             <!-- ---------- NAT boxes ---------- -->
             <rect x="186" y="30"  width="58" height="56" rx="8" class="svg-card svg-stroke" stroke-width="1.2"/>
@@ -156,6 +163,14 @@
             <text data-el="focus-label" x="14" y="308" class="svg-mono-accent">lab-ubuntu → lab-vps:22</text>
           </svg>
         </div>
+
+        <p class="sb-legend">
+          <b>The height of the line is the point.</b> One that runs straight across the middle
+          never leaves the tailnet. One that bends up through the box in the centre is being
+          relayed through DERP. One that <b>dips into the red band at the bottom</b> has crossed
+          the public internet, where anyone can reach it — that shape is the difference between
+          a private path and an exposed one.
+        </p>
 
         <p class="sb-verdict">
           Three machines, a default-deny tailnet, and public <code>:22</code> still open.

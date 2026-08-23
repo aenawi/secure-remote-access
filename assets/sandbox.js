@@ -848,7 +848,7 @@
   };
   var VPS_X = 676;      /* lab-vps's left edge */
   var LEFT_X = 164;     /* the right edge of the left column */
-  var LANE_Y = 276;     /* the public-internet lane along the bottom */
+  var LANE_Y = 274;     /* the middle of the public-internet band along the bottom */
   var CORRIDOR = 292;   /* clear vertical space between the NATs and the tailnet */
 
   /* Returns { in: d, out: d } — "out" only for the relayed path, which is
@@ -980,6 +980,14 @@
     }
     var services = pick("tailnet-services");
     if (services) services.classList.toggle("is-off", !usesTailnet);
+
+    /* The dip in a public route is the whole message: it is the traffic
+       leaving your private network. Light the band it dips into so the
+       shape explains itself. */
+    ["public-lane", "public-lane-label"].forEach(function (name) {
+      var n = pick(name);
+      if (n) n.classList.toggle("is-live", kind === "public");
+    });
     var focus = pick("focus-label");
     if (focus) {
       focus.textContent = S.probe.from + " → " + S.probe.to + ":" + S.probe.port;

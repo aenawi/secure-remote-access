@@ -477,6 +477,15 @@ td code { font-size: 12.5px; }
 /* ---- the drawing ---- */
 .sb-svg-seg { fill: var(--danger-soft); stroke: var(--danger); stroke-width: 1.2; stroke-dasharray: 5 4; }
 .sb-svg-seg-label { fill: var(--danger); }
+
+/* the public-internet band along the bottom — always there, lit only when
+   the focused route actually dips into it */
+.sb-svg-lane { fill: var(--danger-soft); stroke: var(--danger); stroke-width: 1.2;
+  stroke-dasharray: 5 4; opacity: .3; transition: opacity .25s; }
+.sb-svg-lane.is-live { opacity: 1; }
+.sb-svg-lane-label { fill: var(--text-faint); font-family: var(--mono); font-size: 10px;
+  transition: fill .25s; }
+.sb-svg-lane-label.is-live { fill: var(--danger); }
 .sb-svg-cond { font-size: 10px; }
 .sb-svg-wire { stroke: var(--text-faint); stroke-width: 1.3; }
 .sb-svg-tap { stroke: var(--danger); stroke-width: 2; stroke-dasharray: 3 3; }
@@ -488,6 +497,11 @@ td code { font-size: 12.5px; }
 
 @keyframes sb-svg-march { to { stroke-dashoffset: -26; } }
 .sb-on:not(.sb-still) .sb-svg-route.is-live { animation: sb-svg-march 1.1s linear infinite; }
+
+.sb-legend {
+  margin: 10px 2px 0; font-size: 11.5px; line-height: 1.6; color: var(--text-faint);
+}
+.sb-legend b { color: var(--text-muted); font-weight: 660; }
 
 /* ---- the verdict line ---- */
 .sb-verdict {
