@@ -570,8 +570,14 @@
     if (!path) return BY_ID[id].ts;
     if (path.iface === "tailscale0") return BY_ID[id].ts;
     if (path.kind === "lan") return lanAddr(id);
-    /* Including the "none" path: the public address is what an attacker aims
-       at, and reporting it is how the failure reads as an answer. */
+    /* On the "none" path that address belongs to the router, not the machine —
+       it is where the packet actually lands and dies, and saying whose it is
+       keeps this line from contradicting the reason printed under it. */
+    if (path.kind === "none" && BY_ID[id].natName) {
+      return BY_ID[id].natName + " " + BY_ID[id].pub;
+    }
+    /* The public address is what an attacker aims at, and reporting it is how
+       the failure reads as an answer. */
     return BY_ID[id].pub;
   }
 
