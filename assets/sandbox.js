@@ -22,6 +22,13 @@
    captured frame it is because the cipher rejected it, in your
    browser, not because a script said so. See Crypto below.
 
+   Two rules here were rewritten by lab/, which runs this same
+   topology as containers: a machine behind a NAT has no inbound
+   address at all, and `netcheck` measures UDP rather than
+   WireGuard's port. Both were modelled wrongly until the real
+   thing disagreed. Where the two still differ, lab/README.md
+   says where and why — that pair is the point of having both.
+
    Progressive enhancement: with JS off the page keeps a static
    poster and the topology SVG. sandbox.js adds .sb-on and takes over.
    ============================================================ */
@@ -38,19 +45,29 @@
      1 · The machines
      ============================================================ */
 
+  /* Two different facts about NAT, and they are not the same one:
+
+       nat      how hard the outbound punch is — easy, hard, or none at all
+       natName  the router doing it, when there is one
+
+     A machine with a natName sits behind something that masquerades outbound
+     and forwards nothing in. It therefore has no inbound address at all, which
+     is what a laptop on a home network actually looks like, and which the
+     containers in lab/ proved this model had wrong. lab-vps has no natName,
+     because it is the public box and the whole guide turns on that. */
   var CATALOG = [
     { id: "lab-vps", label: "lab-vps", role: "the public box", chapter: "08",
       ts: "100.71.4.11", lan: "10.0.11.2", pub: "203.0.113.11",
-      nat: "none", tag: "tag:server" },
+      nat: "none", natName: null, tag: "tag:server" },
     { id: "lab-ubuntu", label: "lab-ubuntu", role: "the laptop", chapter: "09",
       ts: "100.71.4.13", lan: "10.0.13.2", pub: "198.51.100.13",
-      nat: "easy", tag: "tag:laptop" },
+      nat: "easy", natName: "nat-ubuntu", tag: "tag:laptop" },
     { id: "lab-roam", label: "lab-roam", role: "the phone's stand-in", chapter: "03",
       ts: "100.71.4.27", lan: "10.0.27.2", pub: "198.51.100.27",
-      nat: "hard", tag: "tag:roam" },
+      nat: "hard", natName: "nat-roam", tag: "tag:roam" },
     { id: "evil-box", label: "evil-box", role: "a hostile machine", chapter: "10",
-      ts: "100.71.4.99", lan: "10.0.13.66", pub: "192.0.2.66",
-      nat: "easy", tag: "tag:untrusted", hostile: true }
+      ts: "100.71.4.99", lan: "10.0.66.2", lanShared: "10.0.13.66", pub: "192.0.2.66",
+      nat: "easy", natName: "nat-evil", tag: "tag:untrusted", hostile: true }
   ];
 
   var BY_ID = {};
@@ -361,6 +378,19 @@
       return { kind: "lan", iface: "eth0", base: 1,
                note: "same layer-2 segment — no routing involved at all" };
     }
+
+    /* Off the tailnet, the only machine anyone can aim at is the one with a
+       public address. The others are behind routers that masquerade outbound
+       and forward nothing in, so there is no path to fail further along —
+       there is no path. This page used to give every machine a reachable
+       public address and let an attacker walk in on :22; the containers in
+       lab/ said otherwise, and the containers were right. */
+    if (BY_ID[to].natName) {
+      return { kind: "none", iface: "eth0", base: 0,
+               note: BY_ID[to].natName + " masquerades " + to + " outbound and " +
+                     "forwards nothing in — there is no address to aim at" };
+    }
+
     return { kind: "public", iface: "eth0", base: 24,
              note: "over the public internet, to whatever the address answers on" };
   }
@@ -368,6 +398,13 @@
   function sharesSegment(a, b) {
     var pair = { "evil-box": 1, "lab-ubuntu": 1 };
     return pair[a] && pair[b];
+  }
+
+  /* evil-box has two addresses — its own segment, and the one it takes when you
+     move it onto lab-ubuntu's wire. Which is true depends on the state. */
+  function lanAddr(id) {
+    var m = BY_ID[id];
+    return S.segmentShared && m.lanShared ? m.lanShared : m.lan;
   }
 
   /* Rung 3. First matching grant wins, exactly as the real policy file does. */
@@ -476,6 +513,11 @@
     var path = choosePath(from, to);
     t.path = path;
     t.rule = path.note;
+    if (path.kind === "none") {
+      t.why = "nothing on the public internet has an address for " + to + ", so the " +
+              "packet has nowhere to go — no firewall was ever consulted";
+      return t;
+    }
 
     /* --- rung 3 · tailnet policy ---------------------------------- */
     if (path.iface === "tailscale0") {
@@ -527,7 +569,9 @@
   function addrFor(id, path) {
     if (!path) return BY_ID[id].ts;
     if (path.iface === "tailscale0") return BY_ID[id].ts;
-    if (path.kind === "lan") return BY_ID[id].lan;
+    if (path.kind === "lan") return lanAddr(id);
+    /* Including the "none" path: the public address is what an attacker aims
+       at, and reporting it is how the failure reads as an answer. */
     return BY_ID[id].pub;
   }
 
@@ -550,18 +594,26 @@
       }
       var p = choosePath(self, m.id);
       if (p.kind === "relay") out.push(line + 'active; relay "fra"');
-      else out.push(line + "active; direct " + m.pub + ":41641");
+      else if (p.kind === "direct") out.push(line + "active; direct " + m.pub + ":41641");
+      /* Neither end is on the tailnet, so there is no path to describe. An idle
+         peer reports no current address, and calling that "direct" would be the
+         most misleading line this readout could print. */
+      else out.push(line + "idle; no current address");
     });
     if (out.length === 1) out.push("  (nothing else is up)");
     return out.join("\n");
   }
 
+  /* netcheck asks whether UDP works at all, not whether WireGuard's port is
+     open: it probes STUN on 3478. So dropping udp/41641 leaves this saying
+     UDP: true, and moves the path to relay instead. The model used to print
+     UDP: false here, and the real thing in lab/ never did. */
   function netcheck() {
     var l = S.links["lab-ubuntu"];
     var base = 24.1 + l.delay;
-    return [
+    var out = [
       "$ tailscale netcheck",
-      "  UDP: " + (l.udpBlocked ? "false" : "true"),
+      "  UDP: true",
       "  IPv4: yes, " + BY_ID["lab-ubuntu"].pub + ":41641",
       "  MappingVariesByDestIP: false",
       "  PortMapping: none",
@@ -569,7 +621,15 @@
       "  DERP latency:",
       "      fra: " + base.toFixed(1) + "ms  (Frankfurt)",
       "      lhr: " + (base + 7.5).toFixed(1) + "ms  (London)"
-    ].join("\n");
+    ];
+    if (l.udpBlocked) {
+      out.push("");
+      out.push("# udp/41641 is dropped and this still says UDP: true, because the");
+      out.push("# probe above went to STUN on 3478, which nothing here blocks. Read");
+      out.push("# `tailscale status` instead: the path is what changed. A network");
+      out.push("# blocking outbound UDP wholesale is what makes this line say false.");
+    }
+    return out.join("\n");
   }
 
   function shapingLines() {
@@ -913,7 +973,11 @@
       var nat = pick("nat-" + m.id);
       if (nat) nat.classList.toggle("is-hidden", gone);
       var ip = pick("ip-" + m.id);
-      if (ip) ip.textContent = st.onTailnet ? m.ts : m.pub + " (outside)";
+      if (ip) {
+        ip.textContent = st.onTailnet ? m.ts
+          : m.natName ? lanAddr(m.id) + " behind NAT"
+          : m.pub + " (public)";
+      }
       var badge = pick("cond-" + m.id);
       if (badge) {
         var l = S.links[m.id], bits = [];
@@ -941,7 +1005,7 @@
 
     /* The focused pair decides which route is drawn, and where it starts. */
     var t = deliver({ from: S.probe.from, to: S.probe.to, port: S.probe.port });
-    var kind = t.path ? t.path.kind : null;
+    var kind = t.path && t.path.kind !== "none" ? t.path.kind : null;
     var d = kind ? routeD(kind, S.probe.from, S.probe.to) : null;
 
     ["direct", "relay", "public", "lan"].forEach(function (k) {
@@ -1766,8 +1830,19 @@
     { kind: "attack", want: false, label: "…nor your laptop",
       why: "The policy protects the clients too, not just the server.",
       fail: "One hostile member reaches your laptop. A flat tailnet is a flat network.",
-      run: function () { asEvil(true, true);
-        return deliver({ from: "evil-box", to: "lab-ubuntu", port: "22" }).ok; } },
+      run: function () {
+        asEvil(true, true);
+        var t = deliver({ from: "evil-box", to: "lab-ubuntu", port: "22" });
+        /* With no tailnet at all this holds for a reason that has nothing to do
+           with your policy: the laptop is behind a NAT and there is no route to
+           it. Worth saying, because it is the one check whose pass can flatter
+           a configuration that has not earned it. */
+        return { ok: t.ok, why: t.rung === 2
+          ? "There is no route to the laptop from outside at all — it is behind " +
+            "a NAT, not behind a policy. Join a tailnet and this check starts " +
+            "measuring the policy instead."
+          : null };
+      } },
 
     { kind: "config", want: false, label: "Passwords cannot be used to log in",
       why: "PasswordAuthentication is off.",
@@ -1793,13 +1868,26 @@
       run: function () { return S.vps.sshdListen === "tailnet" || !S.vps.allowPublic22; } }
   ];
 
+  /* A check answers with a boolean, or with { ok, why } when the reason it
+     held depends on the configuration — a hostile machine that reaches nothing
+     because the policy refused it has not proved the same thing as one that
+     found no route at all, and saying so is the difference between a score and
+     an explanation. */
+  function checkResult(c) {
+    var got, why = null;
+    try {
+      var r = c.run();
+      if (r && typeof r === "object") { got = !!r.ok; why = r.why || null; }
+      else got = !!r;
+    } catch (e) { got = !c.want; }
+    return { pass: got === c.want, why: why };
+  }
+
   function scoreState(base) {
     var saved = S, n = 0;
     AUDIT.forEach(function (c) {
       S = clone(base);
-      var got;
-      try { got = !!c.run(); } catch (e) { got = !c.want; }
-      if (got === c.want) n++;
+      if (checkResult(c).pass) n++;
     });
     S = saved;
     return n;
@@ -1813,9 +1901,8 @@
     try {
       results = AUDIT.map(function (c) {
         S = clone(saved);
-        var got;
-        try { got = !!c.run(); } catch (e) { got = !c.want; }
-        return { c: c, pass: got === c.want };
+        var r = checkResult(c);
+        return { c: c, pass: r.pass, why: r.why };
       });
     } finally {
       S = saved;
@@ -1882,7 +1969,8 @@
         html += '<div class="sb-check is-' + (r.pass ? "ok" : "bad") + '">' +
           '<span class="ck-mark">' + (r.pass ? "✓" : "✗") + "</span>" +
           '<span class="ck-body"><span class="ck-label">' + esc(r.c.label) + "</span>" +
-          '<span class="ck-why">' + esc(r.pass ? r.c.why : r.c.fail) + "</span></span></div>";
+          '<span class="ck-why">' +
+          esc(r.pass ? (r.why || r.c.why) : r.c.fail) + "</span></span></div>";
       });
     });
 

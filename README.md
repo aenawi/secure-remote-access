@@ -69,7 +69,8 @@ python3 -m http.server -d . 8080   # then visit http://localhost:8080
   end while it knocks and reports the rung that decided it, and the eleven-check
   audit is the same eleven the sandbox scores — so a real stack and the model can
   be compared directly. Where they disagree, the README says so and explains why;
-  that is the most useful thing the pair produces. An attacker container is
+  that is the most useful thing the pair produces. Twice it has been the model
+  that was wrong, and twice the model is what changed. An attacker container is
   included and never starts unless you ask for it.
 - **Persistent checklists.** Ticks are saved in `localStorage`, per chapter.
   The full deployment checklist in chapter 11 has a progress bar and a reset button.

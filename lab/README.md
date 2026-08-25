@@ -18,7 +18,9 @@ topology as a model in your browser. Same panel names, same button labels, same
 output format: if you can drive one you can drive the other blind. The
 difference is that the sandbox can only show you what somebody modelled, and
 this one has no model — so it can surprise you. It has already surprised us
-twice, and both surprises are written down further below.
+twice, and both surprises are written down further below — along with what
+changed in the sandbox afterwards, because a model that is told it is wrong and
+left alone was not worth building.
 
 ---
 
@@ -235,24 +237,29 @@ This is the most valuable part of the directory. A gap between the model and the
 containers means the model is wrong about something real, and finding those was
 the whole reason for building both halves.
 
+Two of the four below have since been **closed** — the sandbox was changed to
+match what the containers do. They are kept here rather than deleted, because
+the finding is the artefact this pair produces; the fix is just the consequence.
+
 Both columns below were measured, not derived — the sandbox scores come from its
 own comparison table, the lab scores from `make audit` against each profile:
 
 | Configuration | Sandbox | This lab | Why they differ |
 |---|---|---|---|
-| `day-one` | 3/11 | **4/11** | the laptop is behind a NAT (below) |
+| `day-one` | 4/11 | 4/11 | — (was 3/11 in the sandbox; see 2 below) |
 | `typical` | 4/11 | 4/11 | — |
 | `weak` | 2/11 | 2/11 | — |
 | `hardened` | 11/11 | **10/11** | key expiry (below) |
 | the boot state | 9/11 | **8/11** | key expiry (below) |
 
-Two divergences account for every one of those gaps, and in both the containers
-are right and the model is not quite. A third and a fourth show up when you
-drive it rather than score it. All four are below.
+One divergence now accounts for every remaining gap, and it is the one that
+cannot be fixed: Headscale genuinely does not do what Tailscale does. A third
+and a fourth show up when you drive it rather than score it. All four are below.
 
 ### 1 · The hardened configuration scores 10/11 here and 11/11 in the sandbox
 
-The check that fails is **"A lost device stops being a member on its own"**.
+**Open, and it stays open.** The check that fails is **"A lost device stops being
+a member on its own"**.
 
 Headscale records a node expiry only when the registration asks for one, and a
 registration made with a pre-auth key does not — so `headscale nodes list` shows
@@ -267,27 +274,34 @@ What still works, and is worth doing: **Let a key expire** calls
 its own within seconds. The mechanism is real; only the standing configuration
 is missing.
 
-### 2 · Nobody can reach your laptop from the internet, and the sandbox thinks they can
+This is the gap to leave alone. Closing it would mean the sandbox modelling
+Headscale's limitation rather than Tailscale's behaviour, and the guide is
+about Tailscale.
 
-`day-one` scores 4/11 here and 3/11 in the sandbox. The extra pass is
+### 2 · Nobody can reach your laptop from the internet, and the sandbox thought they could
+
+**Closed.** `day-one` scored 4/11 here and 3/11 in the sandbox. The extra pass is
 **"…nor your laptop"**, checked with the tailnet switched off entirely.
 
-The sandbox gives every machine a public address and lets a public path find
-one, so an attacker on the open internet reaches `lab-ubuntu:22`. In the
-containers it does not, and cannot: `lab-ubuntu` lives on `10.0.13.0/24` behind
-`nat-ubuntu`, which masquerades outbound and forwards nothing inbound. There is
-no address for a stranger to aim at. The probe says so at rung 2 rather than
-inventing a path.
+The sandbox gave every machine a public address and let a public path find one,
+so an attacker on the open internet reached `lab-ubuntu:22`. In the containers it
+does not, and cannot: `lab-ubuntu` lives on `10.0.13.0/24` behind `nat-ubuntu`,
+which masquerades outbound and forwards nothing inbound. There is no address for
+a stranger to aim at. The probe says so at rung 2 rather than inventing a path.
 
 That is what a laptop behind a home router actually looks like, and it is worth
-knowing which of the two you have been picturing. It also does not let the
-configuration off the hook: the moment the laptop joins a tailnet, it becomes
-reachable from every other member, and checks 6 and 7 are what watch that.
+knowing which of the two you have been picturing. The sandbox now models it the
+same way: a machine with a NAT in front of it has no inbound address, and a
+probe aimed at one stops at rung 2 naming the router that swallowed it. It also
+does not let the configuration off the hook — the moment the laptop joins a
+tailnet, it becomes reachable from every other member, and checks 6 and 7 are
+what watch that. The sandbox says so out loud on that check now, so a pass
+earned by a home router does not read as a pass earned by your policy.
 
 ### 3 · Blocking UDP does not make `netcheck` say `UDP: false`
 
-The sandbox shows `tailscale netcheck` reporting `UDP: false` when you drop
-WireGuard's port. The real thing does not, and it is right not to:
+**Closed.** The sandbox showed `tailscale netcheck` reporting `UDP: false` when
+you dropped WireGuard's port. The real thing does not, and it is right not to:
 `nft ... udp dport 41641 drop` blocks WireGuard, while `netcheck` probes UDP
 reachability using STUN on port 3478, which is still open. What *does* change,
 within a few seconds, is the path — `direct` becomes `relay`, exactly as the
@@ -296,6 +310,11 @@ chapter says.
 A network that really does block all outbound UDP would report `UDP: false`.
 This lab blocks the port [chapter 13](../chapters/13-lab.html) tells you to
 block, because the generated script has to be the script that chapter runs.
+
+The sandbox now prints `UDP: true` with the port dropped, and says in the
+readout why the two lines disagree — which is a better lesson than the one it
+replaced, and it came from running the command rather than from reasoning about
+it.
 
 ### 4 · A twenty-second blackout does not kill an SSH session
 
