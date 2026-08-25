@@ -11,8 +11,8 @@
    in the same order, and reports the rung that decided the outcome —
    never a bare true/false.
 
-     1  is the machine up, and does it have a session?
-     2  is there a path at all, and is it direct or relayed?
+     1  is the machine up, and is anything leaving it?
+     2  is there a path at all, and is it the tailnet or the ordinary network?
      3  does the tailnet policy allow this?
      4  does the host firewall allow this?
      5  is anything actually listening, on an address this path reaches?
@@ -348,9 +348,20 @@
 
   function tagOf(id) { return BY_ID[id].tag; }
 
+  /* Membership is a property of the key, not of the wire. A machine that is
+     switched off is still a member; a machine whose key nobody signed is not
+     one however healthy its link. Liveness is rung 1's question and is asked
+     there, which is why this function no longer asks it.
+
+     Keeping the two apart matters more than it looks. This page used to refuse
+     an unsigned or expired key at rung 1, which meant tailnet lock stopped
+     traffic it has no say over — a plain TCP connection to a public address,
+     nothing to do with the tailnet at all. A node the tailnet refuses is simply
+     not on the tailnet, so choosePath falls through to the ordinary network and
+     whatever was publicly reachable stays publicly reachable. */
   function onTailnet(id) {
     var m = S.machines[id];
-    if (!m.online || !m.onTailnet) return false;
+    if (!m.onTailnet) return false;
     if (S.acl.expiry && m.keyExpired) return false;
     if (S.acl.lock && !m.signed) return false;
     return true;
@@ -485,6 +496,14 @@
       bytesSent: 0, bytesDelivered: 0, danger: false
     };
 
+    /* Which way these two would reach each other is settled before the ladder
+       starts. It decides nothing here — rung 1 still answers first — but a
+       failure has to be able to name the address the packet was aimed at, and
+       quoting a tailnet address for a path that is not the tailnet was a lie
+       this page used to tell. */
+    var path = choosePath(from, to);
+    t.path = path;
+
     /* --- rung 1 · liveness --------------------------------------- */
     t.rung = 1;
     if (!S.machines[from].online) {
@@ -499,19 +518,13 @@
     if (!S.links[to].up) {
       t.why = "eth0 is down on " + to + " — nothing arrives"; return t;
     }
-    if (S.acl.expiry && S.machines[from].keyExpired) {
-      t.why = from + "'s node key has expired, so it has no tailnet session"; return t;
-    }
-    if (S.acl.lock && S.machines[from].onTailnet && !S.machines[from].signed) {
-      t.why = "tailnet lock has not signed " + from + "'s node key, so no peer " +
-              "will accept a session from it";
-      return t;
-    }
 
-    /* --- rung 2 · path -------------------------------------------- */
+    /* --- rung 2 · path --------------------------------------------
+       An unsigned or expired key lands here, not above: the tailnet declines
+       to carry it, and the question becomes what the ordinary network does
+       instead. Often the answer is "nothing" — but not always, and pretending
+       otherwise taught the wrong lesson twice over. */
     t.rung = 2;
-    var path = choosePath(from, to);
-    t.path = path;
     t.rule = path.note;
     if (path.kind === "none") {
       t.why = "nothing on the public internet has an address for " + to + ", so the " +
@@ -762,7 +775,7 @@
       lines.push("path: " + t.path.kind + " (" + t.rule + ")");
     } else {
       lines.push("0 bytes delivered — stopped at rung " + t.rung + " of 5");
-      lines.push(t.rule);
+      if (t.rule) lines.push(t.rule);
     }
     record({
       ok: t.ok, danger: t.danger, rung: t.rung,
@@ -1009,9 +1022,12 @@
         !(S.machines["evil-box"].online && S.segmentShared));
     }
 
-    /* The focused pair decides which route is drawn, and where it starts. */
+    /* The focused pair decides which route is drawn, and where it starts.
+       deliver() now settles a path before rung 1 so a failure line can name the
+       right address — but a stopped box or a dead link has no route to draw,
+       whatever that path says, so rung 1 still renders as no path at all. */
     var t = deliver({ from: S.probe.from, to: S.probe.to, port: S.probe.port });
-    var kind = t.path && t.path.kind !== "none" ? t.path.kind : null;
+    var kind = t.rung > 1 && t.path && t.path.kind !== "none" ? t.path.kind : null;
     var d = kind ? routeD(kind, S.probe.from, S.probe.to) : null;
 
     ["direct", "relay", "public", "lan"].forEach(function (k) {
@@ -1573,16 +1589,29 @@
         "evil-box now presents a node key lifted from a backup.");
       var t = deliver({ from: "evil-box", to: "lab-vps", port: "22", bytes: 256 });
       recordTrace("evil-box joins with a stolen node key", t);
-      if (S.acl.lock && !S.machines["evil-box"].signed) {
-        verdict("ok", "Tailnet lock stopped it at rung 2 — before any ACL was consulted, " +
-          "before any firewall saw a packet. The key is valid and no peer will talk to it, " +
-          "because nobody with a signing key vouched for it.");
+      var refused = S.acl.lock && !S.machines["evil-box"].signed;
+      if (refused && t.ok) {
+        /* The interesting outcome, and the one this page used to hide: lock
+           worked perfectly and bought nothing, because the attacker never
+           needed the tailnet. */
+        verdict("bad", "Tailnet lock did its job — nobody with a signing key vouched for " +
+          "that node, so it got no tailnet session at all. It did not need one. Not being " +
+          "on the tailnet leaves it exactly where any stranger stands, and from there " +
+          "lab-vps still answers on :22: in at rung " + t.rung + ", over the ordinary " +
+          "internet. Lock defends the tailnet. Closing public :22 is a separate job, and " +
+          "it is chapter 08's.");
+      } else if (refused) {
+        verdict("ok", "Tailnet lock refused the key, so evil-box is not on the tailnet at " +
+          "all — and the ordinary network gave it nothing either: stopped at rung " + t.rung +
+          " of 5. Both halves had to hold, and the rung says which one did the stopping: " +
+          "anything past rung 2 means the tailnet was never what turned it away.");
       } else if (!t.ok) {
-        verdict("ok", "The key worked and it still got nowhere: stopped at rung " + t.rung +
-          " of 5. Turn tailnet lock on and it will not even get that far.");
+        verdict("ok", "The key was accepted and it still got nowhere: stopped at rung " +
+          t.rung + " of 5. Something after membership refused it.");
       } else {
         verdict("bad", "The stolen key was enough. With tailnet lock off and a permissive " +
-          "grant, a leaked key is a login. Turn lock on and try again.");
+          "grant, a leaked key is a login. Turn lock on and try again — then read which " +
+          "rung answers, because it may not be the one you expect.");
       }
     },
 
@@ -1592,13 +1621,22 @@
       var t = deliver({ from: "lab-roam", to: "lab-vps", port: "22" });
       recordTrace("ssh from lab-roam, 180 days later", t);
       paintAll();
-      verdict(S.acl.expiry ? "ok" : "warn",
-        S.acl.expiry
-          ? "lab-roam fell out of the tailnet on its own, with nobody doing anything. " +
-            "That is the point of expiry: the lost phone stops being a member whether " +
-            "or not you remember to remove it."
-          : "Key expiry is off, so lab-roam is still a full member 180 days later — " +
-            "and would be if it had been stolen on day one.");
+      if (!S.acl.expiry) {
+        verdict("warn", "Key expiry is off, so lab-roam is still a full member 180 days " +
+          "later — and would be if it had been stolen on day one.");
+      } else if (t.ok) {
+        verdict("warn", "lab-roam fell out of the tailnet on its own, with nobody doing " +
+          "anything — that part worked exactly as it should. And it reached sshd anyway, " +
+          "at rung " + t.rung + ", because :22 is open to the whole internet and a machine " +
+          "that is no longer a member is just another stranger. Expiry ends membership. It " +
+          "does not close a port.");
+      } else {
+        verdict("ok", "lab-roam fell out of the tailnet on its own, with nobody doing " +
+          "anything, and there was no other way in: stopped at rung " + t.rung + " of 5. " +
+          "That is the point of expiry — the lost phone stops being a member whether or " +
+          "not you remember to remove it — and it counts for something only because " +
+          "nothing else answered either. Read the rung to see what that was.");
+      }
     },
 
     "rogue-exit": function () {
@@ -1820,9 +1858,15 @@
       run: function () { asEvil(false, false);
         return deliver({ from: "evil-box", to: "lab-vps", port: "8080" }).ok; } },
 
+    /* This asks whether the stolen key gets its holder to sshd, not whether the
+       tailnet accepted it. Those came apart once lock and expiry stopped being
+       liveness: a key nobody signed gets no session, and a machine with no
+       session is an ordinary stranger, which is a thing chapter 08 has to
+       answer rather than chapter 01. Both halves have to hold for this to. */
     { kind: "attack", want: false, label: "A stolen node key is refused",
-      why: "An unsigned key gets no session from any peer.",
-      fail: "A key lifted from a backup is a working login. Tailnet lock is what stops this.",
+      why: "An unsigned key gets no tailnet session — and no other route answers either.",
+      fail: "A machine holding a key nobody vouched for still reaches sshd. Tailnet lock " +
+            "keeps it off the tailnet; only a closed public :22 keeps it off the machine.",
       run: function () { asEvil(true, false);
         return deliver({ from: "evil-box", to: "lab-vps", port: "22" }).ok; } },
 

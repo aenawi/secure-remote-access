@@ -152,19 +152,32 @@ func (c *Controller) Audit(ctx context.Context) AuditReport {
 		got, rung, rule, m)
 
 	// ---- 3 · a key nobody vouched for ------------------------------------
+	//
+	// Whether the coordination server issued the key is not the question. The
+	// question is whether its holder reaches sshd — and a machine the tailnet
+	// refused is an ordinary machine on the internet, which is the host
+	// firewall's problem rather than the tailnet's. So probe either way.
+	//
+	// This used to stop at the failed join and report "refused at rung 1",
+	// which let tailnet lock take credit for a public :22 that UFW had left
+	// wide open. The sandbox had the same bug; lab/README.md 5 has the story.
 	c.with(func(s *State) { s.ACL.Lock = lockWasOn })
 	joined := c.evilJoin(ctx, true)
-	stolenWorked := false
 	if joined.OK {
 		c.EnsureTags(ctx)
 		time.Sleep(1500 * time.Millisecond)
-		stolenWorked, rung, rule, m = probe("evil-box", "lab-vps", "22")
-	} else {
-		rung, rule, m = 1, joined.Rule, strings.Join(joined.Cmds, "\n")
+	}
+	stolenWorked, rung, rule, m := probe("evil-box", "lab-vps", "22")
+	if !joined.OK {
+		// Say both halves out loud: the key was refused, and here is what the
+		// ordinary network gave its holder anyway.
+		rule = joined.Rule + " — then, with no tailnet session: " + rule
+		m = strings.Join(joined.Cmds, "\n") + "\n" + m
 	}
 	add(Check{Kind: "attack", Want: false, Label: "A stolen node key is refused",
-		Why:  "An unsigned key gets no session from any peer.",
-		Fail: "A key lifted from a backup is a working login. Tailnet lock is what stops this."},
+		Why: "An unsigned key gets no tailnet session — and no other route answers either.",
+		Fail: "A machine holding a key nobody vouched for still reaches sshd. Tailnet lock " +
+			"keeps it off the tailnet; only a closed public :22 keeps it off the machine."},
 		stolenWorked, rung, rule, m)
 
 	// ---- 4 · a member who should not have broad access -------------------
