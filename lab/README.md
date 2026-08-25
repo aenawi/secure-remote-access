@@ -237,9 +237,12 @@ This is the most valuable part of the directory. A gap between the model and the
 containers means the model is wrong about something real, and finding those was
 the whole reason for building both halves.
 
-Two of the four below have since been **closed** — the sandbox was changed to
-match what the containers do. They are kept here rather than deleted, because
-the finding is the artefact this pair produces; the fix is just the consequence.
+Three of the five below have since been **closed**. Twice the sandbox was
+changed to match what the containers do; once, the other way about, the
+containers were changed to match the sandbox. Which direction a gap points is
+not decided in advance, and that is the argument for keeping both halves.
+Closed ones are kept here rather than deleted, because the finding is the
+artefact this pair produces; the fix is just the consequence.
 
 Both columns below were measured, not derived — the sandbox scores come from its
 own comparison table, the lab scores from `make audit` against each profile:
@@ -249,12 +252,14 @@ own comparison table, the lab scores from `make audit` against each profile:
 | `day-one` | 4/11 | 4/11 | — (was 3/11 in the sandbox; see 2 below) |
 | `typical` | 4/11 | 4/11 | — |
 | `weak` | 2/11 | 2/11 | — |
-| `hardened` | 11/11 | **10/11** | key expiry (below) |
-| the boot state | 9/11 | **8/11** | key expiry (below) |
+| `hardened` | 11/11 | **10/11** | key expiry (1 below) |
+| the boot state | 8/11 | **7/11** | key expiry (1 below) |
 
-One divergence now accounts for every remaining gap, and it is the one that
-cannot be fixed: Headscale genuinely does not do what Tailscale does. A third
-and a fourth show up when you drive it rather than score it. All four are below.
+Every gap in that table is now the same single divergence, and it is the one
+that cannot be fixed: Headscale genuinely does not do what Tailscale does. Not
+only the totals agree — the two halves fail the *same checks* in all five
+configurations, apart from that one. Two more findings show up when you drive
+the lab rather than score it. All five are below.
 
 ### 1 · The hardened configuration scores 10/11 here and 11/11 in the sandbox
 
@@ -344,6 +349,52 @@ sessions survive both acts, because the tailnet address does not change when the
 network under it does — which is the tailnet earning its keep, and a good reason
 to read chapters 01 and 03 together.
 
+### 5 · A key the tailnet refuses is still a machine on the internet
+
+**Closed, and this half is the one that changed.**
+
+The sandbox used to stop an unsigned or expired node key at rung 1, which meant
+tailnet lock refused traffic it has no say over — an ordinary TCP connection to
+a public address, nothing to do with the tailnet at all. Lock and expiry now
+decide *membership* there: a refused node is simply not on the tailnet, so it
+falls through to the ordinary network and reaches whatever is publicly
+reachable.
+
+This lab had the same bug, arrived at from the other end. Its **Tailnet lock**
+switch is "does a key exist for a machine you did not authorise", so with it on
+`evil-box` cannot join at all — and `audit.go` used to report the check refused
+at rung 1 without probing, rather than asking what `evil-box` reaches *without*
+a tailnet session. `Probe` had modelled it correctly all along; the audit simply
+never called it on that path. So tailnet lock was taking credit for a public
+`:22` that UFW had left wide open.
+
+Both are fixed, and the containers settle it. With lock on, `:22` open and
+`sshd` on `0.0.0.0`, **Join with a stolen node key** now reports:
+
+```
+evil-box → 203.0.113.11:22        rung 5/5     path: public
+Connection to 203.0.113.11 22 port [tcp/ssh] succeeded!
+
+lab-vps saw it arrive:
+08:21:49.001182 IP 203.0.113.66.49588 > 203.0.113.11.22: Flags [S], …
+```
+
+That is `tcpdump` on `lab-vps` watching the SYN land while `evil-box` knocks —
+the key was refused and the packet arrived anyway. Close public `:22` and the
+same attack stops at rung 4. **Let a key expire** behaves identically:
+`lab-roam` drops out of the tailnet on its own and still reaches `sshd` at rung
+5, until the public rule is gone.
+
+Re-scoring after the fix moved this lab's boot state from 8/11 to 7/11 — the
+extra failure is **"A stolen node key is refused"**, which is now honest. The
+four named configurations did not move, `hardened` included, because `hardened`
+had already closed public `:22`. The sandbox moved the same way, 9/11 to 8/11.
+
+The lesson underneath is worth more than the score. Tailnet lock decides who is
+a *member*. Closing public `:22` decides who can reach the *machine*. Neither
+substitutes for the other, and both halves of this pair spent months implying
+the first did the second's job.
+
 ---
 
 ## Headscale, not Tailscale
@@ -365,10 +416,12 @@ everything. Two places where they do not:
 
 - **Tailnet lock does not exist in Headscale.** The **Tailnet lock** switch in
   this lab controls the nearest honest equivalent: whether a key exists at all
-  for a machine you did not authorise. With it on, `evil-box` cannot join,
-  gets no session, and is refused at rung 1 before any policy is consulted —
-  which is the property tailnet lock gives you, reached by a different
-  mechanism. The lab says so in the result text rather than hiding it.
+  for a machine you did not authorise. With it on, `evil-box` cannot join and
+  gets no session — which is the property tailnet lock gives you, reached by a
+  different mechanism. The lab says so in the result text rather than hiding it.
+  What it does not do is end the story: a machine with no tailnet session is an
+  ordinary machine on the internet, and what it reaches next is the host
+  firewall's question. See 5 above.
 - **DERP lives inside the coordination server.** The ticket this was built from
   asked for a separate `derper` container. A separate one needs its own trusted
   TLS certificate, which means shipping a CA for no gain: the relay path a

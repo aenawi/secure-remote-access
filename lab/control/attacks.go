@@ -309,21 +309,41 @@ func (c *Controller) atkStolenKey(ctx context.Context) Result {
 	join := c.evilJoin(ctx, true)
 	s := c.Snapshot()
 
-	if s.ACL.Lock && !join.OK {
-		return Result{OK: true, Rung: 1, From: "evil-box", To: "lab-vps",
-			Rule: "no peer will complete a handshake with a key nobody vouched for",
-			Why: "Stopped at rung 1 — before any policy was consulted, before any firewall " +
-				"saw a packet. On real Tailscale that is tailnet lock; here it is that the " +
-				"lab never issued a key for a machine you did not authorise. Same property, " +
-				"different mechanism, and lab/README.md is honest about the difference.",
-			Cmds: join.Cmds}
+	// A refused key is not the end of the story, and treating it as one was
+	// this lab's version of the bug lab/README.md 5 describes. Refusing the key
+	// puts evil-box exactly where any stranger stands; what it reaches from
+	// there is the host firewall's answer, not the tailnet's. So probe either
+	// way and let the rung say which half did the work.
+	if !join.OK && !s.ACL.Lock {
+		return join // a genuine join failure, not lock turning the key away
 	}
-	if !join.OK {
-		return join
+	refused := !join.OK
+	if join.OK {
+		c.EnsureTags(ctx)
 	}
-	c.EnsureTags(ctx)
 	p := c.Probe(ctx, "evil-box", "lab-vps", "22")
 	p.Cmds = append(join.Cmds, p.Cmds...)
+
+	if refused {
+		if p.OK {
+			p.OK = false
+			p.Danger = true
+			p.Why = fmt.Sprintf("The key was refused — on real Tailscale that is tailnet "+
+				"lock, here it is that the lab never issued a key for a machine you did "+
+				"not authorise. It did not need one. With no tailnet session evil-box is "+
+				"just another machine on the internet, and lab-vps still answered on :22: "+
+				"in at rung %d. Lock decides who is a member. Closing public :22 decides "+
+				"who can reach the machine.", p.Rung)
+			return p
+		}
+		p.OK = true
+		p.Why = fmt.Sprintf("The key was refused, and the ordinary network gave its holder "+
+			"nothing either: stopped at rung %d of 5. Both halves had to hold, and the rung "+
+			"says which one did the stopping: anything past rung 2 means the tailnet was "+
+			"never what turned it away.", p.Rung)
+		return p
+	}
+
 	if p.OK {
 		p.OK = false
 		p.Danger = true
@@ -364,13 +384,24 @@ func (c *Controller) atkExpiredKey(ctx context.Context) Result {
 	res.Rule = p.Rule
 	res.Raw += "\n\nprobe after expiry: rung " + strconv.Itoa(p.Rung) + " — " + p.Why
 
-	if dropped || !p.OK {
+	switch {
+	case dropped && p.OK:
+		// Expiry worked and bought nothing, because the public door is open.
+		// Reporting only the first half was the same mistake as check 3.
+		res.Why = fmt.Sprintf("lab-roam fell out of the tailnet on its own, with nobody "+
+			"doing anything to the machine itself — that part worked exactly as it should. "+
+			"And it reached sshd anyway, at rung %d, because :22 is open to the whole "+
+			"internet and a machine that is no longer a member is just another stranger. "+
+			"Expiry ends membership. It does not close a port.", p.Rung)
+	case dropped || !p.OK:
 		res.OK = true
-		res.Why = "lab-roam fell out of the tailnet on its own, with nobody doing anything to " +
-			"the machine itself. That is the point of expiry: the phone you left in a taxi " +
-			"stops being a member whether or not you remember to remove it. Bring it back " +
-			"with 'Rotate the key'."
-	} else {
+		res.Why = fmt.Sprintf("lab-roam fell out of the tailnet on its own, with nobody doing "+
+			"anything to the machine itself, and there was no other way in: rung %d stopped "+
+			"it. That is the point of expiry — the phone you left in a taxi stops being a "+
+			"member whether or not you remember to remove it — and it counts for something "+
+			"only because nothing else answered either. Bring it back with 'Rotate the key'.",
+			p.Rung)
+	default:
 		res.Why = "the node was expired and still has a session — give it a few more seconds"
 	}
 	c.Observe(ctx)
