@@ -32,7 +32,9 @@
           give you is a surprise — it only knows what has been modelled, and the real world does
           not agree to be modelled. When you want the real thing, everything you do here can be
           exported as a script and run against the three VMs in
-          <a href="13-lab.html">chapter 13</a>.
+          <a href="13-lab.html">chapter 13</a>, or you can run the same topology as containers with
+          <code>docker compose up</code> in <a href="../lab/README.md"><code>lab/</code></a>, which
+          has the same panels and the same eleven checks as this page.
         </p>
       </div>
 
@@ -143,7 +145,7 @@
               <rect x="14" y="104" width="150" height="56" rx="9" class="svg-surface svg-danger-s" stroke-width="1.5"/>
               <text x="26" y="123" class="svg-label">evil-box</text>
               <text data-el="cond-evil-box" x="26" y="137" class="svg-sub">a hostile machine</text>
-              <text data-el="ip-evil-box" x="26" y="151" class="svg-sub">192.0.2.66 (outside)</text>
+              <text data-el="ip-evil-box" x="26" y="151" class="svg-sub">10.0.66.2 behind NAT</text>
             </g>
 
             <g data-el="node-lab-ubuntu">
@@ -381,9 +383,9 @@
         </p>
       </div>
 
-      <h2>Six things worth doing here first</h2>
+      <h2>Seven things worth doing here first</h2>
       <p>
-        The console will let you do anything in any order. These six are the ones that change how
+        The console will let you do anything in any order. These seven are the ones that change how
         you think, roughly in the order they are worth doing.
       </p>
 
@@ -409,10 +411,19 @@
       <p>
         In <b>The network</b>, set <code>udp/41641</code> to <b>dropped</b> on
         <code>lab-ubuntu</code>. The chip in the middle of the diagram flips from
-        <code>direct</code> to <code>relay "fra"</code>, the round-trip time in the packet log
-        roughly quadruples, and <code>tailscale netcheck</code> now reports
-        <code>UDP: false</code>. Nothing else changed. This is what a hotel network does to you,
+        <code>direct</code> to <code>relay "fra"</code> and the round-trip time in the packet log
+        roughly quadruples. Nothing else changed. This is what a hotel network does to you,
         and <a href="01-tailscale.html">chapter 01</a> is about why it still works at all.
+      </p>
+      <p>
+        Then read <code>tailscale netcheck</code> in the <b>status</b> tab, because it says
+        something you might not expect: <code>UDP: true</code>, with WireGuard's port on the floor.
+        That is what the real command does. It probes UDP reachability using STUN on port 3478,
+        which you did not block, so it reports the truth about UDP and says nothing about 41641.
+        The path is what moved, and <code>tailscale status</code> is where you read it. This page
+        printed <code>UDP: false</code> for months, until the containers in
+        <a href="../lab/README.md"><code>lab/</code></a> ran the same command for real and did not
+        agree.
       </p>
 
       <h3>4 · Publish a Docker port</h3>
@@ -440,6 +451,22 @@
         and the only thing between it and your machines is the policy file.
         <a href="10-threat-model.html">Chapter 10</a> is about which of those two worlds
         you are living in.
+      </p>
+
+      <h3>7 · Try to reach the laptop from the internet</h3>
+      <p>
+        Load <b>Day one</b> — no tailnet at all — then probe from <b>evil-box</b> to
+        <code>lab-ubuntu</code> on <code>:22</code>. It stops at rung 2, and the reason is not a
+        firewall: <code>nat-ubuntu</code> masquerades the laptop outbound and forwards nothing in,
+        so there is no address for a stranger to aim at. Probe <code>lab-vps</code> instead and
+        you are straight through to <code>sshd</code>, because that one <em>does</em> have a public
+        address. The difference between those two machines is the whole reason
+        <a href="08-vps.html">chapter 08</a> exists.
+      </p>
+      <p>
+        Worth knowing which of the two you have been picturing — and worth noticing that it lets
+        nothing off the hook. The moment the laptop joins a tailnet it is reachable by every other
+        member, which is what the two <em>hostile member</em> checks in the audit are watching.
       </p>
 
       <h2>What is real here, and what is modelled</h2>
@@ -473,9 +500,20 @@
           It cannot surprise you. Every outcome here was put in by someone who already understood
           the system, which makes this an excellent way to <em>learn</em> the shape of the thing and
           a poor way to <em>discover</em> that your assumptions are wrong. For that you need real
-          kernels — the three VMs in <a href="13-lab.html">chapter 13</a>, or a machine you
+          kernels — the three VMs in <a href="13-lab.html">chapter 13</a>,
+          <a href="../lab/README.md"><code>lab/</code></a> in this repository, or a machine you
           are willing to break. Use the <b>script</b> tab: it turns everything you did here into
           the commands that do it for real.
+        </p>
+        <p>
+          That is not hypothetical. <code>lab/</code> runs this same topology as containers, scores
+          the same eleven checks, and has twice caught this page being wrong: it gave every machine
+          a public address when a laptop behind a NAT has none, and it printed
+          <code>netcheck: UDP: false</code> for a blocked port that <code>netcheck</code> does not
+          even look at. Both were corrected here afterwards.
+          <a href="../lab/README.md">Its README</a> keeps the findings, the fixes, and the one
+          remaining disagreement, which is a genuine difference between Headscale and Tailscale
+          rather than a modelling error.
         </p>
       </div>
 
@@ -484,7 +522,8 @@
         <li>Closed public <code>:22</code> and confirmed the tailnet route still works.</li>
         <li>Ran the build order wrong on purpose, and read which rung caught it.</li>
         <li>Blocked UDP and watched the path fall back to <code>relay</code>.</li>
-        <li>Read <code>tailscale netcheck</code> reporting <code>UDP: false</code>.</li>
+        <li>Read <code>tailscale netcheck</code> still reporting <code>UDP: true</code> with
+          <code>udp/41641</code> dropped, and understood which question it was answering.</li>
         <li>Reproduced the Docker UFW bypass and scanned <code>:8080</code> from outside.</li>
         <li>Captured a frame and watched the decrypt fail with a real cipher error.</li>
         <li>Tried a stolen node key with tailnet lock on, then off.</li>
@@ -492,6 +531,7 @@
         <li>Let a key expire and watched the node fall out on its own.</li>
         <li>Bound <code>sshd</code> to the tailnet address and seen a rung-5 failure that no firewall rule explains.</li>
         <li>Exported the script and read it against <a href="13-lab.html">chapter 13</a>.</li>
+        <li>Probed the laptop from outside with no tailnet, and read rung 2 rather than a way in.</li>
       </ul>
 
       <nav class="pager"></nav>
