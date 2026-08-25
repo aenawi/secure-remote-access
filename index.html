@@ -591,6 +591,18 @@
       </p>
       <div class="chapter-cards" id="cards"></div>
 
+      <p>
+        And one part of this repository that is not a chapter:
+        <a href="lab/README.md"><code>lab/</code></a> is the same topology as real containers —
+        four machines on four isolated segments, each behind its own NAT, running real
+        <code>tailscaled</code> on real TUN devices, with a control page where every switch is a
+        command that runs inside a container. <code>docker compose up</code> and a browser is the
+        whole setup; Docker is the only prerequisite. It is the counterpart to
+        <a href="chapters/14-sandbox.html">chapter 14</a> — the sandbox can only show you what
+        somebody modelled, and the containers can surprise you. They already have, twice, and both
+        times it was the model that got corrected.
+      </p>
+
       <div class="callout info">
         <div class="ct">How to read this</div>
         <p>
@@ -627,8 +639,10 @@
           <li>
             <b>Practise somewhere disposable.</b>
             <a href="chapters/14-sandbox.html">Chapter 14</a> is a simulation and costs nothing;
-            <a href="chapters/13-lab.html">chapter 13</a> builds throwaway VMs. Neither is your
-            production box, and a green result in either is not a promise about your real one.
+            <a href="chapters/13-lab.html">chapter 13</a> builds throwaway VMs;
+            <a href="lab/README.md"><code>lab/</code></a> builds throwaway containers in one
+            command. None of them is your production box, and a green result in any of them is not
+            a promise about your real one.
           </li>
           <li>
             <b>Keep a second way in.</b> A second SSH session, your provider's web console, physical
