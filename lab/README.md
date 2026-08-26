@@ -99,9 +99,49 @@ the three Lima VMs in [chapter 13](../chapters/13-lab.html).
 
 ### The picture
 
-The same drawing as chapter 14, at the top of the page, with the model taken
-out of it. Every address on it was read back from a container, and the shape of
-the line is whatever `tailscale ping` last reported:
+Two drawings of the same lab, and a switch above them that picks one.
+
+**The board** is the five-rung ladder from chapter 12 rebuilt as a place a
+packet has to travel through. **X is the ladder** — how far something got is
+the rung it reached — and **Y is protection**, with the tailnet floating above
+the machines and the public segment lying below, so a packet's height says
+whether it was readable while it went. Every gate on it renders the
+configuration continuously: turn `allow 22/tcp from anywhere` off and a slat
+swings shut while you watch, with nothing probed.
+
+Each of the nine attacks gets its own camera move and its own single claim on
+it, driven by the fields on the `Result` the server returned. Run the same
+attack against `weak` and against `hardened` and the frame differs, because
+the numbers differ. Two of them light objects rather than prose: `scan-public`
+puts one lit dot on lab-vps's face per port `nmap` actually reported open, and
+`sniff` drops the marker sent in the clear and the identical marker sent
+through the tunnel into a tray as two different objects. Both read those
+counts from `Result.Evidence`, which exists so that a drawing never has to
+regex English to find a number the Go side already had.
+
+The board holds to four rules, and they are why it is worth trusting:
+
+- **Nothing is drawn that was not measured.** An empty capture draws an empty
+  tray and says the run proves nothing either way, because a successful
+  capture is the interesting picture and that is exactly why it must not be
+  animated when there was not one.
+- **A failed attack is not a green tick.** `ok` on an attack means the defence
+  held; the shot renders the defence answering, and names it.
+- **`danger` outranks `ok` in tone.** `docker-bypass` succeeding is a red frame.
+- **Time is not faked.** The choreography is a fixed length. The millisecond
+  figures stay the measured ones.
+
+It needs WebGL, and it is decoration you can switch off: every state it shows
+is also in the readouts above it and in the **packets** tab, the verdict goes
+to a live region, and the canvas itself is `aria-hidden`. With
+`prefers-reduced-motion` set, the camera holds the final frame instead of
+flying to it and the words are identical. If WebGL is unavailable the page
+falls back to the flat drawing and says so once.
+
+**The flat drawing** is the original, and it stays: the same picture as chapter
+14 with the model taken out of it. Every address on it was read back from a
+container, and the shape of the line is whatever `tailscale ping` last
+reported:
 
 - **straight across the middle** — direct, the punch completed;
 - **bending up through the box in the centre** — relayed through DERP;
@@ -514,6 +554,12 @@ lab/
     ├── stream.go          server-sent events: status, tcpdump, logs, stats
     ├── panels.go          the panel spec the UI renders
     └── ui/                the same vocabulary as chapter 14
+        ├── index.html     both drawings, the panels, the readout tabs
+        ├── app.js         a classic script, the same shape as assets/sandbox.js
+        └── hud/
+            ├── three.module.js  three.js r166, MIT, inside the binary
+            ├── scene.js         the board: five gates, three planes, the packet
+            └── setpieces.js     one exported function per attack id
 ```
 
 ## If something will not start

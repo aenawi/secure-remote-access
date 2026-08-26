@@ -60,6 +60,13 @@ type Result struct {
 	Cmds []string `json:"cmds,omitempty"`
 	Raw  string   `json:"raw,omitempty"`
 	Hex  string   `json:"hex,omitempty"`
+
+	// Evidence is the handful of counts an action measured, kept as numbers so
+	// a caller does not have to read Why to find out what happened. Why stays
+	// prose for humans; anything a drawing needs to be true belongs here, where
+	// it cannot be lost to a rewording. Most actions measure nothing countable
+	// and omit it.
+	Evidence map[string]int `json:"evidence,omitempty"`
 }
 
 // ---------------------------------------------------------------------------

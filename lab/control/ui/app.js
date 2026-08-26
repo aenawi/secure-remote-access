@@ -29,7 +29,115 @@
     var next = now === "dark" ? "light" : "dark";
     document.documentElement.setAttribute("data-theme", next);
     try { localStorage.setItem("lab-theme", next); } catch (e) {}
+    /* The board reads the page's custom properties rather than carrying a
+       second palette, so it has to be told the values moved. */
+    if (board) board.refreshTokens();
   });
+
+  /* ---- the board --------------------------------------------------
+     lab/control/ui/hud is an ES module, because three.js is one. It hands
+     itself over on window.LabHUD and fires an event when it has loaded.
+     Everything below works whether or not that ever happens: no board means
+     the flat drawing and the packets tab, which is what this page was. */
+  var board = null, view = "board", boardBroken = false;
+  var hudStream = null;
+
+  function hudRefs() {
+    return {
+      chip:        $("#hud-chip"),
+      access:      $("#hud-access"),
+      accessNote:  $("#hud-access-note"),
+      dotLaptop:   $("#hud-dot-laptop"),
+      dotPhone:    $("#hud-dot-phone"),
+      exposed:     $("#hud-exposed"),
+      exposedN:    $("#hud-exposed-n"),
+      exposedNote: $("#hud-exposed-note"),
+      posture:     $("#hud-posture"),
+      verdict:     $("#hud-verdict"),
+      vRung:       $("#hud-v-rung"),
+      vRule:       $("#hud-v-rule"),
+      vWhy:        $("#hud-v-why"),
+      nums:        $("#hud-nums"),
+      transcript:  $("#hud-transcript"),
+      live:        $("#hud-live"),
+      rungs: [1, 2, 3, 4, 5].map(function (n) { return $("#hud-rung-" + n); })
+    };
+  }
+
+  /* One EventSource at a time for the board, closed the moment the next
+     action starts. A set-piece that keeps a stream open after its shot has
+     gone is a set-piece drawing frames that belong to something else. */
+  function hudCtx() {
+    return {
+      openStream: function (url, event, onLine) {
+        stopHudStream();
+        try {
+          var es = new EventSource(url);
+          hudStream = es;
+          es.addEventListener(event, function (ev) { onLine(ev); });
+          es.onerror = function () { /* EventSource reconnects on its own */ };
+          return function () { if (hudStream === es) stopHudStream(); };
+        } catch (e) { return function () {}; }
+      }
+    };
+  }
+  function stopHudStream() {
+    if (hudStream) { hudStream.close(); hudStream = null; }
+  }
+
+  function boardOn() { return !!board && view === "board"; }
+
+  /* The board needs the grants before it can cut a cell per grant, and the
+     attack list before it can say which ids have no set-piece. Whichever of
+     the two arrives last calls this, because the module and /api/meta race
+     and either order is normal. */
+  var warnedGaps = false;
+  function applyMeta() {
+    board.setMeta(meta);
+    if (warnedGaps) return;
+    warnedGaps = true;
+    var gaps = window.LabHUD.missing(meta.attacks);
+    if (gaps.length) {
+      console.warn("attacks with no set-piece, falling back to the text trace: " + gaps.join(", "));
+    }
+  }
+
+  function setView(name) {
+    view = name === "flat" || boardBroken ? "flat" : "board";
+    var on = view === "board" && !!board;
+    $("#stage3d").hidden = !on;
+    $(".stage").hidden = on;
+    /* The legend under the flat drawing describes the flat drawing. */
+    var flatLegend = document.querySelector(".stage + .legend");
+    if (flatLegend) flatLegend.hidden = on;
+    $("#view-board").setAttribute("aria-pressed", String(on));
+    $("#view-flat").setAttribute("aria-pressed", String(!on));
+    $("#view-board").disabled = boardBroken;
+    try { localStorage.setItem("lab-view", view); } catch (e) {}
+    if (on) { board.resize(); if (state) board.setState(state); }
+  }
+
+  function startBoard() {
+    if (board || boardBroken || !window.LabHUD) return;
+    try {
+      board = window.LabHUD.createBoard($("#stage-gl"), hudRefs());
+    } catch (e) {
+      /* No WebGL, or a driver that will not play. Say so once, quietly, and
+         leave the page exactly as it was. */
+      boardBroken = true;
+      $("#view-note").textContent = "the board needs WebGL, and this browser did not give it one";
+      setView("flat");
+      return;
+    }
+    if (meta) applyMeta();
+    if (state) board.setState(state);
+    var saved = null;
+    try { saved = localStorage.getItem("lab-view"); } catch (e) {}
+    setView(saved === "flat" ? "flat" : "board");
+  }
+
+  if (window.LabHUD) startBoard();
+  else window.addEventListener("labhud-ready", startBoard);
 
   /* ---- talking to the control server ------------------------------ */
   function get(url) { return fetch(url).then(function (r) { return r.json(); }); }
@@ -454,7 +562,16 @@
     }
     es.addEventListener("status", function (e) { status = JSON.parse(e.data).text; paint(); });
     es.addEventListener("netcheck", function (e) { netcheck = JSON.parse(e.data).text; paint(); });
-    es.addEventListener("state", function (e) { state = JSON.parse(e.data); paintPanels(); });
+    es.addEventListener("state", function (e) {
+      state = JSON.parse(e.data);
+      paintPanels();
+      /* This is the only thing that notices a change nobody clicked — a
+         container stopping, `make weak` from another terminal, a session
+         flipping from relay to direct. But a held set-piece frame is the
+         answer to a question somebody asked, so a poll arriving afterwards
+         waits rather than wiping it. */
+      if (board && !board.holding) board.setState(state);
+    });
     es.onerror = function () { /* EventSource reconnects on its own */ };
   }
 
@@ -469,7 +586,13 @@
   }
 
   function refresh() {
-    return get("/api/state").then(function (s) { state = s; paintPanels(); });
+    return get("/api/state").then(function (s) {
+      state = s;
+      paintPanels();
+      /* Every gate on the board renders the configuration continuously, so a
+         switch has to move the picture without anything being probed. */
+      if (board) board.setState(state);
+    });
   }
 
   document.addEventListener("change", function (e) {
@@ -508,7 +631,15 @@
 
   document.addEventListener("click", function (e) {
     var b = e.target.closest("button");
-    if (!b || busy) return;
+    if (!b) return;
+
+    /* Looking at the other drawing is not an action on the lab, so it works
+       while one is running. Everything below the guard is not. */
+    if (b.id === "view-board") { setView("board"); return; }
+    if (b.id === "view-flat")  { setView("flat"); return; }
+    if (b.id === "hud-home")   { if (board) board.home(); return; }
+
+    if (busy) return;
 
     if (b.classList.contains("tab")) { showTab(b.getAttribute("data-tab")); return; }
 
@@ -536,13 +667,34 @@
     }
 
     if (b.hasAttribute("data-attack")) {
+      var id = b.getAttribute("data-attack");
+      var label = b.querySelector("b").textContent;
       working(true);
-      showTab("packets");
+      stopHudStream();
+      if (!boardOn()) showTab("packets");
       verdict("", "Running it…");
-      post("/api/action", { id: b.getAttribute("data-attack") }).then(function (res) {
-        trace(res, b.querySelector("b").textContent);
+      post("/api/action", { id: id }).then(function (res) {
+        /* The text trace always lands. It is the flat view's only output, it
+           is what a reader gets when a set-piece does not exist for this id,
+           and it is the record in the packets tab either way. */
+        trace(res, label);
         verdict(res.danger ? "bad" : res.ok ? "ok" : "warn", res.why, res.rung);
-        return refresh();
+        /* Read the lab back first, then play the shot. The other order
+           repaints the board from the configuration a moment after the
+           set-piece has drawn what it measured, and the measurement loses. */
+        return refresh().then(function () {
+          if (!boardOn()) return;
+          var ran = window.LabHUD.run(board, id, res, hudCtx());
+          if (!ran) {
+            /* No set-piece for this one yet. The board must still stop
+               showing the last one's held frame — an unnamed attack sitting
+               under the previous attack's verdict is worse than no picture.
+               Ride it if it named two machines; otherwise just report it. */
+            if (res.from && res.to) board.probe(res, true);
+            else board.report(res, true);
+            showTab("packets");
+          }
+        });
       }).finally(function () { working(false); });
       return;
     }
@@ -557,13 +709,15 @@
     switch (b.id) {
       case "probe-btn":
         working(true);
-        showTab("packets");
+        stopHudStream();
+        if (!boardOn()) showTab("packets");
         verdict("", "Knocking, and watching the far end…");
         post("/api/probe", {
           from: $("#p-from").value, to: $("#p-to").value, port: $("#p-port").value
         }).then(function (res) {
           trace(res);
           verdict(res.danger ? "warn" : res.ok ? "ok" : "bad", res.why, res.rung);
+          if (boardOn()) board.probe(res);
         }).finally(function () { working(false); });
         break;
 
@@ -578,6 +732,8 @@
 
       case "reset-btn":
         working(true);
+        stopHudStream();
+        if (board) board.clearScratch();
         post("/api/action", { id: "reset" }).then(function (res) {
           trace(res, "reset");
           verdict("ok", res.why, 0);
@@ -587,6 +743,8 @@
 
       case "outage-btn":
         working(true);
+        stopHudStream();
+        if (board) board.clearScratch();
         showTab("packets");
         verdict("", "Two sessions from lab-roam, then twenty seconds with no link. " +
           "This one takes about a minute, and it is worth watching.");
@@ -599,6 +757,8 @@
 
       case "rotate-btn":
         working(true);
+        stopHudStream();
+        if (board) board.clearScratch();
         post("/api/action", { id: "rotate-key" }).then(function (res) {
           trace(res, "rotate the key");
           verdict(res.ok ? "ok" : "bad", res.why, res.rung);
@@ -616,15 +776,22 @@
     }
   });
 
+  document.addEventListener("keydown", function (e) {
+    if (e.target.matches("input, select, textarea, button")) return;
+    if (e.key === "h" && board && boardOn()) board.home();
+  });
+
   /* ---- go ---------------------------------------------------------- */
   get("/api/meta").then(function (m) {
     meta = m;
     renderPresets();
     renderAttacks();
+    if (board) applyMeta();
     return refresh();
   }).then(function () {
     renderPanels();
     openStatusStream();
+    startBoard();
     verdict("", "The lab is up. Three machines, a default-deny policy, and public :22 still open — " +
       "the same place the sandbox starts.");
   }).catch(function (e) {
