@@ -115,7 +115,7 @@ services:
       wan:
         ipv4_address: 203.0.113.11
       vpslan:
-        ipv4_address: 172.31.8.2
+        ipv4_address: 10.0.11.2
 
   # The container behind the published port. Reachable only through lab-vps,
   # and only when you turn the trap on.
@@ -125,7 +125,7 @@ services:
     restart: unless-stopped
     networks:
       vpslan:
-        ipv4_address: 172.31.8.20
+        ipv4_address: 10.0.11.20
 
   # ---- the laptop — chapter 09 -------------------------------------------
   nat-ubuntu:
@@ -315,9 +315,16 @@ networks:
       config: [{ subnet: 10.0.66.0/24 }]
   # lab-vps's own container bridge: the one it routes for when a published
   # port punches through its firewall.
+  #
+  # 10.0.11.0/24 for two reasons. It is the address chapter 14's sandbox
+  # already gives lab-vps (assets/sandbox.js: lan "10.0.11.2"), so the lab and
+  # the model agree rather than diverging over a detail nobody would think to
+  # check. And it is out of the way: Docker hands out 172.17-172.31 and
+  # 192.168.x by default, so a fixed subnet in there collides on any machine
+  # with a few compose projects on it.
   vpslan:
     ipam:
-      config: [{ subnet: 172.31.8.0/24 }]
+      config: [{ subnet: 10.0.11.0/24 }]
   # The control server sits on its own network and talks to Docker, not to the
   # lab. Nothing in the lab is attached here, so nothing in the lab can reach
   # it. It is deliberately not `internal: true` — Docker will not publish a port
