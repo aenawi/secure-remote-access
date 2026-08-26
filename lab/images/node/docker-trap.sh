@@ -18,7 +18,7 @@
 # Usage: lab-docker-trap on|off|status
 set -euo pipefail
 
-WEB_IP="${LAB_WEB_IP:-172.31.8.20}"
+WEB_IP="${LAB_WEB_IP:-10.0.11.20}"
 WEB_PORT="${LAB_WEB_PORT:-80}"
 PUB_PORT="${LAB_PUB_PORT:-8080}"
 

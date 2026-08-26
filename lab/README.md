@@ -491,7 +491,7 @@ Chapter 08's trap is reproduced with the exact chains dockerd writes:
 iptables -I FORWARD 1 -j DOCKER-USER
 iptables -I FORWARD 2 -j DOCKER
 iptables -t nat -A PREROUTING -m addrtype --dst-type LOCAL -j DOCKER
-iptables -t nat -A DOCKER ! -i <lan> -p tcp --dport 8080 -j DNAT --to 172.31.8.20:80
+iptables -t nat -A DOCKER ! -i <lan> -p tcp --dport 8080 -j DNAT --to 10.0.11.20:80
 ```
 
 `lab-vps-web` is a genuine second container on a bridge `lab-vps` routes for, so
