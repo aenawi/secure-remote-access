@@ -562,6 +562,25 @@ lab/
             └── setpieces.js     one exported function per attack id
 ```
 
+### If you edit the UI, rebuild
+
+`main.go` does `//go:embed ui`, so the page you get on :8099 is the copy
+compiled into the binary, not the one on disk. Editing anything under
+`control/ui/` does nothing at all until you rebuild:
+
+```bash
+docker compose up -d --build control
+```
+
+That is the whole loop for a UI change, and it takes a few seconds because
+everything else is cached. It costs less than the ten minutes of confusion it
+saves, which is roughly how long it takes to work this out by staring at a
+change that will not appear.
+
+The trade is deliberate: the alternative is a bind mount, and then the lab
+depends on where you cloned it and the binary stops being the one artefact
+that carries everything.
+
 ## If something will not start
 
 - **`/dev/net/tun` is missing** — the machines need it to run real WireGuard.
@@ -572,3 +591,6 @@ lab/
   and see the Headscale wrinkle above.
 - **The control server refuses to start** — read what it says. It is almost
   certainly the loopback guard, and it is almost certainly right.
+- **A change to the page does not appear** — the UI is compiled into the
+  binary. `docker compose up -d --build control`. See
+  [If you edit the UI, rebuild](#if-you-edit-the-ui-rebuild).
