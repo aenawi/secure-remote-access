@@ -118,6 +118,13 @@ function head(res, defence, through, inconclusive) {
 
 const ev = (res, key) => (res.evidence && res.evidence[key]) || 0;
 
+/* needEvil and evilJoin return before the attack does anything, at rung 1.
+   Every attack below sets a higher rung the moment it actually runs, so this
+   separates "the defence was tested and nothing was proved" from "the
+   attacker never got off the ground" — which are different sentences to read
+   at eleven at night. */
+const neverRan = (res) => !res.ok && !res.danger && (res.rung || 1) <= 1;
+
 /* ============================================================
    1 · scan-public
    Low on the public plane, looking up at lab-vps's face. A fan of probe
@@ -394,7 +401,8 @@ function sniff(board, res, ctx) {
 
   const nums = [frames + " frames", cleartext + " cleartext", tunnelled + " tunnelled"];
   held(board, res, {
-    head: frames === 0 ? "INCONCLUSIVE · the capture came back empty"
+    head: neverRan(res) ? "INCONCLUSIVE · nothing was captured — is evil-box running? `make attack`"
+      : frames === 0 ? "INCONCLUSIVE · the capture came back empty"
       : cleartext === 0 ? "INCONCLUSIVE · the control marker never appeared either"
       : head(res, "WireGuard transport data — sealed for a key evil-box does not have",
              "the marker crossed the wire in the clear"),
@@ -444,8 +452,10 @@ function replay(board, res) {
            vx - 2.6, Y_MACH - 1.2, vz, { px: 28, size: 0.36, color: C.warn });
     }}]);
     held(board, res, {
-      head: "INCONCLUSIVE · there was nothing to replay",
-      nums: ["0 frames replayed"],
+      head: neverRan(res)
+        ? "INCONCLUSIVE · nothing ran — is evil-box running? `make attack`"
+        : "INCONCLUSIVE · there was nothing to replay",
+      nums: neverRan(res) ? [] : ["0 frames replayed"],
       chip: "on the wire · in the clear", chipKind: "pub"
     });
     return;
@@ -756,7 +766,9 @@ function rogueExit(board, res) {
 
   held(board, res, {
     head: head(res, "an exit node is a route offer, not a route",
-               "the route was approved, and approval is what routes traffic"),
+               "the route was approved, and approval is what routes traffic",
+               "evil-box is not on the tailnet, so it had nothing to advertise a route from — " +
+               "turn tailnet lock off, or load a configuration that issues it a key"),
     nums: [riders.length + " sessions on the tailnet"],
     chip: "inside the tailnet · wrapped", chipKind: "net"
   });
@@ -834,7 +846,8 @@ function dockerBypass(board, res) {
 
   held(board, res, {
     head: head(res, "nothing was listening on :8080, so there was nothing to reach",
-               "DOCKER-USER accepted it before ufw's chain ever ran"),
+               "DOCKER-USER accepted it before ufw's chain ever ran",
+               "the trap was never set up — is evil-box running? `make attack`"),
     nums: ["port 8080", through ? "answered" : "no answer"],
     chip: "public segment · in the clear", chipKind: "pub"
   });
@@ -903,9 +916,12 @@ function lockOut(board, res) {
   board.timeline(steps);
 
   held(board, res, {
+    /* Not "held": nothing defended anything here. Both rules are gone and you
+       are either outside or lucky, and the frame should say which. */
     head: stillIn
-      ? "HELD · something is still allowing tailscale0, so the tailnet route survived"
+      ? "STILL IN · both rules are gone and the tailnet route survived — find what is still allowing tailscale0"
       : "AIRTIGHT, AND USELESS · both doors are shut and you are outside",
+    ladder: stillIn ? "breached" : "stopped",
     rule: res.rule,
     nums: ["ufw 22/tcp removed", "ufw tailscale0 removed"],
     chip: stillIn ? "inside the tailnet · wrapped" : "no path at all",
