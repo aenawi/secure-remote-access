@@ -103,18 +103,17 @@ func (c *Controller) atkScanPublic(ctx context.Context) Result {
 		return *r
 	}
 	target := c.lab.IPOn(ctx, "lab-vps", "wan")
+	portList := strings.Join(scanPorts, ",")
 	res := Result{Rung: 4, From: "evil-box", To: "lab-vps", Path: "public",
-		Cmds: []string{"nmap -Pn -n -p 22,80,8080,41641 " + target + "   # on evil-box"}}
+		Cmds: []string{"nmap -Pn -n -p " + portList + " " + target + "   # on evil-box"}}
 
-	r, _ := c.lab.Exec(ctx, "evil-box", "nmap", "-Pn", "-n", "-p", "22,80,8080,41641", target)
+	r, _ := c.lab.Exec(ctx, "evil-box", "nmap", "-Pn", "-n", "-p", portList, target)
 	res.Raw = r.Out()
 
-	var open []string
-	for _, line := range strings.Split(r.Stdout, "\n") {
-		if strings.Contains(line, "open") && !strings.Contains(line, "filtered") {
-			open = append(open, strings.Fields(line)[0])
-		}
-	}
+	open := parseOpenPorts(r.Stdout)
+	// The same finding as Why, in numbers. A drawing that has to regex English
+	// to find out which ports answered is one rewording away from lying.
+	res.Evidence = scanEvidence(open, scanPorts)
 	if len(open) > 0 {
 		res.Danger = true
 		res.Rule = "the host firewall let them through"
@@ -146,13 +145,20 @@ func (c *Controller) atkScanTailnet(ctx context.Context) Result {
 	res := Result{Rung: 3, From: "evil-box", Path: "direct",
 		Cmds: []string{"tailscale status", "nmap -Pn -n -p 22 100.71.4.0/24   # on evil-box"}}
 
+	targets := []string{"lab-vps", "lab-ubuntu", "lab-roam"}
 	var reached []string
 	var lines []string
-	for _, target := range []string{"lab-vps", "lab-ubuntu", "lab-roam"} {
+	// Which destinations answered, per destination. "one of the three" and
+	// "all three" are different findings, and a caller that has only Why to
+	// read cannot tell them apart.
+	res.Evidence = map[string]int{"tried": len(targets)}
+	for _, target := range targets {
 		p := c.Probe(ctx, "evil-box", target, "22")
 		lines = append(lines, fmt.Sprintf("%-12s rung %d — %s", target, p.Rung, p.Rule))
+		res.Evidence["rung:"+target] = p.Rung
 		if p.OK {
 			reached = append(reached, target)
+			res.Evidence["reached:"+target] = 1
 		}
 	}
 	res.Raw = strings.Join(lines, "\n")
@@ -227,6 +233,9 @@ func (c *Controller) atkSniff(ctx context.Context) Result {
 	frames := parseKV(counts.Stdout, "frames")
 	res.Packets = frames
 	res.Raw = strings.TrimSpace(counts.Stdout)
+	// All three counts, not just the one that fits in Packets. The control
+	// experiment is only an experiment if a reader gets both arms of it.
+	res.Evidence = map[string]int{"cleartext": clear, "tunnelled": tunnelled, "frames": frames}
 
 	switch {
 	case frames == 0:
@@ -382,6 +391,11 @@ func (c *Controller) atkExpiredKey(ctx context.Context) Result {
 	p := c.Probe(ctx, "lab-roam", "lab-vps", "22")
 	res.Rung = p.Rung
 	res.Rule = p.Rule
+	// Two of the three endings below are OK=false at the same rung, and only
+	// this tells them apart: whether the machine actually fell out of the
+	// tailnet. Without it a caller cannot distinguish "expiry worked and the
+	// public door undid it" from "expiry has not taken effect yet".
+	res.Evidence = map[string]int{"dropped": boolToInt(dropped), "probeOK": boolToInt(p.OK)}
 	res.Raw += "\n\nprobe after expiry: rung " + strconv.Itoa(p.Rung) + " — " + p.Why
 
 	switch {
@@ -691,6 +705,54 @@ echo "--- mosh, last lines ---"; tr -d '\r' < /tmp/mosh.out 2>/dev/null | grep -
 
 // ---------------------------------------------------------------------------
 
+// The four ports the public scan asks about: sshd, a web server somebody put
+// there, the port a published container lands on, and the one WireGuard uses.
+// Named once so the command, the Evidence and the test cannot drift apart.
+var scanPorts = []string{"22", "80", "8080", "41641"}
+
+// parseOpenPorts pulls the open rows out of nmap's table. "open|filtered" is
+// nmap saying it could not tell, which is not the same as open — the guide is
+// careful about that distinction everywhere else and this is where it starts.
+func parseOpenPorts(stdout string) []string {
+	var open []string
+	for _, line := range strings.Split(stdout, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		if fields[1] == "open" {
+			open = append(open, fields[0])
+		}
+	}
+	return open
+}
+
+// portNumber turns nmap's "22/tcp" into 22. Anything it cannot read is
+// dropped rather than guessed at.
+func portNumber(s string) int {
+	num, _, _ := strings.Cut(s, "/")
+	n, err := strconv.Atoi(num)
+	if err != nil {
+		return 0
+	}
+	return n
+}
+
+// scanEvidence records how many ports were asked about and which of them
+// answered, as one key per open port. A scan that found nothing still carries
+// the count it probed, because "four ports, none open" and "nothing was ever
+// scanned" are different results and a drawing has to be able to tell them
+// apart.
+func scanEvidence(open, scanned []string) map[string]int {
+	ev := map[string]int{"scanned": len(scanned)}
+	for _, p := range open {
+		if n := portNumber(p); n > 0 {
+			ev["open:"+strconv.Itoa(n)] = 1
+		}
+	}
+	return ev
+}
+
 func parseKV(s, key string) int {
 	for _, line := range strings.Split(s, "\n") {
 		k, v, ok := strings.Cut(strings.TrimSpace(line), "=")
@@ -698,6 +760,13 @@ func parseKV(s, key string) int {
 			n, _ := strconv.Atoi(strings.TrimSpace(v))
 			return n
 		}
+	}
+	return 0
+}
+
+func boolToInt(b bool) int {
+	if b {
+		return 1
 	}
 	return 0
 }

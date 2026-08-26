@@ -1,6 +1,7 @@
 # Design proposals
 
-Things that are not built yet, worked out far enough to argue with.
+Things worked out far enough to argue with, before they are built — and kept
+afterwards, because the argument is the part that does not survive in a diff.
 
 Nothing in here is served by the control server. `lab/control/main.go` embeds
 `ui` and only `ui`, so these files add nothing to the binary and are not
@@ -11,6 +12,13 @@ reachable from `http://localhost:8099`. Open them by double-clicking.
 A monitoring HUD for `lab/control/ui`, and the design proposal that explains it.
 The prototype is at the top of the page; the reasoning, the data mapping and the
 budget are underneath it.
+
+**This one is built.** It ships as
+[`lab/control/ui/hud/`](../control/ui/hud/) — `scene.js` is this page's board
+with the model taken out of it, and `setpieces.js` is one function per attack
+id. Open `http://localhost:8099` and pick **the board**. This page stays as the
+argument for why it looks the way it does, and as the only version of it that
+runs from `file://` with no lab up.
 
 ```bash
 open lab/design/five-gates.html      # or xdg-open, or drag it into a browser
@@ -33,9 +41,12 @@ It is a **model, not the lab**. The ladder engine is a port of
 [`assets/sandbox.js`](../../assets/sandbox.js) — same catalog, same grants, same
 `choosePath` / `aclCheck` / `firewallCheck` / `listenCheck`, in the same order —
 so its verdicts agree with [chapter 14's sandbox](../../chapters/14-sandbox.html)
-rather than approximating them. Wiring it to `POST /api/probe`, where a container
-answers instead, is the prerequisite for
-[issue #24](https://github.com/aenawi/secure-remote-access/issues/24).
+rather than approximating them.
+
+The shipped board has that engine deleted. It is handed a `Result` from
+`POST /api/probe` or `POST /api/action` and draws it, and it decides nothing:
+the shapes already matched, which is the whole reason this prototype was worth
+building against the sandbox's rules rather than made-up ones.
 
 ### Why it is one 750 KB file
 
@@ -49,12 +60,14 @@ is used when it happens to be installed and never requested from anywhere.
 
 three.js is MIT; its notice is preserved at the head of the inlined bundle.
 
-### Where this would and would not live
+### Where it lives, and where it does not
 
-The HUD belongs in `lab/control/ui`, which is already served by a Go binary doing
+The HUD belongs in `lab/control/ui`, which is served by a Go binary doing
 `//go:embed ui` — so three.js ships inside the binary, needs no network after
 `docker compose build`, and adds no prerequisite to a lab whose only prerequisite
-is Docker.
+is Docker. That is where it went: `ui/hud/three.module.js` is this page's inlined
+bundle as an ordinary module, which is possible there because it is served over
+HTTP rather than opened from disk.
 
 It does **not** belong in `chapters/`. The guide's promise is `file://`, no build,
 no dependencies, and a readable figure with scripting off via `data-poster`.

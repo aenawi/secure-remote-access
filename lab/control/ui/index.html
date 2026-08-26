@@ -34,6 +34,76 @@
     </p>
   </div>
 
+  <!-- Two drawings of the same lab, and you pick one.
+
+       The board is the five-rung ladder as a place a packet travels through:
+       X is the rung it reached, Y is whether it was wrapped while it went.
+       Every gate on it renders the configuration continuously, so flipping a
+       switch moves something you can see.
+
+       The flat drawing below is the original, and it stays. It needs no WebGL,
+       it prints, and if the board fails to start this page falls back to it
+       without saying anything clever about why. -->
+  <div class="viewswitch">
+    <span class="viewswitch-k">Drawing</span>
+    <div class="seg" role="group" aria-label="Which drawing of the lab to show">
+      <button type="button" id="view-board" aria-pressed="true">the board</button>
+      <button type="button" id="view-flat" aria-pressed="false">the flat one</button>
+    </div>
+    <span class="viewswitch-note" id="view-note"></span>
+  </div>
+
+  <div class="stage3d" id="stage3d" hidden>
+    <div class="viewport">
+      <canvas id="stage-gl" aria-hidden="true"></canvas>
+      <div class="hud-overlay">
+        <div class="hud-top">
+          <span class="hud-chip" id="hud-chip">idle · nothing has been probed yet</span>
+          <div class="hud-gauges">
+            <div class="hud-gauge good" id="hud-access">
+              <div class="k">Your way in</div>
+              <div class="v"><span class="hud-dot" id="hud-dot-laptop"></span><span class="hud-dot" id="hud-dot-phone"></span></div>
+              <div class="n" id="hud-access-note">reading the lab…</div>
+            </div>
+            <div class="hud-gauge" id="hud-exposed">
+              <div class="k">Open to strangers</div>
+              <div class="v" id="hud-exposed-n">0</div>
+              <div class="n" id="hud-exposed-note">reading the lab…</div>
+            </div>
+            <div class="hud-posture" id="hud-posture">…</div>
+          </div>
+        </div>
+        <div></div>
+        <div class="hud-bottom">
+          <div class="hud-verdict" id="hud-verdict" hidden>
+            <div class="r" id="hud-v-rung"></div>
+            <div class="rule" id="hud-v-rule"></div>
+            <div class="why" id="hud-v-why"></div>
+          </div>
+          <div id="hud-nums"></div>
+          <div id="hud-transcript"></div>
+        </div>
+      </div>
+      <button type="button" class="homebtn" id="hud-home">reset view (h)</button>
+    </div>
+
+    <div class="hud-ladder" role="list">
+      <div class="hud-rung" id="hud-rung-1" role="listitem"><div class="n">RUNG 1</div><div class="t">is anything alive</div></div>
+      <div class="hud-rung" id="hud-rung-2" role="listitem"><div class="n">RUNG 2</div><div class="t">is there a path</div></div>
+      <div class="hud-rung" id="hud-rung-3" role="listitem"><div class="n">RUNG 3</div><div class="t">did the tailnet allow it</div></div>
+      <div class="hud-rung" id="hud-rung-4" role="listitem"><div class="n">RUNG 4</div><div class="t">did the firewall allow it</div></div>
+      <div class="hud-rung" id="hud-rung-5" role="listitem"><div class="n">RUNG 5</div><div class="t">was anything listening</div></div>
+    </div>
+    <p class="sr-only" id="hud-live" role="status" aria-live="polite"></p>
+    <p class="legend">
+      <b>The canvas is decoration you can switch off.</b> Every state the board shows is also
+      in the readouts above it and in the packets tab, and the verdict goes to a live region,
+      so nothing here is only available to somebody who can see it move. With
+      <code>prefers-reduced-motion</code> set, the camera holds the final frame instead of
+      flying to it and the words are identical.
+    </p>
+  </div>
+
   <!-- The same drawing as chapter 14, with the model taken out of it. Every
        address below was read back from a container, and the shape of the line
        is whatever `tailscale ping` last reported, not what a script decided. -->
@@ -250,6 +320,17 @@
 </div>
 
 <button type="button" class="themebtn" id="theme">theme</button>
+<!-- The board is an ES module because three.js is one. app.js stays a classic
+     script — it is the same shape as assets/sandbox.js in the guide and there is
+     no reason to churn it — so the module hands itself over on window and says
+     when it is ready. A browser with no WebGL never gets here and the page is
+     the flat drawing, which is what it was before any of this. -->
+<script type="module">
+  import { createBoard, GEOM } from "./hud/scene.js";
+  import { SETPIECES, run, missing } from "./hud/setpieces.js";
+  window.LabHUD = { createBoard, GEOM, SETPIECES, run, missing };
+  window.dispatchEvent(new Event("labhud-ready"));
+</script>
 <script src="app.js"></script>
 </body>
 </html>
