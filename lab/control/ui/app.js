@@ -116,9 +116,6 @@
     var on = view === "board" && !!board;
     $("#stage3d").hidden = !on;
     $(".stage").hidden = on;
-    /* The legend under the flat drawing describes the flat drawing. */
-    var flatLegend = document.querySelector(".stage + .legend");
-    if (flatLegend) flatLegend.hidden = on;
     $("#view-board").setAttribute("aria-pressed", String(on));
     $("#view-flat").setAttribute("aria-pressed", String(!on));
     $("#view-board").disabled = boardBroken;
@@ -148,6 +145,65 @@
   if (window.LabHUD) startBoard();
   else window.addEventListener("labhud-ready", startBoard);
 
+  /* ---- how much window the drawing gets --------------------------
+     The band at the top is fixed, which only works if the reader can decide
+     how tall "fixed" is. The grip moves it, the arrow keys move it, and a
+     double-click gives it back to the stylesheet. It is remembered, because
+     somebody who wants a tall board wants it on the next probe too. */
+  var STAGE_MIN = 260;
+  function stageMax() { return Math.max(STAGE_MIN, window.innerHeight - 280); }
+
+  function setStageH(px) {
+    if (px == null) {
+      document.documentElement.style.removeProperty("--stage-h");
+      try { localStorage.removeItem("lab-stage-h"); } catch (e) {}
+    } else {
+      px = Math.round(Math.max(STAGE_MIN, Math.min(stageMax(), px)));
+      document.documentElement.style.setProperty("--stage-h", px + "px");
+      try { localStorage.setItem("lab-stage-h", String(px)); } catch (e) {}
+    }
+    if (board) board.resize();
+  }
+
+  var storedH = null;
+  try { storedH = parseInt(localStorage.getItem("lab-stage-h"), 10); } catch (e) {}
+  if (storedH) setStageH(storedH);
+
+  (function grip() {
+    var g = $("#grip"), wrap = $("#stagewrap"), dragging = false;
+    g.addEventListener("pointerdown", function (e) {
+      dragging = true;
+      g.classList.add("dragging");
+      g.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    });
+    g.addEventListener("pointermove", function (e) {
+      if (!dragging) return;
+      setStageH(e.clientY - wrap.getBoundingClientRect().top);
+    });
+    ["pointerup", "pointercancel"].forEach(function (ev) {
+      g.addEventListener(ev, function () { dragging = false; g.classList.remove("dragging"); });
+    });
+    g.addEventListener("dblclick", function () { setStageH(null); });
+    g.addEventListener("keydown", function (e) {
+      var step = e.key === "ArrowUp" ? -40 : e.key === "ArrowDown" ? 40 : 0;
+      if (!step) {
+        if (e.key === "Home") { setStageH(null); e.preventDefault(); }
+        return;
+      }
+      setStageH(wrap.getBoundingClientRect().height + step);
+      e.preventDefault();
+    });
+  })();
+
+  /* scene.js listens for window resize, which is the only thing that used to
+     change the canvas. Now the grip and the media query change it too, and
+     neither of those is a window resize. */
+  if (window.ResizeObserver) {
+    new ResizeObserver(function () { if (board) board.resize(); })
+      .observe(document.querySelector(".viewport"));
+  }
+
   /* ---- talking to the control server ------------------------------ */
   function get(url) { return fetch(url).then(function (r) { return r.json(); }); }
   function text(url) { return fetch(url).then(function (r) { return r.text(); }); }
@@ -172,17 +228,62 @@
     v.innerHTML = (rung ? '<b class="rung">rung ' + rung + " of 5</b> — " : "") + esc(msg);
   }
 
-  /* ---- panels ------------------------------------------------------ */
+  /* ---- panels ------------------------------------------------------
+     Each panel the control server declares is one tab in the left column,
+     labelled with its id — `machines`, `network`, `policy`, `host` — because
+     the ids are already the short lowercase words the tab strip wants, and a
+     second set of names kept in this file is a second set of names to get
+     wrong. The full title stays as the heading inside the pane. */
   function renderPanels() {
     var html = "";
     meta.panels.forEach(function (p) {
-      html += '<section class="panel" data-panel="' + p.id + '">' +
+      html += '<section class="cpane" data-cpane="' + esc(p.id) + '" data-label="' + esc(p.id) + '">' +
         "<h3>" + esc(p.title) + "</h3><p class='note'>" + esc(p.note) + "</p>";
       p.rows.forEach(function (row) { html += renderRow(row); });
       html += "</section>";
     });
     $("#panels").innerHTML = html;
+    buildCTabs();
     paintPanels();
+  }
+
+  /* ---- the settings tabs ------------------------------------------
+     Built from whatever panes are in the column, in the order they appear:
+     the two written into index.html around the slot, and the server's own in
+     between. Nothing here has to be told the list twice. */
+  function buildCTabs() {
+    var panes = document.querySelectorAll("#cpanes [data-cpane]");
+    var html = "";
+    Array.prototype.forEach.call(panes, function (p) {
+      var id = p.getAttribute("data-cpane");
+      html += '<button type="button" class="ctab" role="tab" data-ctab="' + esc(id) + '"' +
+        ' aria-selected="false">' + esc(p.getAttribute("data-label") || id) + "</button>";
+    });
+    $("#ctabs").innerHTML = html;
+
+    var want = null;
+    try { want = localStorage.getItem("lab-ctab"); } catch (e) {}
+    showCTab(document.querySelector('[data-cpane="' + want + '"]') ? want : "configs");
+  }
+
+  function showCTab(name) {
+    Array.prototype.forEach.call(document.querySelectorAll(".ctab"), function (t) {
+      var on = t.getAttribute("data-ctab") === name;
+      t.classList.toggle("on", on);
+      t.setAttribute("aria-selected", String(on));
+    });
+    Array.prototype.forEach.call(document.querySelectorAll("#cpanes [data-cpane]"), function (p) {
+      p.classList.toggle("on", p.getAttribute("data-cpane") === name);
+    });
+  }
+
+  /* Remembered only when somebody chose it. The strip is built twice — once
+     with the two panes this file ships with, and again once the server's have
+     arrived — and a restore that wrote back what it settled for would spend
+     the first pass forgetting which tab you were on. */
+  function pickCTab(name) {
+    showCTab(name);
+    try { localStorage.setItem("lab-ctab", name); } catch (e) {}
   }
 
   function renderRow(row) {
@@ -503,11 +604,14 @@
 
   function showTab(name) {
     Array.prototype.forEach.call(document.querySelectorAll(".tab"), function (t) {
-      t.classList.toggle("on", t.getAttribute("data-tab") === name);
+      var on = t.getAttribute("data-tab") === name;
+      t.classList.toggle("on", on);
+      t.setAttribute("aria-selected", String(on));
     });
     Array.prototype.forEach.call(document.querySelectorAll(".pane"), function (p) {
       p.classList.toggle("on", p.getAttribute("data-pane") === name);
     });
+    try { localStorage.setItem("lab-tab", name); } catch (e) {}
     if (name === "rules") text("/api/rules").then(function (t) { $("#rules-out").textContent = t; });
     if (name === "script") text("/api/script").then(function (t) { $("#script-out").textContent = t; });
   }
@@ -665,15 +769,17 @@
     var b = e.target.closest("button");
     if (!b) return;
 
-    /* Looking at the other drawing is not an action on the lab, so it works
-       while one is running. Everything below the guard is not. */
+    /* Reading is not an action on the lab, so all of it works while one is
+       running: the other drawing, the camera, either tab strip, and the
+       documentation. Everything below the guard changes something. */
     if (b.id === "view-board") { setView("board"); return; }
     if (b.id === "view-flat")  { setView("flat"); return; }
     if (b.id === "hud-home")   { if (board) board.home(); return; }
+    if (b.id === "to-guide")   { showTab("guide"); return; }
+    if (b.classList.contains("tab"))  { showTab(b.getAttribute("data-tab")); return; }
+    if (b.classList.contains("ctab")) { pickCTab(b.getAttribute("data-ctab")); return; }
 
     if (busy) return;
-
-    if (b.classList.contains("tab")) { showTab(b.getAttribute("data-tab")); return; }
 
     if (b.hasAttribute("data-value") && b.hasAttribute("data-path")) {
       setPath(b.getAttribute("data-path"), b.getAttribute("data-value"));
@@ -803,7 +909,12 @@
     if (e.key === "h" && board && boardOn()) board.home();
   });
 
-  /* ---- go ---------------------------------------------------------- */
+  /* ---- go ----------------------------------------------------------
+     The strip is built before anything is fetched, so a control server that
+     never answers still leaves the probe and the attacks reachable rather than
+     stranding them in a column with no tabs. */
+  buildCTabs();
+
   get("/api/meta").then(function (m) {
     meta = m;
     renderPresets();
@@ -814,6 +925,11 @@
     renderPanels();
     openStatusStream();
     startBoard();
+    /* First visit opens the documentation rather than a log of a lab that has
+       not done anything yet. After that it is wherever you last were. */
+    var tab = null;
+    try { tab = localStorage.getItem("lab-tab"); } catch (e) {}
+    showTab(document.querySelector('[data-pane="' + tab + '"]') ? tab : "guide");
     verdict("", "The lab is up. Three machines, a default-deny policy, and public :22 still open — " +
       "the same place the sandbox starts.");
   }).catch(function (e) {

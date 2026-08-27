@@ -8,318 +8,408 @@
 </head>
 <body>
 
-<header class="top">
-  <div class="wrap">
-    <p class="eyebrow">The lab · real containers</p>
-    <h1>The lab</h1>
-    <p class="lede">
-      The same panels as <b>chapter 14's sandbox</b>, wired to real kernels. Every switch here
-      runs a command inside a container; every probe watches the far end while it knocks, and
-      reports the rung that decided it. Nothing on this page is modelled, which means it can
-      surprise you — and that is the only reason it exists.
-    </p>
-  </div>
-</header>
+<!-- The page is one instrument, not a document you scroll.
 
-<div class="wrap">
+     Three bands, top to bottom, and none of them ever scroll away from each
+     other: the drawing, the verdict it just produced, and the deck. The deck
+     is two columns that scroll independently — what you change on the left,
+     what it said on the right — so flipping a switch and reading the answer
+     no longer means losing sight of the picture that changed.
 
-  <div class="callout danger">
-    <div class="ct">This is a lab, and it is only safe because of where it is</div>
-    <p>
-      <code>evil-box</code> attacks containers you started, on hardware you own, on bridges that
-      go nowhere. It never starts unless you ask for it. This control server holds the Docker
-      socket and has no authentication, so it is published to <code>127.0.0.1</code> only and
-      refuses to start if that is changed. Everything here is provided <b>as is</b>, with no
-      warranty — see the disclaimer and the MIT licence in the guide.
-    </p>
-  </div>
+     Below 1000px, or on a short window, the whole thing falls back to an
+     ordinary scrolling page with the drawing pinned to the top. -->
+<div class="app">
 
-  <!-- Two drawings of the same lab, and you pick one.
+  <header class="topbar">
+    <div class="brand">
+      <b>The lab</b><span>real containers</span>
+    </div>
+
+    <button type="button" class="warnchip" id="to-guide">
+      read this first — it is only safe because of where it is
+    </button>
+
+    <div class="topbar-gap"></div>
+
+    <div class="viewswitch">
+      <span class="viewswitch-k">Drawing</span>
+      <div class="seg" role="group" aria-label="Which drawing of the lab to show">
+        <button type="button" id="view-board" aria-pressed="true">the board</button>
+        <button type="button" id="view-flat" aria-pressed="false">the flat one</button>
+      </div>
+      <span class="viewswitch-note" id="view-note"></span>
+    </div>
+
+    <button type="button" class="themebtn" id="theme">theme</button>
+  </header>
+
+  <!-- Two drawings of the same lab, and you pick one. Both live in the same
+       band, which is fixed at the top of the window and does not move.
 
        The board is the five-rung ladder as a place a packet travels through:
        X is the rung it reached, Y is whether it was wrapped while it went.
        Every gate on it renders the configuration continuously, so flipping a
        switch moves something you can see.
 
-       The flat drawing below is the original, and it stays. It needs no WebGL,
-       it prints, and if the board fails to start this page falls back to it
+       The flat drawing is the original, and it stays. It needs no WebGL, it
+       prints, and if the board fails to start this page falls back to it
        without saying anything clever about why. -->
-  <div class="viewswitch">
-    <span class="viewswitch-k">Drawing</span>
-    <div class="seg" role="group" aria-label="Which drawing of the lab to show">
-      <button type="button" id="view-board" aria-pressed="true">the board</button>
-      <button type="button" id="view-flat" aria-pressed="false">the flat one</button>
-    </div>
-    <span class="viewswitch-note" id="view-note"></span>
-  </div>
+  <div class="stagewrap" id="stagewrap">
 
-  <div class="stage3d" id="stage3d" hidden>
-    <div class="viewport">
-      <canvas id="stage-gl" aria-hidden="true"></canvas>
-      <div class="hud-overlay">
-        <div class="hud-top">
-          <span class="hud-chip" id="hud-chip">idle · nothing has been probed yet</span>
-          <div class="hud-gauges">
-            <div class="hud-gauge good" id="hud-access">
-              <div class="k">Your way in</div>
-              <div class="v"><span class="hud-dot" id="hud-dot-laptop"></span><span class="hud-dot" id="hud-dot-phone"></span></div>
-              <div class="n" id="hud-access-note">reading the lab…</div>
+    <div class="stage3d" id="stage3d" hidden>
+      <div class="viewport">
+        <canvas id="stage-gl" aria-hidden="true"></canvas>
+        <div class="hud-overlay">
+          <div class="hud-top">
+            <span class="hud-chip" id="hud-chip">idle · nothing has been probed yet</span>
+            <div class="hud-gauges">
+              <div class="hud-gauge good" id="hud-access">
+                <div class="k">Your way in</div>
+                <div class="v"><span class="hud-dot" id="hud-dot-laptop"></span><span class="hud-dot" id="hud-dot-phone"></span></div>
+                <div class="n" id="hud-access-note">reading the lab…</div>
+              </div>
+              <div class="hud-gauge" id="hud-exposed">
+                <div class="k">Open to strangers</div>
+                <div class="v" id="hud-exposed-n">0</div>
+                <div class="n" id="hud-exposed-note">reading the lab…</div>
+              </div>
+              <div class="hud-posture" id="hud-posture">…</div>
             </div>
-            <div class="hud-gauge" id="hud-exposed">
-              <div class="k">Open to strangers</div>
-              <div class="v" id="hud-exposed-n">0</div>
-              <div class="n" id="hud-exposed-note">reading the lab…</div>
+          </div>
+          <div></div>
+          <div class="hud-bottom">
+            <div class="hud-verdict" id="hud-verdict" hidden>
+              <div class="r" id="hud-v-rung"></div>
+              <div class="rule" id="hud-v-rule"></div>
+              <div class="why" id="hud-v-why"></div>
             </div>
-            <div class="hud-posture" id="hud-posture">…</div>
+            <div id="hud-nums"></div>
+            <div id="hud-transcript"></div>
           </div>
         </div>
-        <div></div>
-        <div class="hud-bottom">
-          <div class="hud-verdict" id="hud-verdict" hidden>
-            <div class="r" id="hud-v-rung"></div>
-            <div class="rule" id="hud-v-rule"></div>
-            <div class="why" id="hud-v-why"></div>
-          </div>
-          <div id="hud-nums"></div>
-          <div id="hud-transcript"></div>
-        </div>
+        <button type="button" class="homebtn" id="hud-home">reset view (h)</button>
       </div>
-      <button type="button" class="homebtn" id="hud-home">reset view (h)</button>
+
+      <div class="hud-ladder" role="list">
+        <div class="hud-rung" id="hud-rung-1" role="listitem"><div class="n">RUNG 1</div><div class="t">is anything alive</div></div>
+        <div class="hud-rung" id="hud-rung-2" role="listitem"><div class="n">RUNG 2</div><div class="t">is there a path</div></div>
+        <div class="hud-rung" id="hud-rung-3" role="listitem"><div class="n">RUNG 3</div><div class="t">did the tailnet allow it</div></div>
+        <div class="hud-rung" id="hud-rung-4" role="listitem"><div class="n">RUNG 4</div><div class="t">did the firewall allow it</div></div>
+        <div class="hud-rung" id="hud-rung-5" role="listitem"><div class="n">RUNG 5</div><div class="t">was anything listening</div></div>
+      </div>
+      <p class="sr-only" id="hud-live" role="status" aria-live="polite"></p>
     </div>
 
-    <div class="hud-ladder" role="list">
-      <div class="hud-rung" id="hud-rung-1" role="listitem"><div class="n">RUNG 1</div><div class="t">is anything alive</div></div>
-      <div class="hud-rung" id="hud-rung-2" role="listitem"><div class="n">RUNG 2</div><div class="t">is there a path</div></div>
-      <div class="hud-rung" id="hud-rung-3" role="listitem"><div class="n">RUNG 3</div><div class="t">did the tailnet allow it</div></div>
-      <div class="hud-rung" id="hud-rung-4" role="listitem"><div class="n">RUNG 4</div><div class="t">did the firewall allow it</div></div>
-      <div class="hud-rung" id="hud-rung-5" role="listitem"><div class="n">RUNG 5</div><div class="t">was anything listening</div></div>
+    <!-- The same drawing as chapter 14, with the model taken out of it. Every
+         address below was read back from a container, and the shape of the line
+         is whatever `tailscale ping` last reported, not what a script decided. -->
+    <div class="stage">
+      <svg viewBox="0 0 860 320" role="img"
+           aria-label="The lab topology: lab-roam, evil-box and lab-ubuntu on the left, each behind its own NAT router, connected to a box holding the coordination server and the DERP relay, with lab-vps on the right. A band along the bottom marks the segment standing in for the public internet. One route is drawn at a time, between the two machines last probed, and its shape says which path it took: straight across the middle for a direct tailnet path, up through the centre box when relayed through DERP, and dipping into the band at the bottom when it crosses the public segment.">
+
+        <rect data-el="seg-shared" class="sb-svg-seg is-hidden" x="6" y="96" width="166" height="146" rx="12"/>
+        <text data-el="seg-label" class="svg-sub sb-svg-seg-label is-hidden" x="14" y="256">on-path — every packet lab-ubuntu sends goes through evil-box</text>
+
+        <text x="14" y="20" class="svg-sub">THE MACHINES</text>
+
+        <rect data-el="public-lane" class="sb-svg-lane" x="258" y="256" width="588" height="36" rx="10"/>
+        <!-- Right-aligned, because the probe caption in the bottom-left carries a
+             rung and a round-trip time and grows into the middle of the row. -->
+        <text data-el="public-lane-label" x="846" y="306" text-anchor="end" class="sb-svg-lane-label">THE PUBLIC SEGMENT — anyone on it, to lab-vps</text>
+
+        <!-- one NAT router per machine -->
+        <rect x="186" y="30"  width="58" height="56" rx="8" class="svg-card svg-stroke" stroke-width="1.2"/>
+        <text x="215" y="62"  text-anchor="middle" class="svg-sub">NAT</text>
+        <g data-el="nat-evil-box" class="is-hidden">
+          <rect x="186" y="104" width="58" height="56" rx="8" class="svg-card svg-stroke" stroke-width="1.2"/>
+          <text x="215" y="136" text-anchor="middle" class="svg-sub">NAT</text>
+        </g>
+        <rect x="186" y="178" width="58" height="56" rx="8" class="svg-card svg-stroke" stroke-width="1.2"/>
+        <text x="215" y="212" text-anchor="middle" class="svg-sub">NAT</text>
+
+        <!-- the tailnet -->
+        <rect x="322" y="24" width="196" height="134" rx="10" class="svg-surface svg-stroke" stroke-width="1.3"/>
+        <text x="334" y="42" class="svg-sub">THE TAILNET</text>
+        <g data-el="tailnet-services">
+          <rect x="334" y="50" width="172" height="26" rx="6" class="svg-card svg-stroke" stroke-width="1.1"/>
+          <text x="420" y="67" text-anchor="middle" class="svg-sub">headscale · coordination</text>
+          <rect x="334" y="86" width="172" height="26" rx="6" class="svg-card svg-stroke" stroke-width="1.1"/>
+          <text x="420" y="103" text-anchor="middle" class="svg-sub">DERP relay · lab</text>
+        </g>
+        <rect data-el="chip-path-box" x="334" y="122" width="172" height="26" rx="6"
+              class="svg-card svg-accent-s" stroke-width="1.4"/>
+        <text data-el="chip-path" x="420" y="139" text-anchor="middle" class="svg-mono-accent">reading the lab…</text>
+
+        <!-- each machine into its own NAT -->
+        <path d="M164 58 L186 58" class="sb-svg-wire"/>
+        <path data-el="path-evil-stub" class="sb-svg-wire is-hidden" d="M164 132 L186 132"/>
+        <path d="M164 206 L186 206" class="sb-svg-wire"/>
+
+        <!-- the route between whichever pair was last probed -->
+        <path data-route="relay" data-leg="in"  class="sb-svg-route is-hidden"/>
+        <path data-route="relay" data-leg="out" class="sb-svg-route is-hidden"/>
+        <path data-route="direct" class="sb-svg-route is-hidden"/>
+        <path data-route="public" class="sb-svg-route is-hidden"/>
+        <path data-route="lan" class="sb-svg-route is-hidden"/>
+        <path data-el="path-evil-tap" class="sb-svg-tap is-hidden" d="M89 160 L89 178"/>
+
+        <!-- the machines -->
+        <g data-el="node-lab-roam">
+          <rect x="14" y="30" width="150" height="56" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
+          <text x="26" y="49" class="svg-label">lab-roam</text>
+          <text data-el="cond-lab-roam" x="26" y="63" class="svg-sub">the phone's stand-in</text>
+          <text data-el="ip-lab-roam" x="26" y="77" class="svg-sub">…</text>
+        </g>
+
+        <g data-el="node-evil-box" class="is-hidden">
+          <rect x="14" y="104" width="150" height="56" rx="9" class="svg-surface svg-danger-s" stroke-width="1.5"/>
+          <text x="26" y="123" class="svg-label">evil-box</text>
+          <text data-el="cond-evil-box" x="26" y="137" class="svg-sub">a hostile machine</text>
+          <text data-el="ip-evil-box" x="26" y="151" class="svg-sub">…</text>
+        </g>
+
+        <g data-el="node-lab-ubuntu">
+          <rect x="14" y="178" width="150" height="56" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
+          <text x="26" y="197" class="svg-label">lab-ubuntu</text>
+          <text data-el="cond-lab-ubuntu" x="26" y="211" class="svg-sub">the laptop</text>
+          <text data-el="ip-lab-ubuntu" x="26" y="225" class="svg-sub">…</text>
+        </g>
+
+        <g data-el="node-lab-vps">
+          <rect x="676" y="178" width="170" height="56" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
+          <text x="688" y="197" class="svg-label">lab-vps</text>
+          <text data-el="cond-lab-vps" x="688" y="211" class="svg-sub">the public box</text>
+          <text data-el="ip-lab-vps" x="688" y="225" class="svg-sub">…</text>
+        </g>
+
+        <text data-el="focus-label" x="14" y="308" class="svg-mono-accent">…</text>
+      </svg>
     </div>
-    <p class="sr-only" id="hud-live" role="status" aria-live="polite"></p>
-    <p class="legend">
-      <b>The canvas is decoration you can switch off.</b> Every state the board shows is also
-      in the readouts above it and in the packets tab, and the verdict goes to a live region,
-      so nothing here is only available to somebody who can see it move. With
-      <code>prefers-reduced-motion</code> set, the camera holds the final frame instead of
-      flying to it and the words are identical.
-    </p>
   </div>
 
-  <!-- The same drawing as chapter 14, with the model taken out of it. Every
-       address below was read back from a container, and the shape of the line
-       is whatever `tailscale ping` last reported, not what a script decided. -->
-  <div class="stage">
-    <svg viewBox="0 0 860 320" role="img"
-         aria-label="The lab topology: lab-roam, evil-box and lab-ubuntu on the left, each behind its own NAT router, connected to a box holding the coordination server and the DERP relay, with lab-vps on the right. A band along the bottom marks the segment standing in for the public internet. One route is drawn at a time, between the two machines last probed, and its shape says which path it took: straight across the middle for a direct tailnet path, up through the centre box when relayed through DERP, and dipping into the band at the bottom when it crosses the public segment.">
-
-      <rect data-el="seg-shared" class="sb-svg-seg is-hidden" x="6" y="96" width="166" height="146" rx="12"/>
-      <text data-el="seg-label" class="svg-sub sb-svg-seg-label is-hidden" x="14" y="256">on-path — every packet lab-ubuntu sends goes through evil-box</text>
-
-      <text x="14" y="20" class="svg-sub">THE MACHINES</text>
-
-      <rect data-el="public-lane" class="sb-svg-lane" x="258" y="256" width="588" height="36" rx="10"/>
-      <!-- Right-aligned, because the probe caption in the bottom-left carries a
-           rung and a round-trip time and grows into the middle of the row. -->
-      <text data-el="public-lane-label" x="846" y="306" text-anchor="end" class="sb-svg-lane-label">THE PUBLIC SEGMENT — anyone on it, to lab-vps</text>
-
-      <!-- one NAT router per machine -->
-      <rect x="186" y="30"  width="58" height="56" rx="8" class="svg-card svg-stroke" stroke-width="1.2"/>
-      <text x="215" y="62"  text-anchor="middle" class="svg-sub">NAT</text>
-      <g data-el="nat-evil-box" class="is-hidden">
-        <rect x="186" y="104" width="58" height="56" rx="8" class="svg-card svg-stroke" stroke-width="1.2"/>
-        <text x="215" y="136" text-anchor="middle" class="svg-sub">NAT</text>
-      </g>
-      <rect x="186" y="178" width="58" height="56" rx="8" class="svg-card svg-stroke" stroke-width="1.2"/>
-      <text x="215" y="212" text-anchor="middle" class="svg-sub">NAT</text>
-
-      <!-- the tailnet -->
-      <rect x="322" y="24" width="196" height="134" rx="10" class="svg-surface svg-stroke" stroke-width="1.3"/>
-      <text x="334" y="42" class="svg-sub">THE TAILNET</text>
-      <g data-el="tailnet-services">
-        <rect x="334" y="50" width="172" height="26" rx="6" class="svg-card svg-stroke" stroke-width="1.1"/>
-        <text x="420" y="67" text-anchor="middle" class="svg-sub">headscale · coordination</text>
-        <rect x="334" y="86" width="172" height="26" rx="6" class="svg-card svg-stroke" stroke-width="1.1"/>
-        <text x="420" y="103" text-anchor="middle" class="svg-sub">DERP relay · lab</text>
-      </g>
-      <rect data-el="chip-path-box" x="334" y="122" width="172" height="26" rx="6"
-            class="svg-card svg-accent-s" stroke-width="1.4"/>
-      <text data-el="chip-path" x="420" y="139" text-anchor="middle" class="svg-mono-accent">reading the lab…</text>
-
-      <!-- each machine into its own NAT -->
-      <path d="M164 58 L186 58" class="sb-svg-wire"/>
-      <path data-el="path-evil-stub" class="sb-svg-wire is-hidden" d="M164 132 L186 132"/>
-      <path d="M164 206 L186 206" class="sb-svg-wire"/>
-
-      <!-- the route between whichever pair was last probed -->
-      <path data-route="relay" data-leg="in"  class="sb-svg-route is-hidden"/>
-      <path data-route="relay" data-leg="out" class="sb-svg-route is-hidden"/>
-      <path data-route="direct" class="sb-svg-route is-hidden"/>
-      <path data-route="public" class="sb-svg-route is-hidden"/>
-      <path data-route="lan" class="sb-svg-route is-hidden"/>
-      <path data-el="path-evil-tap" class="sb-svg-tap is-hidden" d="M89 160 L89 178"/>
-
-      <!-- the machines -->
-      <g data-el="node-lab-roam">
-        <rect x="14" y="30" width="150" height="56" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
-        <text x="26" y="49" class="svg-label">lab-roam</text>
-        <text data-el="cond-lab-roam" x="26" y="63" class="svg-sub">the phone's stand-in</text>
-        <text data-el="ip-lab-roam" x="26" y="77" class="svg-sub">…</text>
-      </g>
-
-      <g data-el="node-evil-box" class="is-hidden">
-        <rect x="14" y="104" width="150" height="56" rx="9" class="svg-surface svg-danger-s" stroke-width="1.5"/>
-        <text x="26" y="123" class="svg-label">evil-box</text>
-        <text data-el="cond-evil-box" x="26" y="137" class="svg-sub">a hostile machine</text>
-        <text data-el="ip-evil-box" x="26" y="151" class="svg-sub">…</text>
-      </g>
-
-      <g data-el="node-lab-ubuntu">
-        <rect x="14" y="178" width="150" height="56" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
-        <text x="26" y="197" class="svg-label">lab-ubuntu</text>
-        <text data-el="cond-lab-ubuntu" x="26" y="211" class="svg-sub">the laptop</text>
-        <text data-el="ip-lab-ubuntu" x="26" y="225" class="svg-sub">…</text>
-      </g>
-
-      <g data-el="node-lab-vps">
-        <rect x="676" y="178" width="170" height="56" rx="9" class="svg-surface svg-stroke" stroke-width="1.3"/>
-        <text x="688" y="197" class="svg-label">lab-vps</text>
-        <text data-el="cond-lab-vps" x="688" y="211" class="svg-sub">the public box</text>
-        <text data-el="ip-lab-vps" x="688" y="225" class="svg-sub">…</text>
-      </g>
-
-      <text data-el="focus-label" x="14" y="308" class="svg-mono-accent">…</text>
-    </svg>
-  </div>
-
-  <p class="legend">
-    <b>The height of the line is the point.</b> Straight across the middle and it never left the
-    tailnet. Bending up through the box in the centre and it is being relayed through DERP.
-    <b>Dipping into the red band</b> and it crossed the public segment, where anyone on it can
-    reach you. Run a probe and the shape changes to whatever really happened.
-  </p>
+  <!-- Drag it to give the drawing more of the window, or less. Double-click
+       puts it back. The keyboard moves it too, because a divider you can only
+       reach with a mouse is a divider half this page cannot use. -->
+  <div class="grip" id="grip" role="separator" tabindex="0"
+       aria-orientation="horizontal" aria-label="Resize the drawing — arrow keys, or drag"></div>
 
   <div class="verdict" id="verdict">Reading the lab…</div>
 
-  <div class="grid">
-    <div>
-      <section class="panel">
-        <h3>Configurations</h3>
-        <p class="note">Four states, each one somebody's real machine. Load one, then audit it.</p>
-        <div class="presets" id="presets"></div>
-        <button type="button" class="btn primary" id="audit-btn">Audit this configuration</button>
-        <p class="foot">
-          Eleven checks, the same eleven every time — including two that ask whether
-          <em>you</em> can still get in, because a configuration that locks you out is not
-          secure, it is broken. Five of them need <code>evil-box</code>.
-        </p>
-      </section>
+  <div class="deck">
 
-      <div id="panels"></div>
+    <!-- Left: everything that changes the lab, one group at a time. The tab
+         strip is built in app.js from the panels the control server declares,
+         so a new panel there becomes a new tab here and nothing in this file
+         has to know its name. -->
+    <section class="col" aria-label="Settings">
+      <div class="col-head">
+        <div class="ctabs" id="ctabs" role="tablist" aria-label="Settings groups"></div>
+      </div>
+      <div class="col-body" id="cpanes">
 
-      <section class="panel">
-        <h3>Probe</h3>
-        <p class="note">One connection, walked down the ladder rung by rung — measured at both ends.</p>
-        <div class="probe">
-          <select id="p-from" aria-label="Connect from">
-            <option value="lab-ubuntu">lab-ubuntu</option>
-            <option value="lab-roam">lab-roam</option>
-            <option value="lab-vps">lab-vps</option>
-            <option value="evil-box">evil-box</option>
-          </select>
-          <span aria-hidden="true">→</span>
-          <select id="p-to" aria-label="Connect to">
-            <option value="lab-vps">lab-vps</option>
-            <option value="lab-ubuntu">lab-ubuntu</option>
-            <option value="lab-roam">lab-roam</option>
-          </select>
-          <span aria-hidden="true">:</span>
-          <select id="p-port" aria-label="Port">
-            <option value="22">22</option>
-            <option value="8080">8080</option>
-            <option value="41641">41641</option>
-          </select>
-          <button type="button" class="btn primary" id="probe-btn">Run</button>
+        <section class="cpane on" data-cpane="configs" data-label="configs">
+          <h3>Configurations</h3>
+          <p class="note">Four states, each one somebody's real machine. Load one, then audit it.</p>
+          <div class="presets" id="presets"></div>
+          <button type="button" class="btn primary" id="audit-btn">Audit this configuration</button>
+          <p class="foot">
+            Eleven checks, the same eleven every time — including two that ask whether
+            <em>you</em> can still get in, because a configuration that locks you out is not
+            secure, it is broken. Five of them need <code>evil-box</code>.
+          </p>
+        </section>
+
+        <!-- machines / network / policy / host land here -->
+        <div id="panels"></div>
+
+        <section class="cpane" data-cpane="probe" data-label="probe">
+          <h3>Probe</h3>
+          <p class="note">One connection, walked down the ladder rung by rung — measured at both ends.</p>
+          <div class="probe">
+            <select id="p-from" aria-label="Connect from">
+              <option value="lab-ubuntu">lab-ubuntu</option>
+              <option value="lab-roam">lab-roam</option>
+              <option value="lab-vps">lab-vps</option>
+              <option value="evil-box">evil-box</option>
+            </select>
+            <span aria-hidden="true">→</span>
+            <select id="p-to" aria-label="Connect to">
+              <option value="lab-vps">lab-vps</option>
+              <option value="lab-ubuntu">lab-ubuntu</option>
+              <option value="lab-roam">lab-roam</option>
+            </select>
+            <span aria-hidden="true">:</span>
+            <select id="p-port" aria-label="Port">
+              <option value="22">22</option>
+              <option value="8080">8080</option>
+              <option value="41641">41641</option>
+            </select>
+            <button type="button" class="btn primary" id="probe-btn">Run</button>
+          </div>
+          <div class="chips">
+            <button type="button" class="chip" data-quick="lab-ubuntu,lab-vps,22">ssh from the laptop</button>
+            <button type="button" class="chip" data-quick="lab-roam,lab-vps,22">ssh from the phone</button>
+            <button type="button" class="chip" data-quick="evil-box,lab-vps,22">the attacker, to :22</button>
+            <button type="button" class="chip" data-quick="evil-box,lab-vps,8080">the attacker, to :8080</button>
+          </div>
+          <p class="foot">
+            Watch the board while it runs. The packet stops at the rung that decided it, and
+            the rung strip under the drawing says which one that was.
+          </p>
+        </section>
+
+        <section class="cpane" data-cpane="attacks" data-label="attacks">
+          <h3>Attacks</h3>
+          <p class="note">
+            Each one sets up whatever it needs, runs, and tells you which defence answered it.
+          </p>
+          <div class="attacks" id="attacks"></div>
+          <div class="hr"></div>
+          <button type="button" class="btn" id="outage-btn">
+            ssh and mosh, through a 20-second outage
+          </button>
+          <button type="button" class="btn" id="rotate-btn">Rotate the key</button>
+          <button type="button" class="btn" id="reset-btn">Reset everything</button>
+        </section>
+
+      </div>
+    </section>
+
+    <!-- Right: everything the lab said back, and the page's own documentation
+         in the last tab so an explanation is never more than one click from
+         the thing it explains. -->
+    <section class="col" aria-label="Readouts">
+      <div class="col-head">
+        <div class="tabs" role="tablist" aria-label="Readouts">
+          <button type="button" class="tab on" data-tab="status">status</button>
+          <button type="button" class="tab" data-tab="packets">packets</button>
+          <button type="button" class="tab" data-tab="audit">audit</button>
+          <button type="button" class="tab" data-tab="rules">rules</button>
+          <button type="button" class="tab" data-tab="script">script</button>
+          <button type="button" class="tab" data-tab="guide">guide</button>
         </div>
-        <div class="chips">
-          <button type="button" class="chip" data-quick="lab-ubuntu,lab-vps,22">ssh from the laptop</button>
-          <button type="button" class="chip" data-quick="lab-roam,lab-vps,22">ssh from the phone</button>
-          <button type="button" class="chip" data-quick="evil-box,lab-vps,22">the attacker, to :22</button>
-          <button type="button" class="chip" data-quick="evil-box,lab-vps,8080">the attacker, to :8080</button>
+      </div>
+      <div class="col-body">
+
+        <div class="pane on" data-pane="status">
+          <pre class="out" id="status-out">connecting…</pre>
+          <p class="foot">
+            <label><input type="checkbox" id="logs-on"> follow <code>tailscaled</code>, filtered to
+            the lines about how it picked a path</label>
+          </p>
+          <pre class="out live" id="logs-out" hidden></pre>
         </div>
-      </section>
 
-      <section class="panel">
-        <h3>Attacks</h3>
-        <p class="note">
-          Each one sets up whatever it needs, runs, and tells you which defence answered it.
-        </p>
-        <div class="attacks" id="attacks"></div>
-        <button type="button" class="btn" id="outage-btn" style="margin-top:8px">
-          ssh and mosh, through a 20-second outage
-        </button>
-        <button type="button" class="btn" id="rotate-btn">Rotate the key</button>
-        <button type="button" class="btn" id="reset-btn">Reset everything</button>
-      </section>
-    </div>
+        <div class="pane" data-pane="packets">
+          <div id="traces"></div>
+          <p class="foot">
+            <label><input type="checkbox" id="cap-on"> live capture from <code>evil-box</code>
+            (<code>udp port 41641</code>) — the payload is genuinely opaque</label>
+          </p>
+          <pre class="out live" id="cap-out" hidden></pre>
+        </div>
 
-    <div class="readout">
-      <div class="tabs" role="tablist">
-        <button type="button" class="tab on" data-tab="status">status</button>
-        <button type="button" class="tab" data-tab="packets">packets</button>
-        <button type="button" class="tab" data-tab="audit">audit</button>
-        <button type="button" class="tab" data-tab="rules">rules</button>
-        <button type="button" class="tab" data-tab="script">script</button>
-      </div>
+        <div class="pane" data-pane="audit">
+          <div id="audit-out">
+            <p class="muted">
+              Load a configuration, or build your own with the switches, then press
+              <b>Audit this configuration</b>. Eleven checks, run against the containers.
+            </p>
+          </div>
+        </div>
 
-      <div class="pane on" data-pane="status">
-        <pre class="out" id="status-out">connecting…</pre>
-        <p class="foot">
-          <label><input type="checkbox" id="logs-on"> follow <code>tailscaled</code>, filtered to
-          the lines about how it picked a path</label>
-        </p>
-        <pre class="out live" id="logs-out" hidden></pre>
-      </div>
+        <div class="pane" data-pane="rules"><pre class="out" id="rules-out">…</pre></div>
 
-      <div class="pane" data-pane="packets">
-        <div id="traces"></div>
-        <p class="foot">
-          <label><input type="checkbox" id="cap-on"> live capture from <code>evil-box</code>
-          (<code>udp port 41641</code>) — the payload is genuinely opaque</label>
-        </p>
-        <pre class="out live" id="cap-out" hidden></pre>
-      </div>
-
-      <div class="pane" data-pane="audit">
-        <div id="audit-out">
-          <p class="muted">
-            Load a configuration, or build your own with the switches, then press
-            <b>Audit this configuration</b>. Eleven checks, run against the containers.
+        <div class="pane" data-pane="script">
+          <pre class="out" id="script-out">…</pre>
+          <button type="button" class="btn" id="copy-btn" style="margin-top:8px">Copy the script</button>
+          <p class="foot">
+            The same commands chapter 13 has you type by hand. Paste them at three Lima VMs and
+            you get the same outcome, on machines this lab did not create.
           </p>
         </div>
-      </div>
 
-      <div class="pane" data-pane="rules"><pre class="out" id="rules-out">…</pre></div>
+        <!-- The prose that used to be strewn between the drawing and the
+             switches. It is all still here, in reading order, and it opens by
+             default the first time somebody loads this page. -->
+        <div class="pane" data-pane="guide">
+          <div class="doc">
 
-      <div class="pane" data-pane="script">
-        <pre class="out" id="script-out">…</pre>
-        <button type="button" class="btn" id="copy-btn" style="margin-top:8px">Copy the script</button>
-        <p class="foot">
-          The same commands chapter 13 has you type by hand. Paste them at three Lima VMs and
-          you get the same outcome, on machines this lab did not create.
-        </p>
+            <h4>What this page is</h4>
+            <p>
+              The same panels as <b>chapter 14's sandbox</b>, wired to real kernels. Every switch
+              here runs a command inside a container; every probe watches the far end while it
+              knocks, and reports the rung that decided it. Nothing on this page is modelled,
+              which means it can surprise you — and that is the only reason it exists.
+            </p>
+
+            <div class="callout danger" id="guide-safety">
+              <div class="ct">This is a lab, and it is only safe because of where it is</div>
+              <p>
+                <code>evil-box</code> attacks containers you started, on hardware you own, on
+                bridges that go nowhere. It never starts unless you ask for it. This control
+                server holds the Docker socket and has no authentication, so it is published to
+                <code>127.0.0.1</code> only and refuses to start if that is changed. Everything
+                here is provided <b>as is</b>, with no warranty — see the disclaimer and the MIT
+                licence in the guide.
+              </p>
+            </div>
+
+            <h4>Where things are</h4>
+            <ul>
+              <li><b>The drawing</b> stays at the top of the window. It never scrolls away, and
+                  the divider under it drags — grab it, or focus it and use the arrow keys.</li>
+              <li><b>The line under it</b> is the verdict: what the lab did, and which rung
+                  decided it.</li>
+              <li><b>The left column</b> is everything that changes the lab, one group per tab.</li>
+              <li><b>This column</b> is everything the lab said back — plus this page's own
+                  documentation, which is the tab you are reading.</li>
+            </ul>
+
+            <h4>How to read the board</h4>
+            <p>
+              The board is the five-rung ladder drawn as a place a packet travels through. It
+              goes left to right along the rungs, and its height says whether it was wrapped
+              while it went. Where it stops is the rung that decided the connection, and the
+              five-segment strip under the drawing marks it.
+            </p>
+            <p>
+              <b>Drag to orbit</b>, and press <b>h</b> — or <b>reset view</b> in the corner — to
+              put the camera back.
+            </p>
+            <p class="muted">
+              <b>The canvas is decoration you can switch off.</b> Every state the board shows is
+              also in the readouts over it and in the packets tab, and the verdict goes to a live
+              region, so nothing here is only available to somebody who can see it move. With
+              <code>prefers-reduced-motion</code> set, the camera holds the final frame instead of
+              flying to it and the words are identical.
+            </p>
+
+            <h4>How to read the flat drawing</h4>
+            <p>
+              <b>The height of the line is the point.</b> Straight across the middle and it never
+              left the tailnet. Bending up through the box in the centre and it is being relayed
+              through DERP. <b>Dipping into the red band</b> and it crossed the public segment,
+              where anyone on it can reach you. Run a probe and the shape changes to whatever
+              really happened.
+            </p>
+
+            <h4>The disclaimer</h4>
+            <p class="muted">
+              The commands in this guide change firewall and login settings, and can lock you out
+              of a machine. Practise on something disposable first — this lab is that thing.
+              Everything here is provided <b>as is</b>, with no warranty: you accept the risk of
+              running it.
+            </p>
+
+          </div>
+        </div>
+
       </div>
-    </div>
+    </section>
   </div>
-
-  <footer class="foot">
-    <p>
-      The commands in this guide change firewall and login settings, and can lock you out of a
-      machine. Practise on something disposable first — this lab is that thing. Everything here
-      is provided <b>as is</b>, with no warranty: you accept the risk of running it.
-    </p>
-  </footer>
 </div>
 
-<button type="button" class="themebtn" id="theme">theme</button>
 <!-- The board is an ES module because three.js is one. app.js stays a classic
      script — it is the same shape as assets/sandbox.js in the guide and there is
      no reason to churn it — so the module hands itself over on window and says
