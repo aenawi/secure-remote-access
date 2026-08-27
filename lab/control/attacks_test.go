@@ -136,6 +136,42 @@ func TestEvidenceRoundTrip(t *testing.T) {
 	}
 }
 
+// The outage demonstration measures four numbers and every one of them has to
+// arrive under its own name. Two of them used to leave on Packets and
+// Retransmits, so a good run printed "70 packets · 45 retransmits" for a run
+// that sent no packets and retransmitted nothing; the other two never left the
+// function at all. The inequality asserted here is the lesson the whole
+// demonstration exists to show, so a transposed key is a wrong drawing, not a
+// cosmetic slip.
+func TestOutageEvidence(t *testing.T) {
+	// A happy path: both sessions ride out the blackout, then the address
+	// changes and only Mosh keeps counting.
+	ev := outageEvidence(45, 46, 45, 70)
+	want := map[string]int{
+		"sshAfterBlackout":  45,
+		"moshAfterBlackout": 46,
+		"sshAfterRoam":      45,
+		"moshAfterRoam":     70,
+	}
+	if !reflect.DeepEqual(ev, want) {
+		t.Fatalf("outageEvidence() = %#v, want %#v", ev, want)
+	}
+	if ev["moshAfterRoam"] <= ev["sshAfterRoam"] {
+		t.Fatalf("the happy path is mosh outlasting ssh across the roam, got mosh %d, ssh %d",
+			ev["moshAfterRoam"], ev["sshAfterRoam"])
+	}
+
+	// A run that proves nothing still carries four keys with zeroes in them:
+	// "both sessions stopped" and "the demonstration never ran" are different
+	// results, and the keys are what lets a drawing tell them apart.
+	dead := outageEvidence(0, 0, 0, 0)
+	for _, k := range []string{"sshAfterBlackout", "moshAfterBlackout", "sshAfterRoam", "moshAfterRoam"} {
+		if _, ok := dead[k]; !ok {
+			t.Fatalf("a run that measured zero still owes the key %q: %#v", k, dead)
+		}
+	}
+}
+
 func TestBoolToInt(t *testing.T) {
 	if boolToInt(true) != 1 || boolToInt(false) != 0 {
 		t.Fatal("boolToInt is the only thing separating two of atkExpiredKey's endings")

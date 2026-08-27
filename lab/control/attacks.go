@@ -666,8 +666,7 @@ echo "--- mosh, last lines ---"; tr -d '\r' < /tmp/mosh.out 2>/dev/null | grep -
 		"",
 		strings.TrimSpace(after2.Out()),
 	}, "\n")
-	res.Packets = mosh2
-	res.Retransmits = ssh2
+	res.Evidence = outageEvidence(ssh1, mosh1, ssh2, mosh2)
 
 	switch {
 	case ssh2 == 0 && mosh2 == 0:
@@ -751,6 +750,22 @@ func scanEvidence(open, scanned []string) map[string]int {
 		}
 	}
 	return ev
+}
+
+// outageEvidence carries all four tick counts the outage demonstration
+// measured, one key per session per act. The names say what the numbers are:
+// the highest tick each session printed, after the blackout and after the
+// roam. They used to ride out on Packets and Retransmits, which meant a
+// successful run reported "70 packets · 45 retransmits" when nothing had sent
+// a packet or retransmitted anything — the two acts are the whole argument
+// here, and both of them have to reach the browser under their own names.
+func outageEvidence(sshAfterBlackout, moshAfterBlackout, sshAfterRoam, moshAfterRoam int) map[string]int {
+	return map[string]int{
+		"sshAfterBlackout":  sshAfterBlackout,
+		"moshAfterBlackout": moshAfterBlackout,
+		"sshAfterRoam":      sshAfterRoam,
+		"moshAfterRoam":     moshAfterRoam,
+	}
 }
 
 func parseKV(s, key string) int {
