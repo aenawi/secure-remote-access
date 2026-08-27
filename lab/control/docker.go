@@ -67,6 +67,15 @@ type Result struct {
 	// it cannot be lost to a rewording. Most actions measure nothing countable
 	// and omit it.
 	Evidence map[string]int `json:"evidence,omitempty"`
+
+	// Detail is Evidence's other half: the handful of short strings an action
+	// measured, for the things that are facts rather than counts. An address a
+	// machine moved to is one of those, and a drawing that needs it has only
+	// two other places to get it — Raw or Cmds — which means regexing English
+	// for something the Go side already had in a variable. Same rule as
+	// Evidence: prose is for humans, and anything a drawing has to be true
+	// about belongs in here, where a rewording cannot lose it.
+	Detail map[string]string `json:"detail,omitempty"`
 }
 
 // ---------------------------------------------------------------------------

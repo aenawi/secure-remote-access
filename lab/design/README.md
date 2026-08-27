@@ -16,9 +16,10 @@ budget are underneath it.
 **This one is built.** It ships as
 [`lab/control/ui/hud/`](../control/ui/hud/) — `scene.js` is this page's board
 with the model taken out of it, and `setpieces.js` is one function per attack
-id. Open `http://localhost:8099` and pick **the board**. This page stays as the
-argument for why it looks the way it does, and as the only version of it that
-runs from `file://` with no lab up.
+id, plus one for `outage`, which is not an attack and is the only shot with two
+acts in it. Open `http://localhost:8099` and pick **the board**. This page
+stays as the argument for why it looks the way it does, and as the only version
+of it that runs from `file://` with no lab up.
 
 ```bash
 open lab/design/five-gates.html      # or xdg-open, or drag it into a browser
