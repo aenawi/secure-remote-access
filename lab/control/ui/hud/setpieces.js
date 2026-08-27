@@ -1,5 +1,6 @@
 /* ============================================================
-   The nine attacks and the outage demonstration, as set-pieces.
+   The nine attacks, and the two demonstrations that are not attacks,
+   as set-pieces.
 
    Nine genuinely different mechanisms — an anti-replay window, a netmap
    removal, a chain-ordering trap, a route offer that is not an approval —
@@ -7,9 +8,11 @@
    the same texture. Each of them has exactly one thing worth looking at.
    This file points the camera at that thing.
 
-   The tenth is `outage`, which is not an attack: it is the session layer,
-   the half of this guide the board otherwise had nothing of, and it is the
-   only shot here with two acts. Everything the nine obey, it obeys.
+   The other two are not attacks. `outage` is the session layer, the half of
+   this guide the board otherwise had nothing of, and it is the only shot
+   here with two acts. `rotate-key` is maintenance, which is the one subject
+   on this board judged by what it leaves undisturbed. Everything the nine
+   obey, both of them obey.
 
    The grammar every set-piece here obeys, because a shot that breaks one
    of these teaches the wrong lesson:
@@ -974,13 +977,19 @@ function lockOut(board, res) {
    difference this is about. */
 const SESS_Y = Y_MACH + 1.5, SSH_DZ = -1.6, MOSH_DZ = 1.6, SAG = 1.25;
 
-function sessionPath(board, dz, sag) {
+/* The four helpers below are shared with rotate-key, which draws a session of
+   its own. `y` is the one thing that shot has to change: its session runs over
+   the tailnet address rather than a public one, so its lane belongs up in the
+   tailnet plane, and Y on this board is a claim about protection rather than a
+   layout convenience. Left out, it is the outage height. */
+function sessionPath(board, dz, sag, y) {
   const rz = POS["lab-roam"].z, vz = POS["lab-vps"].z, s = sag || 0;
+  const top = y == null ? SESS_Y : y;
   return curve(board, [
     V(board, -6.5, Y_MACH + 0.15, rz + dz * 0.5),
-    V(board, -3.4, SESS_Y - s * 0.5, rz + dz),
-    V(board,  0.4, SESS_Y - s,       dz),
-    V(board,  4.2, SESS_Y - s * 0.5, vz + dz),
+    V(board, -3.4, top - s * 0.5, rz + dz),
+    V(board,  0.4, top - s,       dz),
+    V(board,  4.2, top - s * 0.5, vz + dz),
     V(board,  6.5, Y_MACH + 0.15, vz + dz * 0.5)
   ]);
 }
@@ -1339,6 +1348,249 @@ function outage(board, res) {
 }
 
 /* ============================================================
+   11 · rotate-key — maintenance, and the only claim it may make
+
+   The second shot here that is not an attack, and the further of the two
+   from one. `outage` at least has something going wrong in it. Nothing goes
+   wrong here: rotating a node key is housekeeping, and housekeeping is
+   judged entirely by what it does NOT disturb. So the claim is continuity,
+   in three parts:
+
+     the coordination server stops holding the key it held;
+     the machine stays inside the tailnet plane, at the same address;
+     and a session running over that address does not notice.
+
+   The third is why this lane rides at TN_Y and the outage lanes do not.
+   That shot runs at lab-vps's PUBLIC address on purpose and says so out
+   loud; this one has to be on the tailnet, because a rotation a session
+   cannot feel even in principle is not a demonstration of anything. Y is
+   protection, and this lane genuinely is up there.
+
+   Each of the three has an ending where the lab did not measure it, and
+   each of those draws nothing rather than something plausible. A run that
+   re-keyed nothing draws no re-key and says so — which is the only honest
+   picture of a rotation that did not rotate, and the reason `keyRead` is a
+   separate fact from `keyChanged` on the way over.
+   ============================================================ */
+function rotateKey(board, res) {
+  const C = board.C, rz = POS["lab-roam"].z;
+  board.fly(V(board, -1.4, 7.4, 21.5), V(board, -0.6, 2.6, -0.6));
+
+  /* Every ending that touched the machine sets Evidence. Its absence is
+     atkRotateKey bailing before it did — no pre-auth key on disk, or lab-roam
+     not running — and there is nothing to draw but the reason. */
+  if (!res.evidence) {
+    ray(board, sessionPath(board, 0, 0, TN_Y).getPoints(50), C.faint, 0.22, true);
+    text(board, "the rotation never ran", -0.6, 6.0, 6.8,
+         { px: 34, size: 0.5, color: C.warn });
+    held(board, res, {
+      head: "INCONCLUSIVE · the rotation never ran",
+      rule: res.rule || "nothing was re-registered",
+      ladder: "stopped",
+      nums: []
+    });
+    board.setChip("nothing was rotated", "");
+    return;
+  }
+
+  const wasMember   = ev(res, "wasMember") > 0;
+  const isMember    = ev(res, "isMember") > 0;
+  const keyRead     = ev(res, "keyRead") > 0;
+  const keyChanged  = keyRead && ev(res, "keyChanged") > 0;
+  const expiryMoved = ev(res, "expiryMoved") > 0;
+  const addrKept    = ev(res, "addrKept") > 0;
+
+  const before = ev(res, "ticksBefore"), after = ev(res, "ticksAfter");
+  /* Same rule as the outage lanes: "it kept counting" is a comparison between
+     the two readings, never a guess from the second one. A session that died
+     at the re-auth reports the tick it had already reached. */
+  const sessionRan  = before > 0;
+  const sessionKept = sessionRan && after > before;
+
+  const d = res.detail || {};
+  const caption = (s, color) =>
+    text(board, s, -0.6, 6.4, 6.8, { px: 34, size: 0.5, color: color || C.text });
+
+  /* ---- the lane ----------------------------------------------------
+     Drawn only for a session the lab actually measured. There are two ways
+     not to have one — lab-roam was outside the tailnet, so there was nothing
+     to keep, or it was a member and ssh over the tailnet address printed
+     nothing — and they are different sentences to read. */
+  const gate = { on: true, slack: false };
+  let lane = null;
+  if (sessionRan) {
+    const path = sessionPath(board, 0, 0, TN_Y);
+    lane = { path, slackPath: path };
+    lane.line = ray(board, path.getPoints(50), C.accent, 0.8);
+    lane.dot = riding(board, lane, C.accent, 0.34, gate);
+    const at = path.getPointAt(0.5);
+    lane.name = text(board, "ssh · lab-roam → lab-vps, over the tailnet address",
+                     at.x, at.y + 0.52, at.z, { px: 26, size: 0.34, color: C.accent });
+    lane.readB = text(board, "tick " + before, at.x, at.y + 0.96, at.z,
+                      { px: 28, size: 0.38, color: C.text });
+    lane.readA = text(board, sessionKept ? "ran on to tick " + after
+                                         : "stopped at tick " + before,
+                      at.x, at.y + 0.96, at.z,
+                      { px: 28, size: 0.38, color: sessionKept ? C.ok : C.danger });
+    lane.readA.visible = false;
+  } else {
+    ray(board, sessionPath(board, 0, 0, TN_Y).getPoints(50), C.faint, 0.22, true);
+    text(board, wasMember
+           ? "no session was measured over the tailnet, so continuity went untested"
+           : "lab-roam was outside the tailnet — there was no session here to keep",
+         -0.6, 5.6, 6.8, { px: 28, size: 0.36, color: C.faint });
+  }
+
+  /* ---- the key ------------------------------------------------------
+     A key is a credential, not a packet, so it is a bead and a label and
+     never the lattice shell: the shell is this board's one word for
+     encryption and nothing else may wear it. */
+  const keyX = POS["lab-roam"].x + 1.6, keyY = TN_Y + 1.15;
+  let oldKey = null, oldLb = null;
+  if (keyRead) {
+    oldKey = put(board, board.mk.sphere(0.15, C.accent, 0.9), keyX, keyY, rz);
+    oldLb = text(board, "node key · " + d.keyBefore, keyX + 1.7, keyY, rz,
+                 { px: 28, size: 0.36, color: C.muted });
+  } else {
+    text(board, "the coordination server reported no node key either side of this",
+         keyX + 0.6, keyY, rz, { px: 26, size: 0.34, color: C.faint });
+  }
+
+  const steps = [];
+  let cap = null;
+
+  /* ---- one · the key rotates --------------------------------------- */
+  steps.push({ t: 0.6, fn: () => {
+    cap = caption(wasMember ? "tailscale up --force-reauth, underneath everything"
+                            : "tailscale up — the machine that removed itself, re-registering",
+                  C.warn);
+    if (!keyRead || !oldKey) return;
+
+    if (!keyChanged) {
+      /* Measured, and not the picture this shot would rather draw. Animating
+         a rotation the coordination server did not report is exactly the lie
+         the four rules exist to stop, so it stays where it is and says so. */
+      board.mk.tint(oldLb, C.warn);
+      text(board, expiryMoved
+             ? "the same node key, with a later expiry — refreshed, not re-keyed"
+             : "the same node key, before and after — nothing re-keyed here",
+           keyX + 0.6, keyY - 0.72, rz, { px: 26, size: 0.34, color: C.warn });
+      return;
+    }
+
+    /* It changed. The old one stops being the one that counts and falls out
+       of the plane; the new one takes the place it had. */
+    board.mk.tint(oldLb, C.faint);
+    if (board.reduced) {
+      oldKey.position.y = Y_PUB + 0.4;
+      oldKey.material.opacity = 0.2;
+    } else {
+      board.spin((dt) => {
+        if (oldKey.position.y <= Y_PUB + 0.4) return;
+        oldKey.position.y -= dt * 1.6;
+        oldKey.material.opacity = Math.max(0.12, oldKey.material.opacity - dt * 0.3);
+      });
+    }
+    put(board, board.mk.sphere(0.15, C.ok, 0.95), keyX, keyY, rz);
+    text(board, "node key · " + d.keyAfter, keyX + 1.7, keyY - 0.5, rz,
+         { px: 28, size: 0.36, color: C.ok });
+    text(board, "the old one is no longer the one the tailnet accepts",
+         keyX + 0.6, keyY - 1.05, rz, { px: 26, size: 0.34, color: C.faint });
+  }});
+
+  /* ---- two · and it stays a member --------------------------------- */
+  steps.push({ t: 2.0, fn: () => {
+    if (cap) cap.visible = false;
+    if (!isMember) {
+      /* The failure ending, and the one place this shot looks like
+         expired-key: the machine is outside the plane and nothing put it
+         back. Drawn the same way, because it is the same picture. */
+      cap = caption("lab-roam did not come back onto the tailnet", C.danger);
+      board.parts.tunnelHost.visible = false;
+      const roam = board.parts.machines["lab-roam"];
+      if (roam) {
+        if (board.reduced) roam.g.position.y = Y_PUB + 1.2;
+        else board.spin((dt) => {
+          if (roam.g.position.y > Y_PUB + 1.2) roam.g.position.y -= dt * 1.4;
+        });
+      }
+      return;
+    }
+    cap = caption(wasMember ? "still a member, and it never left"
+                            : "a member again", C.ok);
+    /* A tie from the machine up into the plane it did not leave. The
+       contrast being drawn is with expired-key, where the machine drops out
+       of this exact plane while nobody touches it. */
+    ray(board, [V(board, POS["lab-roam"].x, Y_MACH + 0.5, rz),
+                V(board, POS["lab-roam"].x, TN_Y - 0.1, rz)], C.ok, 0.7);
+    text(board, addrKept ? "same node, same address · " + (d.addrAfter || "")
+           : d.addrAfter ? "on the tailnet at " + d.addrAfter
+                         : "on the tailnet",
+         POS["lab-roam"].x + 1.4, Y_MACH + 1.1, rz,
+         { px: 28, size: 0.36, color: addrKept ? C.ok : C.warn });
+    if (wasMember && !addrKept && d.addrBefore) {
+      text(board, "and the address moved — it was " + d.addrBefore,
+           POS["lab-roam"].x + 1.4, Y_MACH + 0.55, rz,
+           { px: 26, size: 0.34, color: C.warn });
+    }
+  }});
+
+  /* ---- three · and nothing dropped --------------------------------- */
+  steps.push({ t: 3.4, fn: () => {
+    if (!lane) return;
+    lane.readB.visible = false;
+    lane.readA.visible = true;
+    if (sessionKept) {
+      text(board, "the rotation happened underneath it — same connection, "
+                  + (after - before) + " more ticks",
+           0.4, TN_Y - 0.8, 0, { px: 26, size: 0.34, color: C.ok });
+      return;
+    }
+    /* It stopped. The lane goes dark rather than vanishing: the session was
+       there, and what it stopped doing is arriving. */
+    gate.on = false;
+    fade(lane.line, 0.28);
+    fade(lane.dot, 0.3);
+    board.mk.tint(lane.name, C.faint);
+    text(board, "nothing arrived after the re-auth — this rotation was not free",
+         0.4, TN_Y - 0.8, 0, { px: 26, size: 0.34, color: C.danger });
+  }});
+
+  board.timeline(steps);
+
+  /* HELD and THROUGH are the attack vocabulary and neither one fits: nothing
+     was attacking and nothing was defending. The heads below name what the
+     run showed about continuity, which is the only question asked here. */
+  const heading = !isMember
+    ? "FAILED · lab-roam did not come back onto the tailnet"
+    : sessionKept
+      ? (keyChanged
+          ? "CONTINUOUS · the key rotated and the session never noticed"
+          : "CONTINUOUS · the session never noticed — and nothing re-keyed")
+      : sessionRan
+        ? "DROPPED · the session stopped at the re-auth"
+        : !wasMember
+          ? "RESTORED · one command, and it is a member again"
+          : keyChanged
+            ? "ROTATED · a new node key, and no session to test it against"
+            : "INCONCLUSIVE · it re-registered, and nothing was shown to change";
+
+  const nums = ["rung " + (res.rung || 1) + " of 5"];
+  if (sessionRan) nums.unshift("ssh " + before + " → " + after);
+
+  held(board, res, {
+    head: heading,
+    rule: res.rule,
+    ladder: sessionKept || ev(res, "probeOK") > 0 ? "delivered" : "stopped",
+    nums: nums,
+    /* The tailnet chip, because that is where this happened and where the
+       lane rode. The failure ending is the one time it is not true. */
+    chip: isMember ? "tailnet · membership unbroken" : "outside the tailnet",
+    chipKind: isMember ? "net" : "pub"
+  });
+}
+
+/* ============================================================
    the register
 
    Keyed off the ids in AttackList. A new attack in attacks.go shows up
@@ -1356,9 +1608,14 @@ export const SETPIECES = {
   "rogue-exit":    rogueExit,
   "docker-bypass": dockerBypass,
   "lock-out":      lockOut,
-  /* Not one of the nine, and not an attack. It is here because the session
-     layer is half of what this guide is about and the board had none of it. */
-  "outage":        outage
+  /* Neither of these is one of the nine and neither is an attack. `outage` is
+     here because the session layer is half of what this guide is about and the
+     board had none of it; `rotate-key` is here because it was the last button
+     that got a paragraph where its neighbours got a shot — and because nothing
+     reported that, for as long as the gap check was handed AttackList and both
+     of these were dispatchable without being in it. */
+  "outage":        outage,
+  "rotate-key":    rotateKey
 };
 
 export function hasSetpiece(id) { return Object.prototype.hasOwnProperty.call(SETPIECES, id); }
@@ -1385,8 +1642,18 @@ export function run(board, id, res, ctx) {
   return true;
 }
 
-/* Which ids in AttackList have no set-piece yet. app.js reports this once at
-   startup so a new attack is noticed rather than quietly falling through. */
-export function missing(attackList) {
-  return (attackList || []).map((a) => a.id).filter((id) => !hasSetpiece(id));
+/* Which dispatchable ids have no set-piece yet. app.js reports this once at
+   startup so a new action is noticed rather than quietly falling through.
+
+   It is handed the ids of the server's dispatch table, not AttackList. That
+   distinction is the whole of ticket 33: `rotate-key` and `outage` are both
+   posted to /api/action and neither is in AttackList, so a check walking the
+   attack list could not see them however carefully it was written — and one of
+   them went a release with no set-piece and nothing said a word. Ids or
+   AttackList-shaped objects both work, because being strict about the shape
+   here would only ever turn a report into a silence again. */
+export function missing(actions) {
+  return (actions || [])
+    .map((a) => (typeof a === "string" ? a : a && a.id))
+    .filter((id) => id && !hasSetpiece(id));
 }

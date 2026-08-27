@@ -3,6 +3,8 @@ package main
 import (
 	"encoding/json"
 	"reflect"
+	"regexp"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -246,5 +248,222 @@ func TestDetailRoundTrip(t *testing.T) {
 func TestBoolToInt(t *testing.T) {
 	if boolToInt(true) != 1 || boolToInt(false) != 0 {
 		t.Fatal("boolToInt is the only thing separating two of atkExpiredKey's endings")
+	}
+}
+
+// The dispatch table is the answer to "what can be posted to /api/action", and
+// it is deliberately longer than AttackList. Two of its entries are not
+// attacks — rotate-key is maintenance, outage is the session layer — and that
+// gap is not cosmetic: the board reports which dispatchable ids have no
+// set-piece, and while it was handed AttackList it structurally could not see
+// either of them. One then went a whole release with no shot and nothing said
+// so. This test is that blind spot, written down.
+func TestActionIDsCoversMoreThanAttackList(t *testing.T) {
+	ids := ActionIDs()
+	in := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		in[id] = true
+	}
+
+	for _, a := range AttackList {
+		if !in[a.ID] {
+			t.Errorf("%q is a button on the page and RunAttack will not dispatch it", a.ID)
+		}
+	}
+
+	listed := make(map[string]bool, len(AttackList))
+	for _, a := range AttackList {
+		listed[a.ID] = true
+	}
+	for _, id := range []string{"rotate-key", "outage"} {
+		if !in[id] {
+			t.Errorf("%q has its own button and is not in the dispatch table", id)
+		}
+		if listed[id] {
+			t.Errorf("%q is in AttackList, which it should not be — it is not an attack. "+
+				"If that has genuinely changed, this test is what needs rewriting.", id)
+		}
+	}
+
+	if !sort.StringsAreSorted(ids) {
+		t.Fatalf("ActionIDs is served to a browser and has to be stable: %v", ids)
+	}
+}
+
+// The mechanical half of the console warning app.js prints: every id RunAttack
+// will dispatch has an entry in the set-piece register. The warning tells
+// whoever has the page open; this tells whoever added the action, at the point
+// they added it, which is the cheaper of the two places to find out.
+func TestEverySetpieceExistsForEveryAction(t *testing.T) {
+	src, err := uiFS.ReadFile("ui/hud/setpieces.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, rest, ok := strings.Cut(string(src), "export const SETPIECES = {")
+	if !ok {
+		t.Fatal("no SETPIECES register in setpieces.js — did it get renamed?")
+	}
+	body, _, ok := strings.Cut(rest, "\n};")
+	if !ok {
+		t.Fatal("the SETPIECES register has no closing brace on its own line")
+	}
+
+	keys := regexp.MustCompile(`"([a-z-]+)"\s*:`).FindAllStringSubmatch(body, -1)
+	drawn := make(map[string]bool, len(keys))
+	for _, m := range keys {
+		drawn[m[1]] = true
+	}
+	if len(drawn) == 0 {
+		t.Fatal("read the register and found no ids in it, so this test proves nothing")
+	}
+
+	for _, id := range ActionIDs() {
+		if !drawn[id] {
+			t.Errorf("%q is dispatchable and has no set-piece. The board falls back to the "+
+				"text trace, which works — but it is the one place the board stops being "+
+				"the board, and that is worth noticing here rather than at a console.", id)
+		}
+	}
+	for id := range drawn {
+		if _, ok := Actions[id]; !ok {
+			t.Errorf("there is a set-piece for %q and nothing dispatches it", id)
+		}
+	}
+}
+
+// The rotation is the whole of what the rotate-key shot is allowed to draw, so
+// every claim it makes has to survive the round trip under its own name. The
+// three that matter are the three parts of the continuity claim: it re-keyed,
+// it stayed a member at the same address, and the session did not drop.
+func TestRotationEvidence(t *testing.T) {
+	// The demonstration working: a session was up, the key changed underneath
+	// it, the address did not move, and the ticks kept coming.
+	good := rotation{
+		wasMember: true, isMember: true,
+		keyRead: true, keyChanged: true,
+		expiryMoved: true, addrKept: true,
+		probeOK: true, probeRung: 5,
+		ticksBefore: 8, ticksAfter: 20,
+	}
+	want := map[string]int{
+		"wasMember": 1, "isMember": 1, "keyRead": 1, "keyChanged": 1,
+		"expiryMoved": 1, "addrKept": 1, "probeOK": 1,
+		"ticksBefore": 8, "ticksAfter": 20,
+	}
+	if !reflect.DeepEqual(good.evidence(), want) {
+		t.Fatalf("evidence() = %#v, want %#v", good.evidence(), want)
+	}
+	if !good.sessionRan() || !good.sessionKept() {
+		t.Fatal("a session that went from tick 8 to tick 20 both ran and kept counting")
+	}
+
+	// The one the shot must not draw as a success: the ticks stopped where
+	// they were. Same final number as the first reading, which is exactly why
+	// sessionKept is a comparison and not a threshold.
+	dropped := rotation{wasMember: true, isMember: true, keyRead: true, keyChanged: true,
+		ticksBefore: 8, ticksAfter: 8}
+	if !dropped.sessionRan() || dropped.sessionKept() {
+		t.Fatal("a session stuck on the tick it had before the re-auth did not keep counting")
+	}
+
+	// keyChanged is never true without keyRead, because "the two keys differ"
+	// and "there were no two keys to compare" are different findings and the
+	// shot draws a rotation for one of them and a sentence for the other.
+	none := rotation{isMember: true}
+	if none.evidence()["keyRead"] != 0 || none.evidence()["keyChanged"] != 0 {
+		t.Fatalf("an unread key is not an unchanged one: %#v", none.evidence())
+	}
+	// And a run that measured zero still owes every key, so a drawing can tell
+	// "nothing happened" apart from "nothing was reported".
+	for _, k := range []string{"wasMember", "isMember", "keyRead", "keyChanged",
+		"expiryMoved", "addrKept", "probeOK", "ticksBefore", "ticksAfter"} {
+		if _, ok := none.evidence()[k]; !ok {
+			t.Fatalf("a run that measured zero still owes the key %q: %#v", k, none.evidence())
+		}
+	}
+}
+
+// The rung is the board's X axis, and the rotate-key shot draws a lane all the
+// way to lab-vps for any session that printed a tick. A tick is a shell on
+// lab-vps answering, which is rung 5 whatever the probe afterwards found;
+// without one the probe is the only thing that measured a distance.
+func TestRotationRung(t *testing.T) {
+	for _, tc := range []struct {
+		name                    string
+		ticksBefore, ticksAfter int
+		probeRung               int
+		want                    int
+	}{
+		{"a session rode through it", 8, 20, 5, 5},
+		{"a session that dropped still reached sshd", 8, 8, 3, 5},
+		{"restored, and the probe got in", 0, 0, 5, 5},
+		{"restored, and rung 3 refused it", 0, 0, 3, 3},
+		{"nothing measured a distance at all", 0, 0, 0, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := rotation{ticksBefore: tc.ticksBefore, ticksAfter: tc.ticksAfter,
+				probeRung: tc.probeRung}
+			if got := r.rung(); got != tc.want {
+				t.Fatalf("rung() = %d, want %d", got, tc.want)
+			}
+		})
+	}
+}
+
+// ok on this action means maintenance did what maintenance is for. A rotation
+// that dropped a working session is a real finding, and the one ending here
+// that must not come back green however well the rest of it went.
+func TestRotationVerdict(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		r    rotation
+		ok   bool
+		says string
+	}{
+		{"the session rode through it",
+			rotation{wasMember: true, isMember: true, keyRead: true, keyChanged: true,
+				addrKept: true, ticksBefore: 8, ticksAfter: 20},
+			true, "did not notice"},
+		{"the session dropped",
+			rotation{wasMember: true, isMember: true, keyRead: true, keyChanged: true,
+				ticksBefore: 8, ticksAfter: 8},
+			false, "not free"},
+		{"nothing re-keyed, and it says so rather than claiming one",
+			rotation{wasMember: true, isMember: true, keyRead: true,
+				addrKept: true, ticksBefore: 8, ticksAfter: 20},
+			true, "did not demonstrate a re-key"},
+		{"an expired machine brought back",
+			rotation{isMember: true, keyRead: true, keyChanged: true, probeOK: true, probeRung: 5},
+			true, "re-register put it back"},
+		{"it never came back",
+			rotation{wasMember: true},
+			false, "did not come back onto the tailnet"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ok, why := tc.r.verdict("100.71.4.3")
+			if ok != tc.ok {
+				t.Fatalf("ok = %v, want %v — %s", ok, tc.ok, why)
+			}
+			if !strings.Contains(why, tc.says) {
+				t.Fatalf("expected the prose to say %q, got: %s", tc.says, why)
+			}
+		})
+	}
+}
+
+// A label with a blank where a key should be reads as a key that went missing,
+// which is a different claim from one that was never asked for. Empty in,
+// empty out, and the caller draws nothing.
+func TestShortKey(t *testing.T) {
+	for in, want := range map[string]string{
+		"":                         "",
+		"nodekey:abcdef0123456789": "abcdef0123…",
+		"abcdef0123456789":         "abcdef0123…",
+		"nodekey:abcd":             "abcd…",
+		"nodekey:":                 "…",
+	} {
+		if got := shortKey(in); got != want {
+			t.Errorf("shortKey(%q) = %q, want %q", in, got, want)
+		}
 	}
 }

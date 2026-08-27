@@ -596,6 +596,13 @@ type hsNode struct {
 	ForcedTags []string    `json:"forced_tags"`
 	Expiry     *hsTime     `json:"expiry"`
 	Online     bool        `json:"online"`
+	// The node key, which is the thing a rotation is supposed to replace. It
+	// is read rather than assumed: `tailscale up --force-reauth` is what the
+	// rotate button runs, and whether the coordination server ends up holding
+	// a different key for the same machine is a fact about this Headscale, not
+	// a promise the guide gets to make on its behalf. Empty when the field is
+	// absent, which the caller reports as "not measured" rather than "unchanged".
+	NodeKey string `json:"node_key"`
 }
 
 func (c *Controller) nodes(ctx context.Context) ([]hsNode, error) {
