@@ -395,22 +395,43 @@ and should be left alone.
 and 0.29.0 closed it by adding a `node.expiry` configuration key that sets a
 default expiry for nodes registered via auth key. That is a missing feature,
 shipped — not an architectural difference between Headscale and Tailscale, which
-is what this file had claimed it was. The lab now pins `0.29.3` and
+is what this file had claimed it was. The lab pins `0.29.3` and
 [`config/headscale/config.yaml`](config/headscale/config.yaml) sets
-`node.expiry: 4320h`, which is Tailscale's 180 days. All three machines carry a
-real expiry, the check passes, and `hardened` and the boot state agree with the
-sandbox at 11/11 and 8/11.
+`node.expiry: 4320h`, which is Tailscale's 180 days.
+
+**And that setting does not reach these three machines.** It was written down
+here as though it did, and for a while this file and the containers disagreed
+about the reason the check passed — which is the exact failure mode the lab
+exists to catch, caught on the lab itself. Measured on 0.29.3: a node registered
+with a *single-use* pre-auth key comes back from `headscale nodes list` with an
+expiry 180 days out, and a node registered with a `--reusable` one comes back
+with `Expiration: N/A`. This lab mints a single reusable key and every machine
+reads it from `/lab/state/authkey`, so all three landed in the second case and
+check 10 failed even under `hardened`.
+
+Sharing one key is worth keeping — a per-machine single-use key would have to be
+reissued on every rejoin, and rejoining is what half the buttons here do — so
+the expiry is stamped on afterwards instead. `EnsureNodes` in
+[`control/state.go`](control/state.go) runs `headscale nodes expire -e <RFC3339>`
+against any owned node that has none, alongside the tag it already applied. It
+stamps only when the field is empty, which keeps it idempotent and keeps it out
+of the way of **Let a key expire**, which sets an expiry in the *past* and would
+otherwise be undone a second later. All three machines carry a real expiry, the
+check passes, and `hardened` and the boot state agree with the sandbox at 11/11
+and 8/11. The `node.expiry` setting stays: it is correct, it costs nothing, and
+it takes over if these keys ever stop being reusable.
 
 **And that opened the mirror image of the old gap.** Headscale still has no
-per-node "disable key expiry", so `node.expiry` applies to every registration
-and nothing turns it off. `day-one`, `typical` and `weak` all ask for expiry to
-be *off* — and get it anyway, and score a point for it that the sandbox does not
-give them. That is why those three rows are now the ones in bold.
+per-node "disable key expiry", and neither does this lab's stamp — it applies to
+every registration and nothing in a configuration turns it off. `day-one`,
+`typical` and `weak` all ask for expiry to be *off* — and get it anyway, and
+score a point for it that the sandbox does not give them. That is why those
+three rows are now the ones in bold.
 
 The audit says so on the check rather than leaving it to this file. Its rule
-line reads *"Headscale's `node.expiry` set it at registration and offers no
-per-node way to turn it off, so this one holds whatever the configuration
-says"*, and the check is marked **cannot fail here** in the same place the old
+line reads *"the control server stamps one on at registration and Headscale
+offers no per-node way to turn it off, so this one holds whatever the
+configuration says"*, and the check is marked **cannot fail here** in the same place the old
 one was marked *cannot pass here*. The score counts it as a pass either way,
 because the alternative is a number that argues with what was measured — but a
 tick nothing you did produced is the more misleading of the two marks, and it is

@@ -345,7 +345,7 @@ func (c *Controller) evilJoin(ctx context.Context, join bool) Result {
 		res.Why = "the join failed: " + r.Out()
 		return res
 	}
-	c.EnsureTags(ctx)
+	c.EnsureNodes(ctx)
 	_ = c.applyPolicy(ctx)
 	res.OK = true
 	res.Danger = true
@@ -549,8 +549,11 @@ func (c *Controller) setExpiry(ctx context.Context, on bool) Result {
 		c.saveDesired()
 		res.OK = true
 		res.Why = "Every node in this lab already carries a real expiry, 180 days from the " +
-			"moment it registered — `node.expiry` in config/headscale/config.yaml puts it " +
-			"there, and you can read it back in `headscale nodes list`. Nothing to do."
+			"moment it registered — the control server stamps it on once the machine has " +
+			"joined, and you can read it back in `headscale nodes list`. Nothing to do. " +
+			"(`node.expiry` in config/headscale/config.yaml does not do this on its own: " +
+			"Headscale 0.29 honours it for a single-use pre-auth key and ignores it for " +
+			"the reusable one these three machines share.)"
 		res.Cmds = []string{"headscale nodes list -o json | jq '.[].expiry'"}
 		return res
 	}

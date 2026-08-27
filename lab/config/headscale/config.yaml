@@ -52,15 +52,22 @@ disable_check_updates: true
 
 node:
   # The standing key expiry Tailscale gives you and Headscale did not, until
-  # 0.29 added this knob (juanfont/headscale#1711, PR #3122). Nodes registered
-  # with a pre-auth key now get an expiry recorded at registration, which is
-  # what audit check 10 — "A lost device stops being a member on its own" —
-  # reads. 180 days, because that is Tailscale's default and the control
-  # surface's toggle says so out loud.
+  # 0.29 added this knob (juanfont/headscale#1711, PR #3122). 180 days, because
+  # that is Tailscale's default and the control surface's toggle says so out
+  # loud.
   #
-  # Tagged pre-auth keys are exempt. Ours are not tagged: createKey makes a
-  # plain `--reusable -e 720h` key and the tags are applied afterwards with
-  # `headscale nodes tag`, so all three machines are covered.
+  # It does not reach the three machines in this lab, and that was measured on
+  # 0.29.3 rather than assumed: a node registered with a single-use pre-auth
+  # key comes back from `headscale nodes list` with an expiry 180 days out, and
+  # a node registered with a `--reusable` key comes back with none at all.
+  # createKey makes one reusable key and every machine reads it from
+  # /lab/state/authkey, so all three land in the second case.
+  #
+  # So audit check 10 — "A lost device stops being a member on its own" — is
+  # not answered by this setting. EnsureNodes in control/state.go stamps the
+  # expiry on with `headscale nodes expire -e <RFC3339>` once a machine has
+  # joined. The setting stays because it is correct, it costs nothing, and it
+  # is what would take over if these keys ever stopped being reusable.
   expiry: 4320h
   ephemeral:
     # Was `ephemeral_node_inactivity_timeout` before 0.29 moved it in here.

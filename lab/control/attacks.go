@@ -159,7 +159,7 @@ func (c *Controller) atkScanTailnet(ctx context.Context) Result {
 		join.Rule = "it never got onto the tailnet: " + join.Rule
 		return join
 	}
-	c.EnsureTags(ctx)
+	c.EnsureNodes(ctx)
 
 	res := Result{Rung: 3, From: "evil-box", Path: "direct",
 		Cmds: []string{"tailscale status", "nmap -Pn -n -p 22 100.71.4.0/24   # on evil-box"}}
@@ -347,7 +347,7 @@ func (c *Controller) atkStolenKey(ctx context.Context) Result {
 	}
 	refused := !join.OK
 	if join.OK {
-		c.EnsureTags(ctx)
+		c.EnsureNodes(ctx)
 	}
 	p := c.Probe(ctx, "evil-box", "lab-vps", "22")
 	p.Cmds = append(join.Cmds, p.Cmds...)
@@ -558,7 +558,7 @@ sleep 8
 		st, err := c.tailscaleStatus(ctx, "lab-roam")
 		return err == nil && st.BackendState == "Running"
 	})
-	c.EnsureTags(ctx)
+	c.EnsureNodes(ctx)
 	c.with(func(s *State) { s.Machines["lab-roam"].KeyExpired = !rot.isMember })
 
 	// ---- after ----------------------------------------------------------

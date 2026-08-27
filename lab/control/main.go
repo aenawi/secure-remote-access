@@ -130,7 +130,7 @@ func main() {
 			ns, err := ctl.nodes(ctx)
 			return err == nil && len(ns) >= 3
 		}); ok {
-			ctl.EnsureTags(ctx)
+			ctl.EnsureNodes(ctx)
 			_ = ctl.applyPolicy(ctx)
 			log.Printf("all three machines are registered and tagged")
 		} else {

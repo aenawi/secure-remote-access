@@ -239,7 +239,7 @@ func TestHeadscaleTimestampsDecodeAsObjects(t *testing.T) {
 //
 // It was `forced_tags` up to 0.26 and is `tags` from 0.29, and the rename is
 // silent in the worst way: JSON decoding into a field nothing populates leaves
-// an empty slice, EnsureTags reads that as "this node has no tag yet", tags it
+// an empty slice, EnsureNodes reads that as "this node has no tag yet", tags it
 // again, sees a change and restarts the coordination server — on every pass of
 // the observe loop, forever. Nothing errors and the lab merely feels broken.
 func TestHeadscaleNodeTagsDecode(t *testing.T) {
@@ -251,7 +251,7 @@ func TestHeadscaleNodeTagsDecode(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(ns) != 1 || len(ns[0].Tags) != 1 || ns[0].Tags[0] != "tag:laptop" {
-		t.Fatalf("headscale 0.29 calls this field `tags`, and EnsureTags has to read it "+
+		t.Fatalf("headscale 0.29 calls this field `tags`, and EnsureNodes has to read it "+
 			"or it re-tags and restarts the coordination server on every pass: %+v", ns)
 	}
 }
