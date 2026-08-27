@@ -61,6 +61,98 @@ type AuditReport struct {
 	Note      string  `json:"note,omitempty"`
 }
 
+// ---------------------------------------------------------------------------
+// The eleven
+//
+// One ordered table rather than eleven literals buried in Audit, for two
+// reasons. The order is the order the sandbox asks them in and a reader is
+// meant to be able to lay the two lists side by side; and a test can only score
+// a checked-in fixture — the five numbers in lab/README.md's comparison table —
+// if it can build the eleven without a running lab underneath it.
+//
+// Audit fills in Got, Pass, Rung, Rule and Measure. Everything here is the
+// question, not the answer.
+// ---------------------------------------------------------------------------
+
+const (
+	ckYouCanGetIn = iota
+	ckRoamCanGetIn
+	ckStrangerSSH
+	ckStrangerPublishedPort
+	ckStolenKey
+	ckUntrustedToServer
+	ckUntrustedToLaptop
+	ckNoPasswords
+	ckNoRootLogin
+	ckExpiry
+	ckSSHDNotPublic
+	auditCheckCount
+)
+
+var auditPlan = [auditCheckCount]Check{
+	ckYouCanGetIn: {Kind: "access", Want: true, Label: "You can still get in",
+		Why: "The laptop reaches sshd over the tailnet.",
+		Fail: "You cannot reach your own server. A configuration that locks you out is not " +
+			"secure, it is broken — and this is the failure people mistake for success."},
+
+	ckRoamCanGetIn: {Kind: "access", Want: true, Label: "…and so can the roaming client",
+		Why:  "The phone's stand-in reaches it too.",
+		Fail: "The roaming client is locked out, which is the one machine the whole guide exists for."},
+
+	ckStrangerSSH: {Kind: "attack", Want: false, Label: "A stranger cannot reach SSH",
+		Why:  "The public address does not answer on :22.",
+		Fail: "Anyone on the internet can knock on your SSH port. They already are."},
+
+	ckStrangerPublishedPort: {Kind: "attack", Want: false, Label: "…nor a published container port",
+		Why: "Nothing is exposed on :8080.",
+		Fail: "A container's published port answers from the internet — through UFW, because " +
+			"Docker's chain is consulted first. UFW will still tell you it is denied."},
+
+	ckStolenKey: {Kind: "attack", Want: false, Label: "A stolen node key is refused",
+		Why: "An unsigned key gets no tailnet session — and no other route answers either.",
+		Fail: "A machine holding a key nobody vouched for still reaches sshd. Tailnet lock " +
+			"keeps it off the tailnet; only a closed public :22 keeps it off the machine."},
+
+	ckUntrustedToServer: {Kind: "attack", Want: false, Label: "An untrusted member cannot reach the server",
+		Why: "It is on the tailnet and the policy still refuses it.",
+		Fail: "Being on the tailnet was enough to reach the server. Membership is not " +
+			"authorisation unless the policy says so."},
+
+	ckUntrustedToLaptop: {Kind: "attack", Want: false, Label: "…nor your laptop",
+		Why:  "The policy protects the clients too, not just the server.",
+		Fail: "One hostile member reaches your laptop. A flat tailnet is a flat network."},
+
+	ckNoPasswords: {Kind: "config", Want: false, Label: "Passwords cannot be used to log in",
+		Why: "PasswordAuthentication is off.",
+		Fail: "Password login is enabled. That is precisely what the scanners are trying, " +
+			"thousands of times a day."},
+
+	ckNoRootLogin: {Kind: "config", Want: false, Label: "Root cannot log in directly",
+		Why:  "PermitRootLogin is off.",
+		Fail: "Root can log in over the network, so one credential is the whole machine."},
+
+	ckExpiry: {Kind: "config", Want: true,
+		Label: "A lost device stops being a member on its own",
+		Why:   "Key expiry is on, so an unattended device drops out.",
+		Fail: "Key expiry is off. The phone you left in a taxi is a member forever, or until " +
+			"you remember to remove it."},
+
+	ckSSHDNotPublic: {Kind: "config", Want: true, Label: "sshd is not exposed on the public interface",
+		Why: "Bound to the tailnet address, or the public rule is gone.",
+		Fail: "sshd is listening on 0.0.0.0 with the public rule still in place — the exact " +
+			"state chapter 08 is written to get you out of."},
+}
+
+// ceilingFail is the wording check 10 carries when the reason it failed is that
+// this stack cannot do the thing at all. Kept next to the ordinary Fail so the
+// two are read together: the score treats them identically on purpose, and only
+// the prose is allowed to differ.
+const ceilingFail = "This one cannot pass in this lab, and it is not your configuration's " +
+	"fault. Headscale records a node expiry only when the registration asks for one, " +
+	"a pre-auth-key registration does not, and it will not let you add one afterwards " +
+	"— `tailscale debug set-expire` comes back with \"extending key is not allowed\". " +
+	"Real Tailscale sets 180 days for you. So 10 of 11 is the ceiling here."
+
 // Audit runs all eleven against the stack as it stands.
 func (c *Controller) Audit(ctx context.Context) AuditReport {
 	c.loadDesired()
@@ -124,32 +216,18 @@ func (c *Controller) Audit(ctx context.Context) AuditReport {
 
 	// ---- 1 · you ---------------------------------------------------------
 	got, rung, rule, m := probe("lab-ubuntu", "lab-vps", "22")
-	add(Check{Kind: "access", Want: true, Label: "You can still get in",
-		Why: "The laptop reaches sshd over the tailnet.",
-		Fail: "You cannot reach your own server. A configuration that locks you out is not " +
-			"secure, it is broken — and this is the failure people mistake for success."},
-		got, rung, rule, m)
+	add(auditPlan[ckYouCanGetIn], got, rung, rule, m)
 
 	got, rung, rule, m = probe("lab-roam", "lab-vps", "22")
-	add(Check{Kind: "access", Want: true, Label: "…and so can the roaming client",
-		Why:  "The phone's stand-in reaches it too.",
-		Fail: "The roaming client is locked out, which is the one machine the whole guide exists for."},
-		got, rung, rule, m)
+	add(auditPlan[ckRoamCanGetIn], got, rung, rule, m)
 
 	// ---- 2 · a stranger --------------------------------------------------
 	offTailnet()
 	got, rung, rule, m = probe("evil-box", "lab-vps", "22")
-	add(Check{Kind: "attack", Want: false, Label: "A stranger cannot reach SSH",
-		Why:  "The public address does not answer on :22.",
-		Fail: "Anyone on the internet can knock on your SSH port. They already are."},
-		got, rung, rule, m)
+	add(auditPlan[ckStrangerSSH], got, rung, rule, m)
 
 	got, rung, rule, m = probe("evil-box", "lab-vps", "8080")
-	add(Check{Kind: "attack", Want: false, Label: "…nor a published container port",
-		Why: "Nothing is exposed on :8080.",
-		Fail: "A container's published port answers from the internet — through UFW, because " +
-			"Docker's chain is consulted first. UFW will still tell you it is denied."},
-		got, rung, rule, m)
+	add(auditPlan[ckStrangerPublishedPort], got, rung, rule, m)
 
 	// ---- 3 · a key nobody vouched for ------------------------------------
 	//
@@ -174,11 +252,7 @@ func (c *Controller) Audit(ctx context.Context) AuditReport {
 		rule = joined.Rule + " — then, with no tailnet session: " + rule
 		m = strings.Join(joined.Cmds, "\n") + "\n" + m
 	}
-	add(Check{Kind: "attack", Want: false, Label: "A stolen node key is refused",
-		Why: "An unsigned key gets no tailnet session — and no other route answers either.",
-		Fail: "A machine holding a key nobody vouched for still reaches sshd. Tailnet lock " +
-			"keeps it off the tailnet; only a closed public :22 keeps it off the machine."},
-		stolenWorked, rung, rule, m)
+	add(auditPlan[ckStolenKey], stolenWorked, rung, rule, m)
 
 	// ---- 4 · a member who should not have broad access -------------------
 	if onTailnet() {
@@ -186,59 +260,53 @@ func (c *Controller) Audit(ctx context.Context) AuditReport {
 	} else {
 		got, rung, rule, m = false, 1, "it could not be joined at all", ""
 	}
-	add(Check{Kind: "attack", Want: false, Label: "An untrusted member cannot reach the server",
-		Why: "It is on the tailnet and the policy still refuses it.",
-		Fail: "Being on the tailnet was enough to reach the server. Membership is not " +
-			"authorisation unless the policy says so."},
-		got, rung, rule, m)
+	add(auditPlan[ckUntrustedToServer], got, rung, rule, m)
 
 	got, rung, rule, m = probe("evil-box", "lab-ubuntu", "22")
-	add(Check{Kind: "attack", Want: false, Label: "…nor your laptop",
-		Why:  "The policy protects the clients too, not just the server.",
-		Fail: "One hostile member reaches your laptop. A flat tailnet is a flat network."},
-		got, rung, rule, m)
+	add(auditPlan[ckUntrustedToLaptop], got, rung, rule, m)
 
 	// ---- 5 · the machine itself ------------------------------------------
 	c.observeVPS(ctx)
 	v := c.Snapshot().VPS
 
-	add(Check{Kind: "config", Want: false, Label: "Passwords cannot be used to log in",
-		Why: "PasswordAuthentication is off.",
-		Fail: "Password login is enabled. That is precisely what the scanners are trying, " +
-			"thousands of times a day."},
+	add(auditPlan[ckNoPasswords],
 		v.PasswordAuth, 5, "sshd -T | grep passwordauthentication",
 		"docker exec lab-vps sshd -T | grep -i passwordauthentication")
 
-	add(Check{Kind: "config", Want: false, Label: "Root cannot log in directly",
-		Why:  "PermitRootLogin is off.",
-		Fail: "Root can log in over the network, so one credential is the whole machine."},
+	add(auditPlan[ckNoRootLogin],
 		v.PermitRoot, 5, "sshd -T | grep permitrootlogin",
 		"docker exec lab-vps sshd -T | grep -i permitrootlogin")
 
 	expiry, expiryRule, expiryCeiling := c.expiryHonoured(ctx)
-	expiryCheck := Check{Kind: "config", Want: true,
-		Label: "A lost device stops being a member on its own",
-		Why:   "Key expiry is on, so an unattended device drops out.",
-		Fail: "Key expiry is off. The phone you left in a taxi is a member forever, or until " +
-			"you remember to remove it."}
+	expiryCheck := auditPlan[ckExpiry]
 	if expiryCeiling {
 		expiryCheck.Ceiling = true
-		expiryCheck.Fail = "This one cannot pass in this lab, and it is not your configuration's " +
-			"fault. Headscale records a node expiry only when the registration asks for one, " +
-			"a pre-auth-key registration does not, and it will not let you add one afterwards " +
-			"— `tailscale debug set-expire` comes back with \"extending key is not allowed\". " +
-			"Real Tailscale sets 180 days for you. So 10 of 11 is the ceiling here."
+		expiryCheck.Fail = ceilingFail
 	}
 	add(expiryCheck, expiry, 1, expiryRule, "headscale nodes list -o json | jq '.[].expiry'")
 
 	exposed := v.SSHDListen == "tailnet" || !v.AllowPublic22
-	add(Check{Kind: "config", Want: true, Label: "sshd is not exposed on the public interface",
-		Why: "Bound to the tailnet address, or the public rule is gone.",
-		Fail: "sshd is listening on 0.0.0.0 with the public rule still in place — the exact " +
-			"state chapter 08 is written to get you out of."},
+	add(auditPlan[ckSSHDNotPublic],
 		exposed, 5, "ss -tlnp ; ufw status", "docker exec lab-vps ss -tlnp")
 
 	// ---- the score -------------------------------------------------------
+	return scoreAudit(rep.Checks)
+}
+
+// scoreAudit is the arithmetic and the verdict, over eleven checks that have
+// already been answered. It is split out from Audit for one reason: Audit needs
+// containers and this does not, so the number the README publishes — and the
+// sentence printed above it — can be asserted from a fixture rather than from a
+// running lab. The five scores in the sandbox-versus-lab table are decided
+// here, and they should not be able to move quietly.
+//
+// Three of the endings are easy to get wrong and each one is a different claim:
+// a locked-out machine scores whatever it scores and the score is meaningless;
+// a run where every remaining failure is the lab's ceiling is "everything you
+// control is closed", which is good news; and a ceiling failure alongside real
+// ones is neither, so the note has to name it without excusing the rest.
+func scoreAudit(checks []Check) AuditReport {
+	rep := AuditReport{Checks: checks}
 	rep.Total = len(rep.Checks)
 	for _, ch := range rep.Checks {
 		if ch.Pass {
@@ -301,7 +369,21 @@ func (c *Controller) Audit(ctx context.Context) AuditReport {
 // later, so no arrangement of the switches above will turn this one green.
 func (c *Controller) expiryHonoured(ctx context.Context) (bool, string, bool) {
 	ns, err := c.nodes(ctx)
-	if err != nil || len(ns) == 0 {
+	if err != nil {
+		return false, "the coordination server listed no nodes", false
+	}
+	return expiryVerdict(ns, time.Now())
+}
+
+// expiryVerdict is the deciding half of the check above, over the node list
+// headscale already printed. Separate because this is the one of the eleven
+// that cannot pass here, and a check that is allowed to fail is exactly the
+// kind that stops being read: the difference between "no expiry was ever
+// recorded" (the ceiling, and not your fault) and "the expiry has passed and
+// nobody reauthenticated" (an ordinary failure) is one line of prose and one
+// boolean, and both of them are load-bearing in the score.
+func expiryVerdict(ns []hsNode, now time.Time) (bool, string, bool) {
+	if len(ns) == 0 {
 		return false, "the coordination server listed no nodes", false
 	}
 	seen := 0
@@ -321,7 +403,7 @@ func (c *Controller) expiryHonoured(ctx context.Context) (bool, string, bool) {
 				"ceiling, not a setting you missed — see \"Where this lab and the sandbox " +
 				"disagree\" in lab/README.md", true
 		}
-		if exp.Before(time.Now()) {
+		if exp.Before(now) {
 			return false, n.GivenName + " expired at " + exp.Format(time.RFC3339) +
 				" and has not been reauthenticated", false
 		}
