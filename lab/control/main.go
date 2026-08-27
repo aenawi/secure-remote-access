@@ -398,10 +398,15 @@ func routes(c *Controller) http.Handler {
 
 	mux.HandleFunc("/api/meta", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{
-			"catalog":    Catalog,
-			"presets":    Presets,
-			"grants":     Grants,
-			"attacks":    AttackList,
+			"catalog": Catalog,
+			"presets": Presets,
+			"grants":  Grants,
+			"attacks": AttackList,
+			// Everything /api/action will dispatch, which is a longer list than
+			// AttackList: the board reports which of these has no set-piece, and
+			// handing it the nine attacks was how `rotate-key` stayed invisible
+			// to the tool built to notice exactly that.
+			"actions":    ActionIDs(),
 			"panels":     Panels,
 			"groups":     AuditGroups,
 			"lossSteps":  []int{0, 5, 20, 40},

@@ -125,6 +125,18 @@ before the roam starts, because the whole lesson is that the first act does not
 do what everybody expects it to — and that only reads if you are allowed to
 finish being surprised by it before the second act begins.
 
+So does **Rotate the key**, and it is the odd one out: nothing is attacking
+anything, and nothing is defending. Rotating a node key is maintenance, and
+maintenance is judged by what it does *not* disturb — so the claim is
+continuity, in three parts. The coordination server stops holding the key it
+held; the machine stays inside the tailnet at the same address; and a session
+running over that address does not notice. Each part is measured, and each has
+an ending where it was not: a run that re-keyed nothing draws no re-key and
+says so instead. Unlike the outage demonstration this one runs over the
+**tailnet** address on purpose, so its lane rides up in the tailnet plane — a
+rotation a session cannot feel even in principle would prove nothing about the
+rotation.
+
 The board holds to four rules, and they are why it is worth trusting:
 
 - **Nothing is drawn that was not measured.** An empty capture draws an empty
@@ -219,6 +231,17 @@ and **Rotate the key**. The first of those is the session layer rather than the
 network layer, and it is the one demonstration on the board that runs at
 lab-vps's **public** address on purpose — so both sessions are encrypted and
 neither is up in the tailnet plane, which is what the shot says while it runs.
+
+The second is maintenance, and it has two situations. If `lab-roam` is a member
+it opens an ssh session over the **tailnet** address, forces the re-auth
+underneath it with `tailscale up --force-reauth`, and reports whether the
+session kept counting — the tick it had reached before, and the one it reached
+after. If `lab-roam` is out — usually because **Let a key expire** just put it
+there — there is nothing to keep, and the demonstration is instead that one
+command and the key you already had bring it back. Either way it reads the node
+key the coordination server holds before and after, so "it re-keyed" is
+something the run found rather than something the button claims. It takes about
+a minute.
 
 #### The capture has a control experiment in it
 

@@ -88,17 +88,26 @@
   function boardOn() { return !!board && view === "board"; }
 
   /* The board needs the grants before it can cut a cell per grant, and the
-     attack list before it can say which ids have no set-piece. Whichever of
-     the two arrives last calls this, because the module and /api/meta race
-     and either order is normal. */
+     list of actions before it can say which ids have no set-piece. Whichever
+     of the two arrives last calls this, because the module and /api/meta race
+     and either order is normal.
+
+     meta.actions, not meta.attacks. The dispatch table is longer than the
+     attack list — `rotate-key` and `outage` are both posted to /api/action and
+     neither is an attack — so a check walking the attacks could not report a
+     gap in either of them, and for a while did not. */
   var warnedGaps = false;
   function applyMeta() {
     board.setMeta(meta);
     if (warnedGaps) return;
     warnedGaps = true;
-    var gaps = window.LabHUD.missing(meta.attacks);
+    if (!meta.actions) {
+      console.warn("/api/meta carried no action list, so no set-piece gap was checked");
+      return;
+    }
+    var gaps = window.LabHUD.missing(meta.actions);
     if (gaps.length) {
-      console.warn("attacks with no set-piece, falling back to the text trace: " + gaps.join(", "));
+      console.warn("actions with no set-piece, falling back to the text trace: " + gaps.join(", "));
     }
   }
 
@@ -763,6 +772,12 @@
         working(true);
         stopHudStream();
         if (!boardOn()) showTab("packets");
+        /* It opens a session over the tailnet first when there is one to open,
+           rotates underneath it, and then waits to see whether it kept
+           counting — so it is a minute, not the instant button it used to be
+           back when it measured nothing. */
+        verdict("", "Re-registering lab-roam, and watching whether anything running over " +
+          "the tailnet notices. Give it a minute.");
         post("/api/action", { id: "rotate-key" }).then(function (res) {
           trace(res, "rotate the key");
           verdict(res.ok ? "ok" : "bad", res.why, res.rung);

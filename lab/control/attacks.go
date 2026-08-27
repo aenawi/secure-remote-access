@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -48,31 +49,46 @@ var AttackList = []AttackDef{
 		Sub: "Close both doors, in the wrong sequence, and be outside"},
 }
 
+// Actions is the dispatch table, and it is deliberately a table rather than a
+// switch. Two of its entries are not in AttackList — `rotate-key` is
+// maintenance and `outage` is the session layer, both of them have their own
+// button, and neither is an attack — which for a long time meant that a tool
+// asking "which of these has no set-piece yet?" was handed AttackList and
+// structurally could not see them. One of them then went a whole release with
+// no shot on the board and nothing reported it. So the list of what can be
+// dispatched now has one home, ActionIDs serves it to the browser, and the
+// gap-reporting walks this instead.
+var Actions = map[string]func(*Controller, context.Context) Result{
+	"scan-public":   (*Controller).atkScanPublic,
+	"scan-tailnet":  (*Controller).atkScanTailnet,
+	"sniff":         (*Controller).atkSniff,
+	"replay":        (*Controller).atkReplay,
+	"stolen-key":    (*Controller).atkStolenKey,
+	"expired-key":   (*Controller).atkExpiredKey,
+	"rotate-key":    (*Controller).atkRotateKey,
+	"outage":        (*Controller).demoOutage,
+	"rogue-exit":    (*Controller).atkRogueExit,
+	"docker-bypass": (*Controller).atkDockerBypass,
+	"lock-out":      (*Controller).atkLockOut,
+}
+
+// ActionIDs is every id RunAttack will dispatch, sorted so the browser gets a
+// stable list. `reset` is not in here and does not belong here: it is handled
+// before RunAttack ever sees it, it produces no Result worth drawing, and its
+// button clears the board rather than playing a shot at it.
+func ActionIDs() []string {
+	ids := make([]string, 0, len(Actions))
+	for id := range Actions {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	return ids
+}
+
 func (c *Controller) RunAttack(ctx context.Context, id string) Result {
 	c.loadDesired()
-	switch id {
-	case "scan-public":
-		return c.atkScanPublic(ctx)
-	case "scan-tailnet":
-		return c.atkScanTailnet(ctx)
-	case "sniff":
-		return c.atkSniff(ctx)
-	case "replay":
-		return c.atkReplay(ctx)
-	case "stolen-key":
-		return c.atkStolenKey(ctx)
-	case "expired-key":
-		return c.atkExpiredKey(ctx)
-	case "rotate-key":
-		return c.atkRotateKey(ctx)
-	case "outage":
-		return c.demoOutage(ctx)
-	case "rogue-exit":
-		return c.atkRogueExit(ctx)
-	case "docker-bypass":
-		return c.atkDockerBypass(ctx)
-	case "lock-out":
-		return c.atkLockOut(ctx)
+	if fn, ok := Actions[id]; ok {
+		return fn(c, ctx)
 	}
 	return Result{Why: "no attack called " + id}
 }
@@ -422,25 +438,316 @@ func (c *Controller) atkExpiredKey(ctx context.Context) Result {
 	return res
 }
 
+// atkRotateKey is the one button on this board that is neither an attack nor a
+// defence answering one. Nothing is attacking anything: rotating a node key is
+// maintenance, and maintenance is judged by what it does not disturb. The claim
+// is therefore continuity, in three parts — the coordination server stops
+// holding the old key, the machine stays inside the tailnet at the same
+// address, and a session running over that address does not notice.
+//
+// All three are claims a drawing makes, so all three are measured here. This
+// used to return ok=true unconditionally and say that rotation "is a
+// thirty-second job when you have planned for it" — true, well meant, and not
+// a thing the run had shown. A shot drawn from that would have been inventing
+// its subject, which is the one thing the board may not do.
+//
+// It has two situations and they are different demonstrations, so the command
+// differs and the reading differs:
+//
+//	rotate   lab-roam is a member right now. There is something to disturb, so
+//	         the run opens a session over the tailnet address first and forces
+//	         the re-auth underneath it.
+//	restore  lab-roam is out — usually because "Let a key expire" just put it
+//	         there. Nothing to disturb; the demonstration is that a re-register
+//	         brings it back, which is what atkExpiredKey's own Why sends the
+//	         reader here to try.
 func (c *Controller) atkRotateKey(ctx context.Context) Result {
-	res := Result{Rung: 1, Rule: "re-register lab-roam",
-		Cmds: []string{"tailscale up --login-server=… --authkey=…   # on lab-roam"}}
+	res := Result{Rung: 1, From: "lab-roam", To: "lab-vps", Rule: "re-register lab-roam"}
 	key, err := readFileTrimmed(c.StateFile("authkey"))
 	if err != nil {
 		res.Why = "no pre-auth key on disk: " + err.Error()
 		return res
 	}
-	r, _ := c.lab.Exec(ctx, "lab-roam", "tailscale", "up",
-		"--login-server=https://headscale:8443", "--authkey="+key,
-		"--hostname=lab-roam", "--accept-routes=false", "--accept-dns=false", "--timeout=30s")
+	if !c.lab.Running(ctx, "lab-roam") {
+		res.Why = "lab-roam is not running, so there is nothing to re-register. Start it from " +
+			"the machines panel first."
+		return res
+	}
+
+	// ---- before ---------------------------------------------------------
+	var rot rotation
+	nodeBefore, _ := c.nodeFor(ctx, "lab-roam")
+	if st, err := c.tailscaleStatus(ctx, "lab-roam"); err == nil {
+		rot.wasMember = st.BackendState == "Running"
+	}
+	addrBefore := ""
+	if rot.wasMember {
+		addrBefore = c.tsAddr(ctx, "lab-roam")
+	}
+
+	// The session runs to lab-vps's TAILNET address, and that is the whole
+	// point of it. Over the public address a node-key rotation is something
+	// the session could not feel even in principle, so a surviving one would
+	// prove nothing about the rotation — it would prove that the rotation was
+	// irrelevant to it. Up on the tailnet the two are genuinely connected, and
+	// "it did not notice" is a finding.
+	vpsTS := ""
+	if rot.wasMember {
+		vpsTS = c.tsAddr(ctx, "lab-vps")
+	}
+	const sshOpts = `-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=8`
+	const highest = `echo "ticks=$(tr -d '\r' < /tmp/rotate.out 2>/dev/null | grep -o 'tick [0-9]*' | awk '{print $2}' | sort -n | tail -1)"`
+	if vpsTS != "" {
+		start := fmt.Sprintf(`
+rm -f /tmp/rotate.out
+cat > /tmp/run-rotate.sh <<'RUNEOF'
+#!/bin/sh
+exec ssh %s root@%s 'i=1; while [ $i -le 120 ]; do echo tick $i; sleep 1; i=$((i+1)); done'
+RUNEOF
+chmod +x /tmp/run-rotate.sh
+(/tmp/run-rotate.sh > /tmp/rotate.out 2>&1 &)
+sleep 8
+`, sshOpts, vpsTS)
+		if _, err := c.lab.Sh(ctx, "lab-roam", start); err == nil {
+			if r, err := c.lab.Sh(ctx, "lab-roam", highest); err == nil {
+				rot.ticksBefore = parseKV(r.Stdout, "ticks")
+			}
+		}
+	}
+
+	// ---- the rotation ---------------------------------------------------
+	// --force-reauth only where there is a live registration to force. A
+	// machine that is already out has to re-register whatever is asked of it,
+	// and the plain command is the one the entrypoint and the reset path have
+	// always used to bring one back.
+	up := []string{"tailscale", "up",
+		"--login-server=https://headscale:8443", "--authkey=" + key,
+		"--hostname=lab-roam", "--accept-routes=false", "--accept-dns=false", "--timeout=30s"}
+	if rot.wasMember {
+		up = append(up, "--force-reauth")
+	}
+	res.Cmds = []string{
+		"headscale nodes list -o json   # the node key it holds for lab-roam, before and after",
+	}
+	if vpsTS != "" {
+		res.Cmds = append(res.Cmds,
+			"ssh root@"+vpsTS+" 'while …; do echo tick $i; sleep 1; done'   # on lab-roam, over the tailnet")
+	}
+	// The key itself is elided, as it always has been here. It is a lab key on
+	// a loopback-only server and it is still not going in the script tab, the
+	// transcript under the shot, or anybody's screen recording.
+	shown := make([]string, 0, len(up))
+	for _, arg := range up {
+		if strings.HasPrefix(arg, "--authkey=") {
+			arg = "--authkey=…"
+		}
+		shown = append(shown, arg)
+	}
+	res.Cmds = append(res.Cmds, strings.Join(shown, " ")+"   # on lab-roam")
+
+	r, _ := c.lab.Exec(ctx, "lab-roam", up...)
 	res.Raw = r.Out()
+
+	// The session survives a re-auth or it does not, and that is measured
+	// below; what must not happen is measuring it before tailscaled has
+	// finished coming back, which would report a stall as a drop.
+	rot.isMember = WaitFor(ctx, 45*time.Second, 2*time.Second, func() bool {
+		st, err := c.tailscaleStatus(ctx, "lab-roam")
+		return err == nil && st.BackendState == "Running"
+	})
 	c.EnsureTags(ctx)
-	c.with(func(s *State) { s.Machines["lab-roam"].KeyExpired = false })
+	c.with(func(s *State) { s.Machines["lab-roam"].KeyExpired = !rot.isMember })
+
+	// ---- after ----------------------------------------------------------
+	addrAfter := ""
+	if rot.isMember {
+		addrAfter = c.tsAddr(ctx, "lab-roam")
+	}
+	rot.addrKept = addrBefore != "" && addrBefore == addrAfter
+	nodeAfter, _ := c.nodeFor(ctx, "lab-roam")
+	rot.keyRead = nodeBefore.NodeKey != "" && nodeAfter.NodeKey != ""
+	rot.keyChanged = rot.keyRead && nodeBefore.NodeKey != nodeAfter.NodeKey
+	rot.expiryMoved = nodeAfter.Expiry.Time().After(nodeBefore.Expiry.Time())
+
+	if rot.ticksBefore > 0 {
+		// Long enough for the loop to print past the rotation, and no longer:
+		// the figure is the count the session reached, not a count this waited
+		// for. A session that died at the re-auth reports the tick it died on.
+		time.Sleep(12 * time.Second)
+		if r, err := c.lab.Sh(ctx, "lab-roam", highest); err == nil {
+			rot.ticksAfter = parseKV(r.Stdout, "ticks")
+		}
+	}
+	if vpsTS != "" {
+		// Whether or not it printed anything. demoOutage leaves its two
+		// sessions to run themselves out, which is survivable there because
+		// both of them are the demonstration; a stray loop left behind by this
+		// one would still be ticking the next time somebody presses the button,
+		// and the reading afterwards would be its ticks and not the new run's.
+		_, _ = c.lab.Sh(ctx, "lab-roam",
+			`pkill -f run-rotate.sh 2>/dev/null; pkill -f 'root@`+vpsTS+`' 2>/dev/null; true`)
+	}
+
+	p := c.Probe(ctx, "lab-roam", "lab-vps", "22")
+	rot.probeOK, rot.probeRung = p.OK, p.Rung
+	res.Raw = strings.TrimSpace(res.Raw + "\n\nprobe after the rotation: rung " +
+		strconv.Itoa(p.Rung) + " — " + p.Why)
+
+	res.Evidence = rot.evidence()
+	// Only what was read. An empty string here would be a label with a blank
+	// where a key should be, which reads as a key that is missing rather than
+	// as one that was never asked for.
+	res.Detail = map[string]string{}
+	for k, v := range map[string]string{
+		"addrBefore": addrBefore, "addrAfter": addrAfter,
+		"keyBefore": shortKey(nodeBefore.NodeKey), "keyAfter": shortKey(nodeAfter.NodeKey),
+	} {
+		if v != "" {
+			res.Detail[k] = v
+		}
+	}
+	res.Rung = rot.rung()
+	res.Rule = rot.rule()
+	res.OK, res.Why = rot.verdict(addrAfter)
 	c.Observe(ctx)
-	res.OK = true
-	res.Why = "lab-roam has a fresh session. Rotation is a thirty-second job when you have " +
-		"planned for it and a bad afternoon when you have not."
 	return res
+}
+
+// rotation is what one run of atkRotateKey measured, and every field in it is
+// a fact a drawing is entitled to draw. Kept together so the three claims the
+// set-piece makes — re-keyed, still a member, nothing dropped — have one place
+// to be decided and one place to be tested, rather than being re-derived from
+// prose at the far end of a JSON round trip.
+type rotation struct {
+	wasMember, isMember     bool
+	keyRead, keyChanged     bool
+	expiryMoved, addrKept   bool
+	probeOK                 bool
+	probeRung               int
+	ticksBefore, ticksAfter int
+}
+
+// sessionRan is whether there was anything to disturb. Without it the run says
+// nothing about continuity either way, and the shot draws no lane rather than
+// drawing one that survived a rotation it was never in.
+func (r rotation) sessionRan() bool { return r.ticksBefore > 0 }
+
+// sessionKept is a comparison between the two readings, not a guess from the
+// second one: a session that died at the re-auth reports the same tick it had
+// reached before it.
+func (r rotation) sessionKept() bool { return r.sessionRan() && r.ticksAfter > r.ticksBefore }
+
+func (r rotation) evidence() map[string]int {
+	return map[string]int{
+		"wasMember":   boolToInt(r.wasMember),
+		"isMember":    boolToInt(r.isMember),
+		"keyRead":     boolToInt(r.keyRead),
+		"keyChanged":  boolToInt(r.keyChanged),
+		"expiryMoved": boolToInt(r.expiryMoved),
+		"addrKept":    boolToInt(r.addrKept),
+		"probeOK":     boolToInt(r.probeOK),
+		"ticksBefore": r.ticksBefore,
+		"ticksAfter":  r.ticksAfter,
+	}
+}
+
+// rung is the board's X axis. A session that printed a tick over the tailnet
+// went all the way: sshd answered and a shell ran a loop, and that is rung 5,
+// whatever the probe afterwards happened to find. Otherwise the probe is the
+// only thing that measured a distance, so it decides — the same arrangement
+// atkExpiredKey has, and for the same reason.
+func (r rotation) rung() int {
+	if r.ticksBefore > 0 || r.ticksAfter > 0 {
+		return 5
+	}
+	if r.probeRung > 0 {
+		return r.probeRung
+	}
+	return 1
+}
+
+func (r rotation) rule() string {
+	switch {
+	case !r.isMember:
+		return "the re-registration did not take"
+	case !r.wasMember:
+		return "a re-register puts an expired machine back"
+	case r.sessionRan():
+		return "the key rotates underneath a live session"
+	default:
+		return "re-register lab-roam"
+	}
+}
+
+// verdict is ok plus the prose, and the two are decided together because they
+// are the same judgement. ok here means the rotation did what maintenance is
+// supposed to do; a dropped session is a real finding and not a green frame.
+func (r rotation) verdict(addr string) (bool, string) {
+	where := "the tailnet"
+	if addr != "" {
+		where = addr
+	}
+	switch {
+	case !r.isMember:
+		return false, "lab-roam did not come back onto the tailnet within 45 seconds of the " +
+			"re-register. Check the coordination server is up and that the pre-auth key on " +
+			"disk has not expired — `headscale preauthkeys list -u lab` will say."
+
+	case r.sessionKept():
+		keyed := "The coordination server holds a different node key for it than it held a " +
+			"minute ago"
+		if !r.keyChanged {
+			keyed = "The coordination server reports the same node key it reported before, so " +
+				"this run did not demonstrate a re-key — what it did demonstrate is the " +
+				"re-registration"
+		}
+		return true, fmt.Sprintf("A session was running over %s while the key rotated, and it "+
+			"did not notice: tick %d before, tick %d after, the same connection throughout. "+
+			"%s, and the machine is still on the tailnet at the same address. That is what "+
+			"rotation is supposed to look like — the credential changes and nothing that was "+
+			"relying on it stops. It is a thirty-second job when you have planned for it, and "+
+			"the reason to plan for it is that the alternative is doing this to a machine you "+
+			"cannot reach any other way.", where, r.ticksBefore, r.ticksAfter, keyed)
+
+	case r.sessionRan():
+		return false, fmt.Sprintf("The session stopped at tick %d and printed nothing after "+
+			"the re-auth, so this rotation was not free: something that was working across "+
+			"the tailnet stopped working. Read the tail in the packets tab — if sshd is "+
+			"reachable again now, the connection was dropped rather than the machine, and "+
+			"that is a rotation you would want to do at a quiet hour.", r.ticksBefore)
+
+	case !r.wasMember:
+		return true, fmt.Sprintf("lab-roam was outside the tailnet and a re-register put it "+
+			"back, at %s. There was no session to keep, so this run says nothing about "+
+			"continuity — it says the machine that removed itself can be brought back with one "+
+			"command and the key you already had. Run it again now that it is a member and "+
+			"the demonstration is the other one: a rotation underneath something that is "+
+			"running.", where)
+
+	default:
+		return true, fmt.Sprintf("lab-roam re-registered and is still a member, at %s. No "+
+			"session was measured across the rotation — the tailnet address for lab-vps was "+
+			"not readable, or ssh over it never printed — so continuity is the one part of "+
+			"this that went untested. The membership and the address are measured, and both "+
+			"held.", where)
+	}
+}
+
+// shortKey is a node key with enough of it left to see that two of them differ
+// and not so much that it stops fitting on a label. Empty in, empty out: the
+// drawing then knows there was nothing to read rather than showing a blank
+// where a key should be.
+func shortKey(k string) string {
+	if k == "" {
+		return ""
+	}
+	if _, rest, ok := strings.Cut(k, ":"); ok {
+		k = rest
+	}
+	if len(k) > 10 {
+		k = k[:10]
+	}
+	return k + "…"
 }
 
 func (c *Controller) atkRogueExit(ctx context.Context) Result {
