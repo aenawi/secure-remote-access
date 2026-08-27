@@ -3,18 +3,19 @@
 #   make up       bring the lab up and tell you where to look
 #   make attack   add evil-box — nothing hostile exists until you do
 #   make audit    the eleven checks, from the command line
-#   make check    vet, test, gofmt — no containers, no network, one second
+#   make check    Go and JavaScript both — no containers, no network, a second
 #   make reset    throw everything away and start clean
 #
 # Docker is the only thing you need installed to run the lab. `make check`
 # is the exception, and wants Go instead: it is the one target that works
-# with the lab down.
+# with the lab down. It will also use Node if you have it, for the UI
+# JavaScript, and say so and carry on if you do not.
 
 COMPOSE ?= docker compose
 URL     ?= http://localhost:8099
 
 .DEFAULT_GOAL := help
-.PHONY: help up attack down reset logs shell status audit check hooks \
+.PHONY: help up attack down reset logs shell status audit check ui hooks \
         day-one typical weak hardened
 
 help:
@@ -23,7 +24,8 @@ help:
 	@printf '  make attack     add evil-box (never starts on its own)\n'
 	@printf '  make status     tailscale status from the laptop\n'
 	@printf '  make audit      run the eleven checks and print the score\n'
-	@printf '  make check      go vet, go test, gofmt — with the lab down\n'
+	@printf '  make check      go vet, go test, gofmt, and the UI JavaScript\n'
+	@printf '  make ui         parse-check ui/ and assets/, run the board rules\n'
 	@printf '  make hooks      install the pre-push hook that runs make check\n'
 	@printf '  make logs       follow every container\n'
 	@printf '  make shell M=lab-vps   a root shell on one machine\n'
@@ -77,9 +79,10 @@ print(r.get("verdict","")); print(); \
 [print(("  PASS  " if c["pass"] else "  FAIL  ") + c["label"]) for c in r.get("checks",[])]' \
 	  2>/dev/null || curl -fsS $(URL)/api/audit
 
-# The only target that needs no Docker and no lab. All three checks run
+# The only target that needs no Docker and no lab. The three Go checks run
 # against control/, the only Go in the repo, and finish in about a second —
 # which is the point: this has to be runnable on a laptop with the lab down.
+# `ui` is fourth and adds about a tenth of one, when Node is there.
 check:
 	@printf 'go vet\n'
 	@cd control && go vet ./...
@@ -93,7 +96,35 @@ check:
 	    printf '\nFix with: gofmt -w lab/control\n'; \
 	    exit 1; \
 	  fi
-	@printf '\nvet, test and gofmt all held.\n'
+	@$(MAKE) --no-print-directory ui
+	@printf '\nEverything held.\n'
+
+# The UI is three thousand lines of JavaScript that ships exactly as written:
+# `//go:embed ui` puts it in the binary, nothing compiles or bundles it, and a
+# typo in a set-piece fails quietly on purpose — run() catches it so a broken
+# shot cannot take the page down, which is right, and which also makes it look
+# like an action that simply has no set-piece. So: a parse check over the files
+# the browser loads, and the board's own rules asserted as pure functions.
+#
+# Node is not a prerequisite of this lab and is not becoming one. There is no
+# npm here, no package.json and no node_modules — checks/ is two files that use
+# nothing but what Node ships with. Without Node this prints a note and holds,
+# because failing the gate for a tool the lab does not require would only teach
+# people to pass --no-verify.
+NODE_MIN := 18
+ui:
+	@printf 'ui js\n'
+	@if ! command -v node >/dev/null 2>&1; then \
+	  printf '  skipped — no node, and the lab does not ask for one.\n'; \
+	  printf '  Node $(NODE_MIN)+ parse-checks ui/ and assets/ and runs the board rules.\n'; \
+	  exit 0; \
+	fi; \
+	major=$$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0); \
+	if [ "$$major" -lt $(NODE_MIN) ]; then \
+	  printf '  skipped — node %s is older than $(NODE_MIN), which node --test needs.\n' "$$major"; \
+	  exit 0; \
+	fi; \
+	node checks/syntax.mjs && node --test checks/*.test.mjs
 
 # Opt-in on purpose: nothing installs this for you, and README.md says how to
 # take it out again. A hook put there behind your back is a worse papercut

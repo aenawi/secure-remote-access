@@ -108,6 +108,13 @@ secure-remote-access/
 opt-in, self-contained and needs nothing but Docker; the guide reads exactly the
 same without it.
 
+The guide's four scripts have no build step and no tests, which suits four
+files that degrade to a readable static page when they do not run. They are
+parse-checked, though — `make -C lab check` runs `node --check` over
+`assets/*.js` along with the lab's own UI, so a stray comma is caught before it
+ships rather than in somebody's console. It skips itself when Node is not
+installed; see [lab/README.md](lab/README.md#the-javascript-half).
+
 `nav.js` is the single source of truth for navigation. Add an entry there and the
 sidebar, filter, chapter cards and prev/next links all pick it up. Each chapter
 page sets `data-page` on `<body>` to match its `id` in `nav.js`, and `data-depth="1"`
