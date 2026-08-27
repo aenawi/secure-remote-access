@@ -690,6 +690,106 @@ func (c *Controller) sshdOption(ctx context.Context, key, value string) Result {
 // rather than asserted.
 // ---------------------------------------------------------------------------
 
+// noPeerInNetmap is what the ladder says when both ends hold a tailnet session
+// and the far machine is not in the near one's netmap at all. It is a rung-3
+// denial with a distinguishing feature: the policy removed the peer rather than
+// dropping its packets, so there is nothing to capture on the far machine and
+// no log line to go looking for. Saying that out loud is the whole point —
+// "nothing arrived and nothing was logged" is the denial people misread as a
+// broken network.
+func noPeerInNetmap(from, to string) Result {
+	return Result{
+		From: from, To: to, Rung: 3, Path: "direct",
+		Rule: "the tailnet policy refused it — " + to + " is not even in " + from + "'s netmap",
+		Why: "Nothing reached " + to + ", and " + from + " cannot see that it exists. " +
+			"The policy removed the peer rather than dropping its packets, so there is " +
+			"no log line on " + to + " to find.",
+		Cmds: []string{"tailscale status   # on " + from + ": " + to + " is absent"},
+	}
+}
+
+// tailnetPath reads `tailscale ping`'s output and says which way this pair
+// settled on. The answer is the last line that reported a pong, not the last
+// line: ping prints a summary underneath ("direct connection not established")
+// and reading that as the verdict turns every relayed session into no session
+// at all. ok is false when nothing ponged, which is a pair with two sessions
+// and no path between them — rung 2, and a different finding from a policy
+// denial.
+func tailnetPath(pingOut string) (path, rule, why string, ok bool) {
+	pong := lastLineContaining(pingOut, "pong from")
+	switch {
+	case strings.Contains(pong, "via DERP"):
+		return "relay", "relayed through DERP — no direct path was available: " + pong, "", true
+	case pong != "":
+		return "direct", "direct — both NATs held a mapping open and the punch completed: " + pong, "", true
+	default:
+		r := lastLine(pingOut)
+		return "", r, "Both ends have a tailnet session and no path between them: " + r, false
+	}
+}
+
+// knock is the evidence one connection attempt produced, at both of its ends:
+// what `nc -vz` said where it started, and what `tcpdump` caught where it was
+// aimed. Rungs 3, 4 and 5 are a pure function of those two strings plus the
+// interface the capture was watching, and keeping it a pure function is the
+// only reason the ladder can be tested without a tailnet, a kernel or a
+// container.
+//
+// The asymmetry it encodes is chapter 14's callout and the reason the lab
+// exists. Nothing arrived → the tailnet refused it and the far machine was
+// never involved. It arrived and died quietly → the host firewall dropped it,
+// and that one is visible on the machine. It arrived and was refused → every
+// rule permitted it and nothing was listening, which is usually a bind address
+// rather than a rule.
+type knock struct {
+	from, to   string
+	iface      string // the interface tcpdump was watching on `to`
+	addr, port string
+	out        string // `nc -vz -w 4 <addr> <port> 2>&1; echo "rc=$?"`
+	capture    string // tcpdump's line, or empty if nothing arrived
+}
+
+// reached is nc's own exit status, which is the only thing that settles whether
+// the connection completed. The banner it prints on success is not always the
+// same sentence across nc implementations; the return code is.
+func (k knock) reached() bool { return strings.Contains(k.out, "rc=0") }
+
+func (k knock) refused() bool { return strings.Contains(strings.ToLower(k.out), "refused") }
+
+// arrived asks the far machine, not the near one. This is the measurement that
+// separates a rung-3 denial from a rung-4 one, and there is no way to make it
+// from the sending side.
+func (k knock) arrived() bool { return strings.TrimSpace(k.capture) != "" }
+
+func (k knock) classify() (rung int, ok bool, rule, why string) {
+	if k.reached() {
+		return 5, true, "", "reached " + k.addr + ":" + k.port
+	}
+	if !k.arrived() {
+		// Nothing turned up at the far end. Over the tailnet that is the
+		// policy; over the ordinary network it means there is no path at all,
+		// which is a claim about routing rather than about rules.
+		if k.iface == "tailscale0" {
+			return 3, false, "the tailnet policy refused it",
+				"Nothing reached " + k.to + ". The tailnet dropped it before the far " +
+					"machine was involved, so there is no log line on " + k.to + " to find — " +
+					"which is exactly how a rung-3 denial feels when you are debugging one."
+		}
+		return 2, false, "",
+			"Nothing arrived at " + k.to + " at all. There is no path between " +
+				"these two right now."
+	}
+	if k.refused() {
+		return 5, false, "the firewall permitted it — that is not the same as an answer",
+			"The packet arrived and was refused. Every rule allowed it and nothing " +
+				"was listening on an address this path reaches. Usually a bind address, " +
+				"not a rule."
+	}
+	return 4, false, "the host firewall dropped it",
+		"The packet reached " + k.to + " — you can see it in the capture — and the " +
+			"box dropped it. Unlike a rung-3 denial, this one is visible on the machine."
+}
+
 var rttRe = regexp.MustCompile(`= [\d.]+/([\d.]+)/`)
 var lossRe = regexp.MustCompile(`([\d.]+)% packet loss`)
 
@@ -734,14 +834,9 @@ func (c *Controller) Probe(ctx context.Context, from, to, port string) Result {
 			// one's netmap at all. That is the policy at its most complete: a
 			// peer you may not talk to is not merely blocked, it is not sent to
 			// you. Rung 3, and there is nothing on the far machine to look at.
-			res.Rung = 3
-			res.Path = "direct"
-			res.Rule = "the tailnet policy refused it — " + to + " is not even in " + from + "'s netmap"
-			res.Why = "Nothing reached " + to + ", and " + from + " cannot see that it exists. " +
-				"The policy removed the peer rather than dropping its packets, so there is " +
-				"no log line on " + to + " to find."
-			res.Cmds = []string{"tailscale status   # on " + from + ": " + to + " is absent"}
-			return res
+			r := noPeerInNetmap(from, to)
+			r.Port = port
+			return r
 		}
 	}
 	if addr != "" {
@@ -754,17 +849,10 @@ func (c *Controller) Probe(ctx context.Context, from, to, port string) Result {
 		pr, _ := c.lab.Exec(ctx, from, "tailscale", "ping", "--c", "5", "--timeout", "8s", addr)
 		// The last line is a summary ("direct connection not established"), so
 		// the answer is the last line that actually reported a pong.
-		pong := lastLineContaining(pr.Out(), "pong from")
-		switch {
-		case strings.Contains(pong, "via DERP"):
-			res.Path = "relay"
-			res.Rule = "relayed through DERP — no direct path was available: " + pong
-		case pong != "":
-			res.Path = "direct"
-			res.Rule = "direct — both NATs held a mapping open and the punch completed: " + pong
-		default:
-			res.Rule = lastLine(pr.Out())
-			res.Why = "Both ends have a tailnet session and no path between them: " + res.Rule
+		path, rule, why, settled := tailnetPath(pr.Out())
+		res.Path, res.Rule = path, rule
+		if !settled {
+			res.Why = why
 			return res
 		}
 	}
@@ -797,61 +885,36 @@ func (c *Controller) Probe(ctx context.Context, from, to, port string) Result {
 		`rm -f %s; (timeout 8 tcpdump -l -n -i %s -c 1 'tcp dst port %s' > %s 2>/dev/null &) ; sleep 1`,
 		capFile, iface, port, capFile))
 
-	knock, _ := c.lab.Sh(ctx, from, fmt.Sprintf(
+	ncr, _ := c.lab.Sh(ctx, from, fmt.Sprintf(
 		`nc -vz -w 4 %s %s 2>&1; echo "rc=$?"`, addr, port))
-	knockOut := knock.Out()
-	reached := strings.Contains(knockOut, "rc=0")
-	refused := strings.Contains(strings.ToLower(knockOut), "refused")
 
 	time.Sleep(700 * time.Millisecond)
 	capr, _ := c.lab.Sh(ctx, to, "cat "+capFile+" 2>/dev/null; rm -f "+capFile)
-	arrived := strings.TrimSpace(capr.Stdout) != ""
+
+	k := knock{from: from, to: to, iface: iface, addr: addr, port: port,
+		out: ncr.Out(), capture: capr.Stdout}
 
 	res.Cmds = []string{
 		fmt.Sprintf("tcpdump -n -i %s -c 1 'tcp dst port %s'   # on %s", iface, port, to),
 		fmt.Sprintf("nc -vz -w 4 %s %s   # on %s", addr, port, from),
 	}
-	res.Raw = strings.TrimSpace(knockOut)
-	if arrived {
-		res.Raw += "\n\n" + to + " saw it arrive:\n" + strings.TrimSpace(capr.Stdout)
+	res.Raw = strings.TrimSpace(k.out)
+	if k.arrived() {
+		res.Raw += "\n\n" + to + " saw it arrive:\n" + strings.TrimSpace(k.capture)
 	} else {
 		res.Raw += "\n\n" + to + " saw nothing arrive on " + iface + "."
 	}
 
-	if !reached {
-		if !arrived {
-			if iface == "tailscale0" {
-				res.Rung = 3
-				res.Rule = "the tailnet policy refused it"
-				res.Why = "Nothing reached " + to + ". The tailnet dropped it before the far " +
-					"machine was involved, so there is no log line on " + to + " to find — " +
-					"which is exactly how a rung-3 denial feels when you are debugging one."
-			} else {
-				res.Rung = 2
-				res.Why = "Nothing arrived at " + to + " at all. There is no path between " +
-					"these two right now."
-			}
-			return res
-		}
-		if refused {
-			res.Rung = 5
-			res.Rule = "the firewall permitted it — that is not the same as an answer"
-			res.Why = "The packet arrived and was refused. Every rule allowed it and nothing " +
-				"was listening on an address this path reaches. Usually a bind address, " +
-				"not a rule."
-			return res
-		}
-		res.Rung = 4
-		res.Rule = "the host firewall dropped it"
-		res.Why = "The packet reached " + to + " — you can see it in the capture — and the " +
-			"box dropped it. Unlike a rung-3 denial, this one is visible on the machine."
+	rung, ok, rule, why := k.classify()
+	res.Rung, res.OK, res.Why = rung, ok, why
+	if rule != "" {
+		res.Rule = rule
+	}
+	if !ok {
 		return res
 	}
 
 	// ---- it worked. Now the numbers, measured rather than modelled. -----
-	res.Rung = 5
-	res.OK = true
-	res.Why = "reached " + addr + ":" + port
 	if tm.ID == "lab-vps" && port == "8080" {
 		s := c.Snapshot()
 		if s.VPS.UFWDefaultDeny && res.Path == "public" {

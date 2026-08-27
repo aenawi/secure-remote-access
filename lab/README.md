@@ -327,6 +327,11 @@ own comparison table, the lab scores from `make audit` against each profile:
 | `hardened` | 11/11 | **10/11** | key expiry (1 below) |
 | the boot state | 8/11 | **7/11** | key expiry (1 below) |
 
+Those five lab scores are not decoration. `make check` parses this table and
+asserts it against a checked-in fixture of which of the eleven each
+configuration passes, so a number here and the number `audit.go` computes
+cannot drift apart without a failing test naming both.
+
 Every gap in that table is now the same single divergence, and it is the one
 that cannot be fixed: Headscale genuinely does not do what Tailscale does. Not
 only the totals agree — the two halves fail the *same checks* in all five
@@ -590,9 +595,22 @@ all: a file listed is a file that is not formatted.
 It is worth the second because of the four board rules — nothing drawn that
 was not measured, a failed attack is not a green tick, `danger` outranks `ok`,
 time is not faked. Those are the kind of invariant that erodes without anyone
-deciding to erode it, and `control/attacks_test.go` guards the evidence
-round-trips they stand on. Until now nothing ran it but somebody remembering
-to.
+deciding to erode it, and four test files guard them:
+
+| File | What it holds |
+|---|---|
+| `attacks_test.go` | the parsers, and the evidence round-trips the board draws from |
+| `probe_test.go` | the five-rung ladder, against `tailscale ping`, `nc` and `tcpdump` output captured from a running lab |
+| `audit_test.go` | the eleven checks, the score, and the five numbers in the comparison table above |
+| `state_test.go` | what `ufw`, `sshd -T` and `headscale` say about the machine, which decides three of the eleven |
+
+None of them start a container. The rung is a pure function of what one command
+printed at one end and another printed at the other, and the score is a pure
+function of eleven booleans — so the fixtures were captured once, checked in,
+and the decisions they drive are now asserted in about a second rather than in
+about a minute. That matters more than a coverage number: **finding 5 below was
+a rung-classification bug in exactly that pure function**, it survived for
+months, and it was caught by running containers.
 
 If you would rather not remember:
 
@@ -643,6 +661,7 @@ lab/
     ├── audit.go           the eleven checks
     ├── stream.go          server-sent events: status, tcpdump, logs, stats
     ├── panels.go          the panel spec the UI renders
+    ├── *_test.go          fixtures captured from a live lab; no containers needed
     └── ui/                the same vocabulary as chapter 14
         ├── index.html     both drawings, the panels, the readout tabs
         ├── app.js         a classic script, the same shape as assets/sandbox.js

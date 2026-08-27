@@ -437,10 +437,7 @@ func (c *Controller) observeVPS(ctx context.Context) {
 	v := VPSState{SSHDListen: "all"}
 
 	if r, err := c.lab.Exec(ctx, "lab-vps", "ufw", "status", "verbose"); err == nil {
-		out := r.Stdout
-		v.UFWDefaultDeny = strings.Contains(out, "deny (incoming)")
-		v.AllowTailscale = strings.Contains(out, "on tailscale0")
-		v.AllowPublic22 = strings.Contains(out, "22/tcp")
+		v.readUFW(r.Stdout)
 	}
 	if r, err := c.lab.Exec(ctx, "lab-vps", "lab-docker-trap", "status"); err == nil {
 		v.DockerPublish = strings.TrimSpace(r.Stdout) == "on"
@@ -450,21 +447,52 @@ func (c *Controller) observeVPS(ctx context.Context) {
 	// of it that matters.
 	if r, err := c.lab.Sh(ctx, "lab-vps",
 		`sshd -T 2>/dev/null | grep -iE '^(listenaddress|passwordauthentication|permitrootlogin) '`); err == nil {
-		for _, line := range strings.Split(strings.ToLower(r.Stdout), "\n") {
-			key, val, _ := strings.Cut(strings.TrimSpace(line), " ")
-			switch key {
-			case "listenaddress":
-				if strings.HasPrefix(val, "100.") {
-					v.SSHDListen = "tailnet"
-				}
-			case "passwordauthentication":
-				v.PasswordAuth = val == "yes"
-			case "permitrootlogin":
-				v.PermitRoot = val == "yes"
-			}
-		}
+		v.readSSHD(r.Stdout)
 	}
 	c.with(func(s *State) { s.VPS = v })
+}
+
+// readUFW turns `ufw status verbose` into the three facts the audit asks it
+// for. It is a substring search over a human-readable table, which is fragile
+// enough to be worth pinning: "22/tcp" appearing anywhere means the public rule
+// is still there, and the row that says so also carries the word ALLOW, so a
+// table that ever prints a denied 22/tcp row would read as permitted here.
+func (v *VPSState) readUFW(out string) {
+	v.UFWDefaultDeny = strings.Contains(out, "deny (incoming)")
+	v.AllowTailscale = strings.Contains(out, "on tailscale0")
+	v.AllowPublic22 = strings.Contains(out, "22/tcp")
+}
+
+// readSSHD turns `sshd -T`'s effective configuration into the three facts three
+// of the eleven checks are decided by. Two of them are read as "yes", which
+// means anything that is not the word yes — including a line that never
+// appeared — is off; that is the safe direction for PasswordAuthentication and
+// PermitRootLogin, because reporting them off when they are on is the failure
+// that matters, and it cannot happen from a missing line.
+//
+// ListenAddress is the odd one: sshd prints one line per address, and a machine
+// bound to both a tailnet address and 0.0.0.0 is exposed. "tailnet" therefore
+// has to mean every printed address is a tailnet one, not that a tailnet one
+// appeared somewhere in the list.
+func (v *VPSState) readSSHD(out string) {
+	listens, tailnet := 0, 0
+	for _, line := range strings.Split(strings.ToLower(out), "\n") {
+		key, val, _ := strings.Cut(strings.TrimSpace(line), " ")
+		switch key {
+		case "listenaddress":
+			listens++
+			if strings.HasPrefix(val, "100.") {
+				tailnet++
+			}
+		case "passwordauthentication":
+			v.PasswordAuth = val == "yes"
+		case "permitrootlogin":
+			v.PermitRoot = val == "yes"
+		}
+	}
+	if listens > 0 && listens == tailnet {
+		v.SSHDListen = "tailnet"
+	}
 }
 
 // ---------------------------------------------------------------------------
