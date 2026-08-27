@@ -5,8 +5,10 @@
 #
 #     rm .git/hooks/pre-push
 #
-# It runs `make -C lab check` — go vet, go test, gofmt — which needs no
-# containers, no network and about a second. To push past it once:
+# It runs `make -C lab check` — go vet, go test, gofmt, and a parse check plus
+# unit tests over the UI JavaScript — which needs no containers, no network and
+# about a second. The JavaScript half skips itself when Node is absent, because
+# the lab asks for Docker and nothing else. To push past it once:
 #
 #     git push --no-verify
 

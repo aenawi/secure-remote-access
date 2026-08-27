@@ -42,9 +42,17 @@
    Everything below reads fields off the Result the control server returned.
    There are no hard-coded outcomes: run the same attack against `weak` and
    against `hardened` and the frame differs, because the fields differ.
+
+   The four rules are decisions about a Result rather than about geometry, so
+   they live in ./reading.js as pure functions — where ../../../checks can
+   assert them, which matters here more than most places: run() below catches
+   anything a shot throws, so a broken rule looks like an action that simply
+   has no set-piece.
    ============================================================ */
 
 import { GEOM } from "./scene.js";
+import { ev, tone, ladderMark, neverRan, head, scanReading, sniffReading }
+  from "./reading.js";
 
 const { POS, GX, ANY, Y_PUB, Y_MACH, Y_NET, Y_DERP, TN_Y } = GEOM;
 
@@ -98,14 +106,13 @@ function bead(board, path, color, speed, size) {
 }
 
 /* Every set-piece ends here: a held frame that names the defence that
-   answered, in the same words whether or not anything moved. */
+   answered, in the same words whether or not anything moved. The two
+   judgements it makes — which rung, and which tone — are reading.js's,
+   because they are the two the rest of this file is easiest to break. */
 function held(board, res, v) {
-  /* res.ok on an attack means the defence held, not that anything was
-     delivered — so the ladder marks the rung the Result reports, and marks
-     it as answered rather than as a delivery. */
-  board.setLadder(res.rung || 1, v.ladder || (res.danger ? "breached" : "stopped"));
+  board.setLadder(res.rung || 1, v.ladder || ladderMark(res));
   board.setVerdict({
-    tone: res.danger ? "bad" : res.ok ? "ok" : "warn",
+    tone: tone(res),
     head: v.head,
     rule: v.rule || res.rule,
     why: res.why,
@@ -115,22 +122,10 @@ function held(board, res, v) {
   board.setChip(v.chip || "attack · held frame", v.chipKind || "pub");
 }
 
-/* The three outcomes an attack can have, phrased so the head always names
-   something rather than reporting a boolean. */
-function head(res, defence, through, inconclusive) {
-  if (res.danger) return "THROUGH · " + (through || defence);
-  if (res.ok) return "HELD · " + defence;
-  return "INCONCLUSIVE · " + (inconclusive || "nothing was proved either way");
-}
-
-const ev = (res, key) => (res.evidence && res.evidence[key]) || 0;
-
-/* needEvil and evilJoin return before the attack does anything, at rung 1.
-   Every attack below sets a higher rung the moment it actually runs, so this
-   separates "the defence was tested and nothing was proved" from "the
-   attacker never got off the ground" — which are different sentences to read
-   at eleven at night. */
-const neverRan = (res) => !res.ok && !res.danger && (res.rung || 1) <= 1;
+/* ev, head, neverRan, tone, ladderMark and the two readings are imported
+   from ./reading.js. They are the parts of this file that decide rather
+   than draw, they are the parts run()'s try/catch would hide a mistake in,
+   and they are the parts checks/reading.test.mjs asserts. */
 
 /* ============================================================
    1 · scan-public
@@ -148,8 +143,7 @@ function scanPublic(board, res) {
      this shot they come down, because a measurement is about to replace them. */
   board.parts.beamHost.visible = false;
 
-  const scanned = ev(res, "scanned");
-  const open = SCAN_PORTS.filter((p) => ev(res, "open:" + p.port) > 0);
+  const scan = scanReading(res, SCAN_PORTS.map((p) => p.port));
 
   const steps = [];
   SCAN_PORTS.forEach((p, i) => {
@@ -197,19 +191,15 @@ function scanPublic(board, res) {
   board.timeline(steps);
 
   /* The gauge stops being a claim about the rules and becomes a count — but
-     only if the scan ran. atkScanPublic reports rung 4; the "evil-box is not
-     in this stack" path reports rung 1 and measured nothing, and saying
-     "nmap found nothing open" about a scan that never happened is the same
-     lie as animating a capture that came back empty. */
-  const scanRan = (res.rung || 0) >= 4;
-  if (scanRan) board.setExposure(open.map((p) => p.port), true);
+     only if the scan ran, which is scanReading's call and not this shot's. */
+  if (scan.ran) board.setExposure(scan.open, true);
 
   held(board, res, {
     head: head(res,
       "ufw default incoming policy: deny",
       "the host firewall let them through",
       "nothing was scanned — is evil-box running?"),
-    nums: scanRan ? [scanned + " ports scanned", open.length + " open"] : [],
+    nums: scan.nums,
     chip: "public segment · in the clear", chipKind: "pub"
   });
 }
@@ -308,9 +298,7 @@ function sniff(board, res, ctx) {
   const C = board.C, uz = POS["lab-ubuntu"].z, ux = POS["lab-ubuntu"].x;
   board.fly(V(board, ux + 5.0, Y_MACH + 1.6, uz + 13.0), V(board, ux + 2.8, Y_MACH - 0.7, uz));
 
-  const frames = ev(res, "frames");
-  const cleartext = ev(res, "cleartext");
-  const tunnelled = ev(res, "tunnelled");
+  const r = sniffReading(res);
 
   /* the wire, and the thing sitting on it */
   const wire = curve(board, [
@@ -330,9 +318,8 @@ function sniff(board, res, ctx) {
   const tray = board.mk.slab(3.4, 0.08, 2.0, 0xffffff, 0.06);
   put(board, tray, ux + 3.4, Y_MACH - 1.9, uz);
   board.mk.setSlab(tray, C.line, 0.05, 0.5);
-  text(board, frames ? frames + " frames captured" : "nothing captured",
-       ux + 3.4, Y_MACH - 2.2, uz + 1.4,
-       { px: 26, size: 0.32, color: frames ? C.muted : C.faint });
+  text(board, r.trayLabel, ux + 3.4, Y_MACH - 2.2, uz + 1.4,
+       { px: 26, size: 0.32, color: r.frames ? C.muted : C.faint });
 
   const steps = [];
   const drop = (x, dz, wrapped, labelText, color, t) => {
@@ -359,33 +346,25 @@ function sniff(board, res, ctx) {
     });
   };
 
-  if (frames === 0) {
+  /* Two objects or none. sniffReading decides which, so that "an empty
+     capture draws an empty tray" is a rule with a test on it rather than a
+     branch in a shot nothing runs. */
+  if (r.note) {
     steps.push({ t: 0.4, fn: () => {
-      text(board, "the tray is empty — this proves nothing either way",
-           ux + 3.4, Y_MACH - 1.4, uz, { px: 28, size: 0.36, color: C.warn });
+      text(board, r.note, ux + 3.4, Y_MACH - 1.4, uz, { px: 28, size: 0.36, color: C.warn });
     }});
-  } else if (cleartext === 0) {
-    /* The control arm failed. Saying nothing here and drawing the good run
-       anyway would be the single most dishonest frame in the whole thing. */
-    steps.push({ t: 0.4, fn: () => {
-      text(board, "the control marker is missing too — the capture is not seeing this traffic",
-           ux + 3.4, Y_MACH - 1.4, uz, { px: 28, size: 0.36, color: C.warn });
-    }});
-  } else {
-    drop(ux + 2.2, 0.7, false, "LABMARKER-CLEARTEXT  ×" + cleartext, C.danger, 0.5);
-    if (tunnelled === 0) {
-      drop(ux + 4.6, -0.7, true, "a7 3f 91 c0 …  the same marker, sealed", C.accent, 1.0);
-    } else {
-      drop(ux + 4.6, -0.7, false, "LABMARKER-TUNNELLED  ×" + tunnelled, C.danger, 1.0);
-    }
   }
+  r.drops.forEach((d, i) => {
+    drop(i === 0 ? ux + 2.2 : ux + 4.6, i === 0 ? 0.7 : -0.7,
+         d.wrapped, d.label, d.tone === "accent" ? C.accent : C.danger, 0.5 + i * 0.5);
+  });
   board.timeline(steps);
 
   /* One particle per real frame off the wire. The motion is measured rather
      than invented, which is the whole ethic of this directory. The stream is
      live traffic now, not the frames the capture already holds, and it is
      labelled as such. */
-  if (ctx && ctx.openStream && frames > 0 && !board.reduced) {
+  if (ctx && ctx.openStream && r.frames > 0 && !board.reduced) {
     let n = 0;
     const live = [];
     const stop = ctx.openStream("/api/stream/tcpdump?machine=evil-box", "packet", () => {
@@ -406,20 +385,10 @@ function sniff(board, res, ctx) {
     void stop;
   }
 
-  const nums = [frames + " frames", cleartext + " cleartext", tunnelled + " tunnelled"];
   held(board, res, {
-    head: neverRan(res) ? "INCONCLUSIVE · nothing was captured — is evil-box running? `make attack`"
-      : frames === 0 ? "INCONCLUSIVE · the capture came back empty"
-      : cleartext === 0 ? "INCONCLUSIVE · the control marker never appeared either"
-      : head(res, "WireGuard transport data — sealed for a key evil-box does not have",
-             "the marker crossed the wire in the clear"),
-    /* atkSniff names no rule when the tunnelled marker turns up, because
-       nothing ruled on it — so the frame says what that means instead of
-       leaving an em dash where the defence should be. */
-    rule: res.rule || (tunnelled > 0
-      ? "nothing sealed it — the marker was readable on the wire"
-      : "the wire, and what a capture on it can and cannot read"),
-    nums,
+    head: r.head,
+    rule: r.rule,
+    nums: r.nums,
     chip: "on the wire · in the clear", chipKind: "pub"
   });
 }

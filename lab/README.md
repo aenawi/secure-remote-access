@@ -566,7 +566,8 @@ make up         # build and start, then wait for the three machines to join
 make attack     # add evil-box — it never starts on its own
 make status     # tailscale status and netcheck, from the laptop
 make audit      # the eleven checks, scored, from the command line
-make check      # go vet, go test, gofmt — the one target that runs with the lab down
+make check      # Go and JavaScript — the one target that runs with the lab down
+make ui         # just the JavaScript half: parse-check ui/, run the board rules
 make hooks      # install the pre-push hook that runs make check for you
 make logs       # follow every container
 make shell M=lab-vps
@@ -584,10 +585,10 @@ tailscale identity. There is nothing to carry a broken experiment forward.
 that works with the lab down:
 
 ```bash
-make check      # go vet ./...  ·  go test ./...  ·  gofmt -l .
+make check      # go vet ./...  ·  go test ./...  ·  gofmt -l .  ·  the UI JavaScript
 ```
 
-All three run against `control/`, the only Go in the repo, and all three
+The first three run against `control/`, the only Go in the repo, and all three
 finish in about a second — which is the point, because a check you have to
 bring the lab up for is a check you will skip. `gofmt` fails on any output at
 all: a file listed is a file that is not formatted.
@@ -611,6 +612,60 @@ and the decisions they drive are now asserted in about a second rather than in
 about a minute. That matters more than a coverage number: **finding 5 below was
 a rung-classification bug in exactly that pure function**, it survived for
 months, and it was caught by running containers.
+
+### The JavaScript half
+
+`control/ui/` is about three thousand lines, and it ships exactly as written:
+`//go:embed ui` puts it in the binary, `app.js` is a classic script, `hud/` is
+ES modules served over HTTP, and nothing anywhere compiles, bundles or
+minifies. That is deliberate — it is why `docker compose up` is the only
+prerequisite — and it means a stray comma reaches the browser intact.
+
+The browser is then quiet about it in the worst possible way. `run()` in
+`hud/setpieces.js` wraps every shot in a `try`/`catch` so a broken set-piece
+cannot take the page down: it logs, clears, and `app.js` falls back to the text
+trace. That is the right behaviour and it stays. It also means that, to anyone
+driving the lab, a typo in a set-piece looks almost exactly like an action that
+never had a set-piece — which is how `rotate-key` went a release with nothing
+drawn and nothing said about it.
+
+So `make check` ends with two cheap answers to that, in `checks/`:
+
+| File | What it holds |
+|---|---|
+| `syntax.mjs` | `node --check` over the eight files the browser loads, each in the goal it is loaded in — script for `app.js` and the guide's `assets/`, module for `hud/` |
+| `reading.test.mjs` | the board rules themselves: `danger` outranks `ok`, a scan that never ran reports no counts, an empty capture draws an empty tray |
+| `setpieces.test.mjs` | that `hud/` still links, and that `missing()` names an action with no shot — the check ticket 33 did not have |
+
+That second one is the point of the exercise. The four honesty rules at the top
+of `setpieces.js` were guarded on the Go side only, which guards what the
+server *reports* and not what the board *does with it* — and the shots are
+precisely where `run()` hides a mistake. So the deciding half moved into
+`hud/reading.js`: pure functions of a `Result`, no three.js, no canvas, no DOM,
+which is what lets twenty assertions run in under a tenth of a second.
+`setpieces.js` imports them, so the tests hold the code the board actually runs
+rather than a copy of it.
+
+`setpieces.test.mjs` then imports `hud/setpieces.js` for real, three.js and
+all, to catch the one break a parse check cannot: a file that parses perfectly
+and still fails when the browser links it, because an import names something
+the other module does not export. On the page that is a module that never
+evaluates and a board that never appears. That test tells a link failure from
+three.js wanting a browser Node cannot give it, and only skips for the second.
+
+```bash
+make ui         # or: node checks/syntax.mjs && node --test checks/*.test.mjs
+```
+
+**Node is not a prerequisite, and is not becoming one.** There is no `npm`
+here, no `package.json`, no `node_modules`, and nothing in `checks/` uses
+anything Node does not ship with. If Node is missing — or older than 18, which
+is what `node --test` wants — `make check` prints a line saying so and holds.
+Failing the gate over a tool the lab does not require would only teach people
+to reach for `--no-verify`, and Docker remains the one thing you have to have.
+
+`hud/three.module.js` is not parse-checked: it is vendored, minified three.js,
+where a parse error means a bad copy rather than a typo.
 
 If you would rather not remember:
 
@@ -644,7 +699,11 @@ on somebody else's hardware, after the fact, does not fit that.
 lab/
 ├── docker-compose.yml     the whole topology, and the only file you edit to change it
 ├── Makefile               up / attack / audit / check / reset
-├── hooks/pre-push         what `make hooks` installs: vet, test and gofmt before a push
+├── hooks/pre-push         what `make hooks` installs: make check before a push
+├── checks/                the JavaScript half of `make check` — no npm, no packages
+│   ├── syntax.mjs         node --check over every file the browser loads
+│   ├── reading.test.mjs   the board rules, asserted without a browser
+│   └── setpieces.test.mjs that hud/ links, and that no action lost its shot
 ├── config/headscale/      coordination server configuration, commented
 ├── images/
 │   ├── node/              a lab machine: tailscaled, sshd, ufw, mosh, tmux
@@ -668,6 +727,7 @@ lab/
         └── hud/
             ├── three.module.js  three.js r166, MIT, inside the binary
             ├── scene.js         the board: five gates, three planes, the packet
+            ├── reading.js       what a Result says — pure, and the only tested part
             └── setpieces.js     one exported function per attack id
 ```
 
