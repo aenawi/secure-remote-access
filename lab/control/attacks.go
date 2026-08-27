@@ -576,7 +576,7 @@ func (c *Controller) demoOutage(ctx context.Context) Result {
 	}()
 
 	gw := c.gatewayFor("lab-roam")
-	newIP := "10.0.27.77"
+	oldIP, newIP := "10.0.27.2", "10.0.27.77"
 
 	res.Cmds = []string{
 		"sudo ufw allow 60000:61000/udp   # on lab-vps, for the duration: Mosh's range",
@@ -655,7 +655,7 @@ echo "--- mosh, last lines ---"; tr -d '\r' < /tmp/mosh.out 2>/dev/null | grep -
 
 	// Put the machine back where compose expects to find it.
 	_, _ = c.lab.Sh(ctx, "lab-roam", fmt.Sprintf(
-		`ip addr flush dev eth0; ip addr add 10.0.27.2/24 dev eth0; ip route replace default via %s`, gw))
+		`ip addr flush dev eth0; ip addr add %s/24 dev eth0; ip route replace default via %s`, oldIP, gw))
 
 	res.Raw = strings.Join([]string{
 		strings.TrimSpace(act1.Out()),
@@ -667,6 +667,8 @@ echo "--- mosh, last lines ---"; tr -d '\r' < /tmp/mosh.out 2>/dev/null | grep -
 		strings.TrimSpace(after2.Out()),
 	}, "\n")
 	res.Evidence = outageEvidence(ssh1, mosh1, ssh2, mosh2)
+	res.Detail = map[string]string{"addrBefore": oldIP, "addrAfter": newIP}
+	res.Rung = outageRung(ssh1, mosh1, ssh2, mosh2)
 
 	switch {
 	case ssh2 == 0 && mosh2 == 0:
@@ -766,6 +768,28 @@ func outageEvidence(sshAfterBlackout, moshAfterBlackout, sshAfterRoam, moshAfter
 		"sshAfterRoam":      sshAfterRoam,
 		"moshAfterRoam":     moshAfterRoam,
 	}
+}
+
+// outageRung is how far the two sessions travelled, which is the question the
+// Rung field answers and the one the board's X axis draws. A session that
+// printed a tick went all the way: sshd answered and a shell ran a loop, and
+// that is rung 5. It used to report the rung-2 opening value whatever
+// happened — two rungs short of where two live sessions demonstrably reached,
+// which nobody noticed while the result was a paragraph of prose and which
+// became a wrong drawing the moment the board grew a set-piece for it.
+//
+// All four counts, not just the first act's: the set-piece draws a lane for
+// any session that printed a tick in either act, and a Result claiming rung 2
+// under a drawing that reaches lab-vps is the exact disagreement the ladder
+// exists to make impossible.
+func outageRung(sshAfterBlackout, moshAfterBlackout, sshAfterRoam, moshAfterRoam int) int {
+	if sshAfterBlackout > 0 || moshAfterBlackout > 0 ||
+		sshAfterRoam > 0 || moshAfterRoam > 0 {
+		return 5
+	}
+	// Nothing printed anything, so nothing was shown to get past the opening
+	// claim that there is a path at all.
+	return 2
 }
 
 func parseKV(s, key string) int {

@@ -119,6 +119,12 @@ through the tunnel into a tray as two different objects. Both read those
 counts from `Result.Evidence`, which exists so that a drawing never has to
 regex English to find a number the Go side already had.
 
+**ssh and mosh, through a 20-second outage** has a set-piece as well, and it is
+the only one with two acts. The blackout resolves and says what it proved
+before the roam starts, because the whole lesson is that the first act does not
+do what everybody expects it to — and that only reads if you are allowed to
+finish being surprised by it before the second act begins.
+
 The board holds to four rules, and they are why it is worth trusting:
 
 - **Nothing is drawn that was not measured.** An empty capture draws an empty
@@ -209,7 +215,10 @@ defence that answered it.
 | Run the build order wrong | deletes both the public and the tailnet `ufw` rules | the lock-out, on a machine you can afford to lose |
 
 Two more buttons sit underneath: **ssh and mosh, through a 20-second outage**
-and **Rotate the key**.
+and **Rotate the key**. The first of those is the session layer rather than the
+network layer, and it is the one demonstration on the board that runs at
+lab-vps's **public** address on purpose — so both sessions are encrypted and
+neither is up in the tailnet plane, which is what the shot says while it runs.
 
 #### The capture has a control experiment in it
 
@@ -372,6 +381,14 @@ What ends it is the **address changing underneath the connection**, which is
 what actually happens when a phone moves between networks. So the demonstration
 has a second act: `lab-roam` gets a new address, and SSH stops dead while Mosh
 carries on, because Mosh is not holding a connection to lose.
+
+On **the board** those are two acts you watch rather than two halves of a
+paragraph. The ssh tunnel snaps at the machine end and its traffic scatters —
+still sealed, still going nowhere — while the mosh tunnel goes translucent,
+holds, and re-solidifies against the new address. All four tick counts reach
+the drawing as numbers, on `Result.Evidence`; the two addresses reach it on
+`Result.Detail`, because a drawing that has to regex `Raw` to find out what
+`lab-roam` moved to is one rewording away from lying.
 
 A typical run:
 

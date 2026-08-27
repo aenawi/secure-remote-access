@@ -1,11 +1,15 @@
 /* ============================================================
-   The nine attacks, as set-pieces.
+   The nine attacks and the outage demonstration, as set-pieces.
 
    Nine genuinely different mechanisms — an anti-replay window, a netmap
    removal, a chain-ordering trap, a route offer that is not an approval —
    used to arrive as nine paragraphs in one column, where they all read as
    the same texture. Each of them has exactly one thing worth looking at.
    This file points the camera at that thing.
+
+   The tenth is `outage`, which is not an attack: it is the session layer,
+   the half of this guide the board otherwise had nothing of, and it is the
+   only shot here with two acts. Everything the nine obey, it obeys.
 
    The grammar every set-piece here obeys, because a shot that breaks one
    of these teaches the wrong lesson:
@@ -930,6 +934,411 @@ function lockOut(board, res) {
 }
 
 /* ============================================================
+   10 · outage — the session layer, in two acts
+
+   The only set-piece here that is not an attack. Nothing is attacking
+   anything: two real sessions are opened from lab-roam to lab-vps, and the
+   network underneath them is taken apart twice to find out which of them
+   notices.
+
+   It is two acts because the lesson is two claims, and the first one is the
+   one readers arrive with backwards:
+
+     act one · the blackout   twenty seconds with no link at all. Both
+                              tunnels go slack and dark, neither breaks, and
+                              both come back ticking. A blackout is not what
+                              kills SSH.
+     act two · the roam       the address changes underneath both. SSH's
+                              connection is a four-tuple and one corner of it
+                              stopped existing; Mosh is holding state, and
+                              state does not care which address the next
+                              datagram arrives from.
+
+   Act one has to resolve before act two starts, and both have to reach the
+   live region, or the surprise collapses back into the paragraph this
+   set-piece exists to replace. So the timeline holds a beat between them and
+   each act sets the verdict itself.
+
+   On Y, which is the rule this shot is most able to break: SSH and Mosh are
+   both encrypted, so both lanes ride above the machine plane and both wear
+   the shell, and nothing here is a comparison of confidentiality. But this
+   runs at lab-vps's PUBLIC address on purpose — demoOutage says why at
+   length — so neither lane is up in the tailnet plane, and the shot says so
+   out loud rather than leaving the empty space to imply it. The slack in act
+   one sags towards the machine plane and stops above it: a stalled tunnel is
+   still a sealed one.
+   ============================================================ */
+
+/* One lane each, at one height, separated in z. Two heights would be a claim
+   that one of them is better protected than the other, and that is not the
+   difference this is about. */
+const SESS_Y = Y_MACH + 1.5, SSH_DZ = -1.6, MOSH_DZ = 1.6, SAG = 1.25;
+
+function sessionPath(board, dz, sag) {
+  const rz = POS["lab-roam"].z, vz = POS["lab-vps"].z, s = sag || 0;
+  return curve(board, [
+    V(board, -6.5, Y_MACH + 0.15, rz + dz * 0.5),
+    V(board, -3.4, SESS_Y - s * 0.5, rz + dz),
+    V(board,  0.4, SESS_Y - s,       dz),
+    V(board,  4.2, SESS_Y - s * 0.5, vz + dz),
+    V(board,  6.5, Y_MACH + 0.15, vz + dz * 0.5)
+  ]);
+}
+
+/* Core plus lattice shell — the board's one word for "sealed". Both sessions
+   wear it for the whole shot, the fragments of the one that breaks included:
+   SSH's traffic stops arriving, it does not stop being encrypted, and bare
+   cores scattering would say the wrong thing entirely. */
+function sealed(board, color, r) {
+  const g = new board.THREE.Group();
+  g.add(new board.THREE.Mesh(
+    new board.THREE.IcosahedronGeometry(r, 1),
+    new board.THREE.MeshBasicMaterial({ color, transparent: true })));
+  g.add(new board.THREE.Mesh(
+    new board.THREE.OctahedronGeometry(r * 2.4, 0),
+    new board.THREE.MeshBasicMaterial({ color: board.C.accent, wireframe: true,
+                                        transparent: true, opacity: 0.9 })));
+  return g;
+}
+
+/* Dim to a fraction of whatever the thing was built at, rather than to an
+   absolute — so going translucent and coming back is one number each way and
+   the shell keeps sitting behind the core where it belongs. */
+function fade(obj, k) {
+  obj.traverse((n) => {
+    if (!n.material) return;
+    if (n.userData.baseOp == null) n.userData.baseOp = n.material.opacity;
+    n.material.opacity = n.userData.baseOp * k;
+  });
+}
+
+/* A session's packet, gated on flags the acts flip rather than on a clock of
+   its own: "the link is down" is then one state, instead of two animations
+   that have to agree with each other. */
+function riding(board, L, color, speed, gate) {
+  const dot = put(board, sealed(board, color, 0.13));
+  const where = (u) => (gate.slack ? L.slackPath : L.path).getPointAt(u);
+  dot.position.copy(where(0));
+  if (board.reduced) { dot.position.copy(where(0.55)); return dot; }
+  let u = 0;
+  board.spin((dt) => {
+    if (gate.on) u = (u + dt * speed) % 1;
+    dot.position.copy(where(u));
+  });
+  return dot;
+}
+
+function outage(board, res) {
+  const C = board.C, rz = POS["lab-roam"].z;
+  board.fly(V(board, -1.4, 5.4, 22.0), V(board, -0.6, 1.5, -0.4));
+
+  /* Four numbers, one per session per act, straight off Evidence. The whole
+     argument is the two comparisons between them, so nothing below
+     re-derives one from prose and nothing invents one that is missing. */
+  const sshB = ev(res, "sshAfterBlackout"), moshB = ev(res, "moshAfterBlackout");
+  const sshR = ev(res, "sshAfterRoam"),     moshR = ev(res, "moshAfterRoam");
+
+  const sshRan = sshB > 0 || sshR > 0, moshRan = moshB > 0 || moshR > 0;
+  const ranAtAll = sshRan || moshRan;
+  /* "Kept counting" is a comparison between the two acts, not a guess from
+     the final number: a session that died at the roam reports the same tick
+     it reported after the blackout. */
+  const sshKept = sshRan && sshR > sshB, moshKept = moshRan && moshR > moshB;
+
+  const detail = res.detail || {};
+  const before = detail.addrBefore || "", after = detail.addrAfter || "";
+  const named = !!(before && after);
+
+  /* The one command per act, found by the command itself rather than by an
+     index into Cmds that the next edit to demoOutage would quietly shift. */
+  const cmd = (needle) =>
+    (res.cmds || []).filter((c) => c.indexOf(needle) !== -1)[0] || "";
+
+  const caption = (s, color) =>
+    text(board, s, -0.6, 5.8, 6.8, { px: 34, size: 0.5, color: color || C.text });
+
+  /* Y is protection, and up there is where protection comes from everywhere
+     else on this board. Neither of these sessions is up there, and that is a
+     claim the shot makes rather than one the empty space has to imply. */
+  text(board, "the tailnet plane — neither of these sessions is on it",
+       4.8, Y_NET + 0.4, 2.6, { px: 26, size: 0.34, color: C.faint });
+
+  /* ---- the ending where nothing ran -------------------------------
+     demoOutage has an ending in which neither session ever printed a tick:
+     the machines were down, or :22 never answered at all. The blackout and
+     the roam still happened to the network, but there were no tunnels for
+     them to happen to, and animating two is the same lie as animating a
+     capture that came back empty. */
+  if (!ranAtAll) {
+    [SSH_DZ, MOSH_DZ].forEach((dz) => {
+      ray(board, sessionPath(board, dz, 0).getPoints(50), C.faint, 0.28, true);
+    });
+    caption("neither session printed a tick", C.warn);
+    text(board, "no tunnel was ever established, so neither act proved anything",
+         -0.6, 5.2, 6.8, { px: 28, size: 0.36, color: C.faint });
+    held(board, res, {
+      head: "INCONCLUSIVE · neither session printed a tick",
+      rule: res.rule || "two sessions to lab-vps's public address, and neither one started",
+      ladder: "stopped",
+      nums: ["ssh 0 ticks", "mosh 0 ticks"]
+    });
+    board.setChip("no session at all", "");
+    return;
+  }
+
+  /* ---- the two lanes ----------------------------------------------
+     A lane is drawn taut only for a session the lab measured. Mosh printing
+     nothing is demoOutage's named failure mode — a firewall that permits :22
+     and nothing else — and it gets a lane that never formed rather than one
+     that survives a blackout it was never in. */
+  const gate = { on: true, slack: false };
+  const lanes = [
+    { id: "ssh",  dz: SSH_DZ,  ran: sshRan,  b: sshB,  r: sshR,  kept: sshKept,
+      u: 0.34, speed: 0.34, what: "ssh · one tcp connection, four-tuple and all" },
+    { id: "mosh", dz: MOSH_DZ, ran: moshRan, b: moshB, r: moshR, kept: moshKept,
+      u: 0.62, speed: 0.42, what: "mosh · udp datagrams, state at both ends" }
+  ].map((L) => {
+    /* "It printed a tick at some point" and "it was up for act one" are two
+       different facts, and only the second one entitles the shot to draw this
+       lane going slack and coming back. A session that printed nothing until
+       the second act rode out no blackout that anybody measured. */
+    L.up1 = L.b > 0;
+    L.path = sessionPath(board, L.dz, 0);
+    L.slackPath = sessionPath(board, L.dz, SAG);
+    L.line = ray(board, L.path.getPoints(50), L.ran ? C.accent : C.faint,
+                 L.ran ? 0.75 : 0.25, !L.ran);
+    if (L.ran) {
+      L.slack = ray(board, L.slackPath.getPoints(50), C.faint, 0.45);
+      L.slack.visible = false;
+      L.dot = riding(board, L, C.accent, L.speed, gate);
+      if (!L.up1) {
+        /* Not up yet, so not drawn as up. Act two turns it on. */
+        L.line.visible = false;
+        L.dot.visible = false;
+        L.ghost = ray(board, L.path.getPoints(50), C.faint, 0.22, true);
+      }
+    }
+    const at = L.path.getPointAt(L.u);
+    L.name = text(board, L.ran ? L.what : L.id + " · printed nothing at all",
+                  at.x, at.y + 0.52, at.z,
+                  { px: 26, size: 0.34, color: L.ran ? C.accent : C.faint });
+    /* One readout per lane per act, built now and shown when its act runs, so
+       act two replaces act one's numbers instead of stacking on top of them. */
+    L.readB = text(board, L.up1 ? L.id + " reached tick " + L.b
+                                : L.id + " had printed nothing yet",
+                   at.x, at.y + 0.94, at.z,
+                   { px: 28, size: 0.38, color: L.up1 ? C.text : C.faint });
+    L.readR = text(board, !L.ran ? L.id + " never started"
+                     : L.kept ? L.id + " ran on to tick " + L.r
+                              : L.id + " stopped at tick " + L.r,
+                   at.x, at.y + 0.94, at.z,
+                   { px: 28, size: 0.38, color: L.kept ? C.ok : C.danger });
+    L.readB.visible = false; L.readR.visible = false;
+    return L;
+  });
+  const ssh = lanes[0], mosh = lanes[1];
+
+  /* lab-roam's address, which act two changes underneath both sessions. Drawn
+     only when demoOutage said what the two addresses were: the board cannot
+     know them — the machine is back on its old one by the time the browser
+     reads the lab again — and a plausible-looking pair is worse than none. */
+  const roam = board.parts.machines["lab-roam"];
+  let addrBefore = null, addrAfter = null;
+  if (named && roam) {
+    if (roam.addr) roam.addr.visible = false;
+    addrBefore = text(board, "lab-roam · " + before, POS["lab-roam"].x, Y_MACH - 0.9, rz,
+                      { px: 30, size: 0.36, color: C.muted });
+    addrAfter = text(board, "lab-roam · " + after, POS["lab-roam"].x, Y_MACH - 0.9, rz,
+                     { px: 30, size: 0.36, color: C.warn });
+    addrAfter.visible = false;
+  }
+
+  /* ---- act one · the blackout -------------------------------------- */
+  const bothBack = ssh.up1 && mosh.up1;
+  const oneHead = bothBack
+    ? "ACT ONE · both came back ticking — a blackout is not what kills SSH"
+    : ssh.up1
+      ? "ACT ONE · ssh came back ticking, and mosh printed nothing"
+      : mosh.up1
+        ? "ACT ONE · mosh came back ticking, and ssh printed nothing"
+        : "ACT ONE · neither session had printed anything yet";
+  const oneWhy = bothBack
+    ? "Twenty seconds with no link at all, and both sessions rode it out: ssh reached tick " +
+      sshB + ", mosh reached tick " + moshB + ". TCP does not give up on a stalled connection " +
+      "anywhere near that fast, so a tunnel, a lift or a dead spot is not what ends your session."
+    : ssh.up1
+      ? "ssh reached tick " + sshB + " and mosh printed nothing, which almost always means the " +
+        "UDP range never opened — the failure mode where a firewall permits :22 and nothing else, " +
+        "so you log in and then it eats every keystroke."
+      : mosh.up1
+        ? "mosh reached tick " + moshB + " and ssh printed nothing, so there is no comparison to " +
+          "make yet — this half proves nothing on its own."
+        : "Neither session had printed a tick by the end of the blackout, so this act measured " +
+          "nothing and the shot draws nothing. Whatever the second act shows, it does not rest " +
+          "on this one.";
+
+  let capOne = null, capSub = null, capTwo = null;
+  const steps = [];
+
+  steps.push({ t: 0.5, fn: () => {
+    capOne = caption("ACT ONE · the link dies for twenty seconds", C.warn);
+    capSub = text(board, "eth0 down · both tunnels slack and dark, neither one broken",
+                  -0.6, 5.2, 6.8, { px: 28, size: 0.36, color: C.faint });
+    gate.on = false; gate.slack = true;
+    lanes.forEach((L) => {
+      if (!L.up1) return;
+      L.line.visible = false;
+      L.slack.visible = true;
+      fade(L.dot, 0.3);
+      L.dot.position.copy(L.slackPath.getPointAt(0.5));
+    });
+  }});
+
+  steps.push({ t: 1.9, fn: () => {
+    gate.on = true; gate.slack = false;
+    lanes.forEach((L) => {
+      if (!L.up1) return;
+      L.slack.visible = false;
+      L.line.visible = true;
+      fade(L.dot, 1);
+      L.dot.position.copy(L.path.getPointAt(0.55));
+    });
+    if (capSub) capSub.visible = false;
+  }});
+
+  steps.push({ t: 2.6, fn: () => {
+    if (capOne) capOne.visible = false;
+    capOne = caption(oneHead, bothBack ? C.ok : C.warn);
+    /* A lane that never printed anything at all is already labelled as such
+       and does not need a second line saying it again. */
+    lanes.forEach((L) => { if (L.ran) L.readB.visible = true; });
+    /* The rung is how far the sessions travelled, and demoOutage reports 5
+       once either of them printed a tick: sshd answered and a shell ran a
+       loop. Delivered, not held — nothing was defending anything here. */
+    board.setLadder(res.rung || 1, "delivered");
+    board.setChip("public address · both sessions encrypted", "");
+    board.setVerdict({
+      tone: bothBack ? "ok" : "warn",
+      head: oneHead,
+      rule: "act one of two · twenty seconds with no link, and what survives it",
+      why: oneWhy,
+      nums: ["ssh " + sshB + " ticks", "mosh " + moshB + " ticks"],
+      transcript: cmd("ip link set eth0 down")
+    });
+  }});
+
+  /* A beat, and it is load-bearing. Act one is the surprise, and it only
+     reads as one if it is allowed to finish being an answer before the next
+     question starts. */
+
+  /* ---- act two · the roam ------------------------------------------- */
+  steps.push({ t: 4.3, fn: () => {
+    if (capOne) capOne.visible = false;
+    capTwo = caption("ACT TWO · the address changes underneath both", C.warn);
+    lanes.forEach((L) => {
+      L.readB.visible = false;
+      /* A session that only started printing after the blackout comes up now,
+         which is the first act it was measurably in. */
+      if (!L.ran || L.up1) return;
+      if (L.ghost) L.ghost.visible = false;
+      L.line.visible = true;
+      L.dot.visible = true;
+      const at = L.path.getPointAt(L.u);
+      text(board, L.id + " only started printing here", at.x, at.y - 0.7, at.z,
+           { px: 26, size: 0.33, color: C.warn });
+    });
+    if (addrBefore && addrAfter) { addrBefore.visible = false; addrAfter.visible = true; }
+  }});
+
+  steps.push({ t: 5.1, fn: () => {
+    /* Mosh goes translucent and holds. Still there and still sealed — it just
+       has nowhere to put the next datagram for a moment. */
+    if (mosh.ran) { fade(mosh.line, 0.22); fade(mosh.dot, 0.25); }
+
+    if (!ssh.ran) return;
+    if (ssh.kept) {
+      /* Measured, and not the split this expects. Over a tailnet address SSH
+         survives a roam too, and drawing the snap anyway because the shot is
+         better that way is the one thing this file may not do. */
+      text(board, "ssh followed the address change as well — was this run over the tailnet?",
+           -0.6, 4.6, 6.8, { px: 28, size: 0.36, color: C.warn });
+      return;
+    }
+    /* It snaps at the machine end, because that is the end whose address
+       stopped existing. What was in flight is still encrypted; it is simply
+       no longer going anywhere. */
+    ssh.line.visible = false;
+    ray(board, curve(board, [ssh.path.getPointAt(0), ssh.path.getPointAt(0.06),
+                             ssh.path.getPointAt(0.13)]).getPoints(12), C.danger, 0.7);
+    fade(ssh.dot, 0.35);
+    const frags = [];
+    for (let i = 0; i < 7; i++) {
+      const at = ssh.path.getPointAt(0.2 + i * 0.11);
+      const f = put(board, sealed(board, C.danger, 0.07), at.x, at.y, at.z);
+      fade(f, 0.8);
+      frags.push({ f, vx: (Math.random() - 0.4) * 0.9, vz: (Math.random() - 0.5) * 1.1 });
+    }
+    if (board.reduced) {
+      frags.forEach((p) => { p.f.position.x += p.vx; p.f.position.z += p.vz; fade(p.f, 0.3); });
+    } else {
+      board.spin((dt) => {
+        frags.forEach((p) => {
+          p.f.position.x += p.vx * dt;
+          p.f.position.z += p.vz * dt;
+          p.f.traverse((n) => {
+            if (n.material) n.material.opacity = Math.max(0.1, n.material.opacity - dt * 0.16);
+          });
+        });
+      });
+    }
+    text(board, "still sealed, still going nowhere — the far end of the four-tuple is gone",
+         0.6, SESS_Y - 0.8, SSH_DZ, { px: 26, size: 0.33, color: C.danger });
+  }});
+
+  steps.push({ t: 6.2, fn: () => {
+    /* …and re-solidifies against the new address. */
+    if (!mosh.ran) return;
+    fade(mosh.line, 1);
+    fade(mosh.dot, 1);
+    if (mosh.kept) {
+      text(board, named ? "mosh re-solidified against " + after
+                        : "mosh re-solidified against the new address",
+           2.2, SESS_Y + 1.5, MOSH_DZ, { px: 28, size: 0.36, color: C.ok });
+    }
+  }});
+
+  steps.push({ t: 7.0, fn: () => {
+    if (capTwo) capTwo.visible = false;
+    lanes.forEach((L) => { L.readR.visible = true; });
+
+    const lesson = ssh.ran && mosh.ran && !ssh.kept && mosh.kept;
+    const twoHead = lesson
+      /* No full stop on the end: setVerdict joins the head to the why with
+         one, and every other head in this file leaves it to do that. */
+      ? "ACT TWO · SSH is holding a connection to lose. Mosh is holding state"
+      : ssh.kept && mosh.kept
+        ? "ACT TWO · both sessions followed the address change"
+        : mosh.kept
+          ? "ACT TWO · mosh followed the address change, and ssh never started"
+          : "ACT TWO · nothing followed the address change — read the tails in the packets tab";
+
+    caption(twoHead, lesson ? C.ok : C.warn);
+    held(board, res, {
+      head: twoHead,
+      rule: res.rule || "act two of two · the address changes, and one session notices",
+      ladder: "delivered",
+      nums: ["ssh " + sshB + " → " + sshR, "mosh " + moshB + " → " + moshR]
+    });
+    /* held() falls back to the red "in the clear" chip, and that is the one
+       thing this shot must not say: both of these are encrypted, they are
+       simply not on the tailnet. Neutral is the honest third answer. */
+    board.setChip("public address · both sessions encrypted", "");
+  }});
+
+  board.timeline(steps);
+}
+
+/* ============================================================
    the register
 
    Keyed off the ids in AttackList. A new attack in attacks.go shows up
@@ -946,7 +1355,10 @@ export const SETPIECES = {
   "expired-key":   expiredKey,
   "rogue-exit":    rogueExit,
   "docker-bypass": dockerBypass,
-  "lock-out":      lockOut
+  "lock-out":      lockOut,
+  /* Not one of the nine, and not an attack. It is here because the session
+     layer is half of what this guide is about and the board had none of it. */
+  "outage":        outage
 };
 
 export function hasSetpiece(id) { return Object.prototype.hasOwnProperty.call(SETPIECES, id); }

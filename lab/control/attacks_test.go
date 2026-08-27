@@ -172,6 +172,77 @@ func TestOutageEvidence(t *testing.T) {
 	}
 }
 
+// The rung is the board's X axis, and the outage set-piece draws two lanes
+// reaching lab-vps for any session that printed a tick. If those two disagree
+// the drawing is wrong, so the rule lives in one function and is asserted from
+// both ends: any tick anywhere means rung 5, and no ticks at all means the
+// opening claim stands.
+func TestOutageRung(t *testing.T) {
+	for _, tc := range []struct {
+		name                     string
+		ssh1, mosh1, ssh2, mosh2 int
+		want                     int
+	}{
+		{"the happy path", 45, 46, 45, 70, 5},
+		{"mosh never started", 45, 0, 45, 0, 5},
+		{"ssh never started", 0, 46, 0, 70, 5},
+		// Only act two measured anything — a slow start, and still a session
+		// that reached sshd. The set-piece draws a lane for it either way.
+		{"nothing until the second act", 0, 0, 12, 30, 5},
+		{"neither session ever printed", 0, 0, 0, 0, 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := outageRung(tc.ssh1, tc.mosh1, tc.ssh2, tc.mosh2); got != tc.want {
+				t.Fatalf("outageRung(%d, %d, %d, %d) = %d, want %d",
+					tc.ssh1, tc.mosh1, tc.ssh2, tc.mosh2, got, tc.want)
+			}
+		})
+	}
+
+	// The set-piece's own "did anything run" test is the same disjunction over
+	// the same four keys it reads off Evidence. Kept in step here so a change
+	// to one is a failing test rather than a board that draws past its rung.
+	ev := outageEvidence(0, 0, 12, 30)
+	ran := ev["sshAfterBlackout"] > 0 || ev["moshAfterBlackout"] > 0 ||
+		ev["sshAfterRoam"] > 0 || ev["moshAfterRoam"] > 0
+	if ran != (outageRung(0, 0, 12, 30) == 5) {
+		t.Fatal("Evidence says a session ran and the rung disagrees")
+	}
+}
+
+// Detail carries the strings a drawing needs to be true about. The outage
+// set-piece changes lab-roam's address label in act two, and the only honest
+// source for what it changes to is the value demoOutage handed to `ip addr
+// add` — not a regex over Raw, and not a constant copied into the JavaScript
+// where the next edit to the Go side would leave it lying.
+func TestDetailRoundTrip(t *testing.T) {
+	b, err := json.Marshal(Result{
+		Rung:   5,
+		Detail: map[string]string{"addrBefore": "10.0.27.2", "addrAfter": "10.0.27.77"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out Result
+	if err := json.Unmarshal(b, &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Detail["addrBefore"] != "10.0.27.2" || out.Detail["addrAfter"] != "10.0.27.77" {
+		t.Fatalf("round trip lost the addresses: %#v", out.Detail)
+	}
+
+	// Like Evidence, absent rather than null: a set-piece reading
+	// res.detail.addrAfter on an action that measured no strings gets
+	// undefined and draws nothing, instead of throwing.
+	plain, err := json.Marshal(Result{Rung: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(plain), "detail") {
+		t.Fatalf("an action with no strings to report should omit detail: %s", plain)
+	}
+}
+
 func TestBoolToInt(t *testing.T) {
 	if boolToInt(true) != 1 || boolToInt(false) != 0 {
 		t.Fatal("boolToInt is the only thing separating two of atkExpiredKey's endings")
