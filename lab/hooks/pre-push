@@ -1,0 +1,23 @@
+#!/bin/sh
+#
+# Installed by `make hooks`, from lab/hooks/pre-push. Nothing installs it for
+# you. Remove it whenever you like:
+#
+#     rm .git/hooks/pre-push
+#
+# It runs `make -C lab check` — go vet, go test, gofmt — which needs no
+# containers, no network and about a second. To push past it once:
+#
+#     git push --no-verify
+
+set -e
+
+root=$(git rev-parse --show-toplevel)
+
+if ! command -v go >/dev/null 2>&1; then
+	printf 'pre-push: Go is not installed, so the checks cannot run.\n'
+	printf '          Install Go, or push with --no-verify and run them elsewhere.\n'
+	exit 1
+fi
+
+exec make --no-print-directory -C "$root/lab" check

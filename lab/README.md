@@ -561,6 +561,8 @@ make up         # build and start, then wait for the three machines to join
 make attack     # add evil-box — it never starts on its own
 make status     # tailscale status and netcheck, from the laptop
 make audit      # the eleven checks, scored, from the command line
+make check      # go vet, go test, gofmt — the one target that runs with the lab down
+make hooks      # install the pre-push hook that runs make check for you
 make logs       # follow every container
 make shell M=lab-vps
 make down       # stop everything, keep the state
@@ -571,12 +573,60 @@ make reset      # delete containers, networks and volumes — a clean lab
 and the pre-auth keys, the coordination server's database, and each machine's
 tailscale identity. There is nothing to carry a broken experiment forward.
 
+### Before you push
+
+`make check` is the one target that wants Go rather than Docker, and the one
+that works with the lab down:
+
+```bash
+make check      # go vet ./...  ·  go test ./...  ·  gofmt -l .
+```
+
+All three run against `control/`, the only Go in the repo, and all three
+finish in about a second — which is the point, because a check you have to
+bring the lab up for is a check you will skip. `gofmt` fails on any output at
+all: a file listed is a file that is not formatted.
+
+It is worth the second because of the four board rules — nothing drawn that
+was not measured, a failed attack is not a green tick, `danger` outranks `ok`,
+time is not faked. Those are the kind of invariant that erodes without anyone
+deciding to erode it, and `control/attacks_test.go` guards the evidence
+round-trips they stand on. Until now nothing ran it but somebody remembering
+to.
+
+If you would rather not remember:
+
+```bash
+make hooks
+```
+
+That copies `hooks/pre-push` into `.git/hooks/pre-push`, and from then on
+`git push` runs `make check` first and stops if it fails. It is opt-in because
+a hook installed behind your back is a worse papercut than the one it
+prevents, and it is `pre-push` rather than `pre-commit` for a related reason:
+the checks are fast but not free, and a commit is not where this matters.
+
+Push past it once, or be rid of it entirely:
+
+```bash
+git push --no-verify
+rm .git/hooks/pre-push
+```
+
+`make hooks` will not overwrite a `pre-push` hook it did not write. If you
+already have one it says so and leaves it where it is.
+
+There is no CI here, and that is a decision rather than an omission. This lab
+runs on your machine with Docker and nothing else, and a check that only runs
+on somebody else's hardware, after the fact, does not fit that.
+
 ## Where things are
 
 ```
 lab/
 ├── docker-compose.yml     the whole topology, and the only file you edit to change it
-├── Makefile               up / attack / audit / reset
+├── Makefile               up / attack / audit / check / reset
+├── hooks/pre-push         what `make hooks` installs: vet, test and gofmt before a push
 ├── config/headscale/      coordination server configuration, commented
 ├── images/
 │   ├── node/              a lab machine: tailscaled, sshd, ufw, mosh, tmux
