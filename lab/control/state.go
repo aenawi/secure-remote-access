@@ -618,12 +618,17 @@ func (t *hsTime) Time() time.Time {
 }
 
 type hsNode struct {
-	ID         json.Number `json:"id"`
-	Name       string      `json:"name"`
-	GivenName  string      `json:"given_name"`
-	ForcedTags []string    `json:"forced_tags"`
-	Expiry     *hsTime     `json:"expiry"`
-	Online     bool        `json:"online"`
+	ID        json.Number `json:"id"`
+	Name      string      `json:"name"`
+	GivenName string      `json:"given_name"`
+	// The tags the node carries. Headscale called this `forced_tags` up to
+	// 0.26 and renamed it `tags` in 0.29, at the same time as it started
+	// describing `headscale nodes tag` as "converting a user-owned node to a
+	// tagged node". Reading the old name against a new server decodes to
+	// nothing, which EnsureTags cannot tell apart from an untagged node.
+	Tags   []string `json:"tags"`
+	Expiry *hsTime  `json:"expiry"`
+	Online bool     `json:"online"`
 	// The node key, which is the thing a rotation is supposed to replace. It
 	// is read rather than assumed: `tailscale up --force-reauth` is what the
 	// rotate button runs, and whether the coordination server ends up holding
@@ -662,37 +667,26 @@ func (c *Controller) nodeFor(ctx context.Context, host string) (hsNode, bool) {
 // turn "this specific laptop" into "any laptop", and every grant in this lab is
 // written against them.
 //
-// The restart at the end is not tidiness. Headscale 0.26's policy manager holds
-// its own snapshot of the nodes and does not refresh it when `headscale nodes
-// tag` changes one, so a tag applied while it is running is visible in
-// `headscale nodes list` and invisible to every ACL — every rule mentioning
-// that tag silently compiles to nothing, and the reader gets a rung-3 denial
-// with no explanation. Restarting is the cheapest honest fix; the nodes
-// reconnect on their own within a few seconds. If a later Headscale drops this
-// behaviour, drop the restart with it.
+// This used to restart the coordination server whenever a tag changed, and the
+// restart was not tidiness: Headscale 0.26's policy manager held its own
+// snapshot of the nodes and did not refresh it when `headscale nodes tag`
+// changed one, so a tag applied while it was running was visible in
+// `headscale nodes list` and invisible to every ACL — every rule mentioning it
+// silently compiled to nothing and the reader got a rung-3 denial with no
+// explanation.
+//
+// 0.29 fixed it, and that was measured rather than read: with the coordination
+// server left running, retagging `lab-vps` away from `tag:server` closes the
+// grant within seconds and retagging it back opens it again, and the same
+// holds for `lab-ubuntu` on the source side of the same rule. So the restart
+// is gone. If it ever comes back, it will look like a grant that stops working
+// after a configuration change and starts again after `docker restart
+// headscale`.
 func (c *Controller) EnsureTags(ctx context.Context) {
 	ns, err := c.nodes(ctx)
 	if err != nil {
 		return
 	}
-	changed := false
-	defer func() {
-		if !changed {
-			return
-		}
-		c.log("tags changed — restarting the coordination server so its policy sees them")
-		if err := c.lab.Restart(ctx, "headscale"); err != nil {
-			c.log("restarting headscale: %v", err)
-			return
-		}
-		WaitFor(ctx, 60*time.Second, 2*time.Second, func() bool {
-			_, err := c.nodes(ctx)
-			return err == nil
-		})
-		if err := c.applyPolicy(ctx); err != nil {
-			c.log("re-pushing the policy: %v", err)
-		}
-	}()
 	for _, n := range ns {
 		m, ok := machineByID(n.GivenName)
 		if !ok {
@@ -703,11 +697,10 @@ func (c *Controller) EnsureTags(ctx context.Context) {
 				c.log("removing a stale registration: %s", n.GivenName)
 				_, _ = c.lab.Exec(ctx, "headscale", "headscale", "nodes", "delete",
 					"-i", n.ID.String(), "--force")
-				changed = true
 				continue
 			}
 		}
-		if len(n.ForcedTags) == 1 && n.ForcedTags[0] == m.Tag {
+		if len(n.Tags) == 1 && n.Tags[0] == m.Tag {
 			continue
 		}
 		if _, err := c.lab.Exec(ctx, "headscale", "headscale", "nodes", "tag",
@@ -715,7 +708,6 @@ func (c *Controller) EnsureTags(ctx context.Context) {
 			c.log("tagging %s: %v", m.ID, err)
 		} else {
 			c.log("tagged %s as %s", m.ID, m.Tag)
-			changed = true
 		}
 	}
 }

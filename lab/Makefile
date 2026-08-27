@@ -37,9 +37,22 @@ help:
 up:
 	$(COMPOSE) up -d --build
 	@printf '\nWaiting for the three machines to join the tailnet…\n'
+# The three machines by name, not a count of registrations. Counting is wrong
+# twice over: `"id"`, which this used to grep for, appears four times per node
+# on 0.29 — its own, its user's, and two on the pre-auth key — so the loop
+# stopped the moment the first machine appeared; and any count at all is
+# satisfied by `evil-box`, whose registration survives a `make down` in the
+# hsdata volume, so a lab that came up with two of three would look ready.
+# Registration is also not a working session, so the client is asked too.
 	@for i in $$(seq 1 90); do \
-	  n=$$(docker exec headscale headscale nodes list -o json 2>/dev/null | grep -c '"id"' || true); \
-	  if [ "$${n:-0}" -ge 3 ]; then break; fi; sleep 2; \
+	  ns=$$(docker exec headscale headscale nodes list -o json 2>/dev/null || true); \
+	  ok=1; \
+	  for m in lab-vps lab-ubuntu lab-roam; do \
+	    printf '%s' "$$ns" | grep -q "\"given_name\": \"$$m\"" || ok=0; \
+	  done; \
+	  if [ "$$ok" = 1 ] && \
+	     $(COMPOSE) exec -T lab-ubuntu tailscale status >/dev/null 2>&1; then break; fi; \
+	  sleep 2; \
 	done
 	@$(COMPOSE) exec -T lab-ubuntu tailscale status 2>/dev/null || \
 	  printf 'Not up yet. Try: make logs\n'

@@ -584,7 +584,7 @@ footer{margin-top:48px;padding-top:16px;border-top:1px solid var(--border);font-
         <tr><td><code>GET /api/state</code></td><td><code>machines.*</code>, <code>links.*</code>, <code>segmentShared</code>, <code>acl.*</code>, <code>vps.*</code></td><td>Every gate's standing appearance, both beam sets, the posture chip.</td></tr>
         <tr><td><code>POST /api/probe</code></td><td><code>rung</code>, <code>path</code>, <code>rule</code>, <code>why</code>, <code>ok</code>, <code>danger</code>, <code>rttMs</code>, <code>lossPct</code>, <code>packets</code>, <code>retransmits</code></td><td>The whole ride, the ladder strip, the verdict slab. <code>rung</code> plus <code>path</code> is enough to choreograph it: rung N deciding means 1…N−1 passed.</td></tr>
         <tr><td><code>POST /api/action</code></td><td>the same <code>Result</code></td><td>The nine set pieces. <code>from</code>/<code>to</code>/<code>path</code> already pick the camera.</td></tr>
-        <tr><td><code>GET /api/audit</code></td><td><code>checks[]</code> with <code>kind</code>, <code>pass</code>, <code>ceiling</code></td><td>An eleven-segment posture ring. <code>ceiling</code> renders hatched grey — never green, never red.</td></tr>
+        <tr><td><code>GET /api/audit</code></td><td><code>checks[]</code> with <code>kind</code>, <code>pass</code>, <code>stuck</code></td><td>An eleven-segment posture ring. <code>stuck</code> renders hatched grey — never green, never red — whichever way the check went.</td></tr>
         <tr><td><code>SSE /api/stream/status</code></td><td><code>state</code> events</td><td>Keeps the board live while somebody else drives it, or while a preset container reconfigures the lab.</td></tr>
         <tr><td><code>SSE /api/stream/tcpdump</code></td><td><code>packet</code> lines</td><td>In the capture shot, one particle per real frame off the wire. The motion is measured, not invented.</td></tr>
         <tr><td><code>SSE /api/stream/stats</code></td><td><code>Stats</code> per container</td><td>Per-machine activity. <b>Note:</b> this stream is served by <code>stream.go</code> and the current <code>app.js</code> never opens it — it is already paid for.</td></tr>
@@ -641,8 +641,10 @@ footer{margin-top:48px;padding-top:16px;border-top:1px solid var(--border);font-
       <li><strong>Time is not faked.</strong> A relay path is visibly longer because it detours through DERP,
         which is true. The choreography runs at a fixed duration and the millisecond figure is the measured
         one; the animation never pretends to be a clock.</li>
-      <li><strong>A ceiling is not a failure.</strong> The Headscale key-expiry gap renders hatched grey and
-        still counts against the score, exactly as <code>audit.go</code> insists.</li>
+      <li><strong>An answer this lab gave is not an answer you gave.</strong> The Headscale key-expiry gap
+        renders hatched grey and still counts in the score, exactly as <code>audit.go</code> insists — and it
+        renders hatched when it <em>passes</em> too, which is what it does since 0.29 and is the more
+        misleading of the two.</li>
       <li><strong>Colour is never the only channel.</strong> Wrapped versus bare, slat open versus closed,
         solid versus dashed — every state has a shape as well as a hue, and every state the scene shows also
         exists as text in the HUD. The canvas is <code>aria-hidden</code>; a live region carries the verdict.</li>

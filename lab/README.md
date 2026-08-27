@@ -295,11 +295,15 @@ The audit takes about a minute, because five of the eleven really do join and
 unjoin the attacker. It needs `evil-box`; without it the lab refuses to produce
 a score rather than reporting one with five holes in it.
 
-One check is marked **cannot pass here** rather than failed, and the verdict says
-so: it still counts against the score, because a number that flatters itself is
-worth nothing, but you should not spend an evening hunting for a switch that does
-not exist. `hardened` therefore reads *"10 of 11 held, and the one that did not
-cannot pass in this lab at all"* — see the next section for why.
+One check is **marked**: this lab answers it for you, whichever way it goes, and
+the readout says so rather than letting you take the credit or the blame. It
+still counts in the score, because a number that argues with what was measured
+is worth nothing — the mark only changes what is said about it. Today it is
+**"A lost device stops being a member on its own"**, and the mark reads *cannot
+fail here*: Headscale records an expiry on every registration and offers no
+switch to turn one off, so three of the four configurations pass it while asking
+for it to be off. See the next section for why that is a finding and not a
+detail.
 
 ---
 
@@ -311,59 +315,105 @@ the whole reason for building both halves.
 
 Three of the five below have since been **closed**. Twice the sandbox was
 changed to match what the containers do; once, the other way about, the
-containers were changed to match the sandbox. Which direction a gap points is
-not decided in advance, and that is the argument for keeping both halves.
-Closed ones are kept here rather than deleted, because the finding is the
-artefact this pair produces; the fix is just the consequence.
+containers were changed to match the sandbox. A fourth — finding 1 — was closed
+by neither of us: Headscale shipped the feature the gap was made of, and closing
+it opened a new gap pointing the other way, which is why that one is still here
+and still open. Which direction a gap points is not decided in advance, and that
+is the argument for keeping both halves. Closed ones are kept here rather than
+deleted, because the finding is the artefact this pair produces; the fix is just
+the consequence.
+
+**Everything in this section is an observation about one build of one stack.**
+The coordination server is pinned — `headscale/headscale:0.29.3` in
+[`docker-compose.yml`](docker-compose.yml) — and the tailscale client is not: the
+machine image installs whatever `stable` holds when you build it, which was
+1.102.3 for the runs below. Each finding says what it was last measured against.
+A divergence is a fact with a date on it rather than a property of the world,
+and finding 1 is in this file precisely because it was once written without
+one.
 
 Both columns below were measured, not derived — the sandbox scores come from its
 own comparison table, the lab scores from `make audit` against each profile:
 
 | Configuration | Sandbox | This lab | Why they differ |
 |---|---|---|---|
-| `day-one` | 4/11 | 4/11 | — (was 3/11 in the sandbox; see 2 below) |
-| `typical` | 4/11 | 4/11 | — |
-| `weak` | 2/11 | 2/11 | — |
-| `hardened` | 11/11 | **10/11** | key expiry (1 below) |
-| the boot state | 8/11 | **7/11** | key expiry (1 below) |
+| `day-one` | 4/11 | **5/11** | key expiry (1 below); was 3/11 in the sandbox, see 2 |
+| `typical` | 4/11 | **5/11** | key expiry (1 below) |
+| `weak` | 2/11 | **3/11** | key expiry (1 below) |
+| `hardened` | 11/11 | 11/11 | — (was 10/11 here; see 1 below) |
+| the boot state | 8/11 | 8/11 | — (was 7/11 here; see 1 below) |
 
 Those five lab scores are not decoration. `make check` parses this table and
 asserts it against a checked-in fixture of which of the eleven each
 configuration passes, so a number here and the number `audit.go` computes
 cannot drift apart without a failing test naming both.
 
-Every gap in that table is now the same single divergence, and it is the one
-that cannot be fixed: Headscale genuinely does not do what Tailscale does. Not
-only the totals agree — the two halves fail the *same checks* in all five
-configurations, apart from that one. Two more findings show up when you drive
-the lab rather than score it. All five are below.
+Every gap in that table is still the same single divergence — key expiry — but
+it has changed sides. It used to cost this lab a point on the two configurations
+that asked for expiry *on*; it now hands this lab a point on the three that ask
+for it *off*. Apart from that one check, the two halves fail the same checks in
+all five configurations. Two more findings show up when you drive the lab rather
+than score it. All five are below.
 
-### 1 · The hardened configuration scores 10/11 here and 11/11 in the sandbox
+### 1 · Key expiry, which used to cost this lab a point and now gives it one
 
-**Open, and it stays open.** The check that fails is **"A lost device stops being
-a member on its own"**.
+**Open, and it changed sides.** The check is **"A lost device stops being a
+member on its own"**, and it has been the only real divergence in the table for
+as long as the table has existed. What it says about the two halves is now the
+opposite of what it used to.
 
-Headscale records a node expiry only when the registration asks for one, and a
-registration made with a pre-auth key does not — so `headscale nodes list` shows
-`Expiration: N/A` for all three machines and the check reads that honestly. It
-is a real difference between Headscale and Tailscale, not a misconfiguration
-you can fix from the UI, and the lab will not pretend otherwise. For the same
-reason, turning **Key expiry** *off* returns a typed refusal explaining that
-Headscale has no such switch, instead of quietly doing nothing.
+**What it was, up to Headscale 0.26.1.** Headscale recorded a node expiry only
+when the registration asked for one, and a pre-auth-key registration did not —
+so `headscale nodes list` showed `Expiration: N/A` for all three machines and
+one could not be added afterwards. `hardened` scored 10/11 here against 11/11 in
+the sandbox, and this file said, in as many words, that the gap was permanent
+and should be left alone.
+
+**It was not permanent.** The upstream bug was
+[juanfont/headscale#1711](https://github.com/juanfont/headscale/issues/1711),
+and 0.29.0 closed it by adding a `node.expiry` configuration key that sets a
+default expiry for nodes registered via auth key. That is a missing feature,
+shipped — not an architectural difference between Headscale and Tailscale, which
+is what this file had claimed it was. The lab now pins `0.29.3` and
+[`config/headscale/config.yaml`](config/headscale/config.yaml) sets
+`node.expiry: 4320h`, which is Tailscale's 180 days. All three machines carry a
+real expiry, the check passes, and `hardened` and the boot state agree with the
+sandbox at 11/11 and 8/11.
+
+**And that opened the mirror image of the old gap.** Headscale still has no
+per-node "disable key expiry", so `node.expiry` applies to every registration
+and nothing turns it off. `day-one`, `typical` and `weak` all ask for expiry to
+be *off* — and get it anyway, and score a point for it that the sandbox does not
+give them. That is why those three rows are now the ones in bold.
+
+The audit says so on the check rather than leaving it to this file. Its rule
+line reads *"Headscale's `node.expiry` set it at registration and offers no
+per-node way to turn it off, so this one holds whatever the configuration
+says"*, and the check is marked **cannot fail here** in the same place the old
+one was marked *cannot pass here*. The score counts it as a pass either way,
+because the alternative is a number that argues with what was measured — but a
+tick nothing you did produced is the more misleading of the two marks, and it is
+the one the readout leads with. Turning **Key expiry** *off* in the UI still
+returns a typed refusal explaining that Headscale has no such switch, which is
+the same fact met from the front.
 
 What still works, and is worth doing: **Let a key expire** calls
 `headscale nodes expire` and you can watch `lab-roam` fall out of the tailnet on
-its own within seconds. The mechanism is real; only the standing configuration
-is missing.
+its own within seconds. That is a real failure of this check when it happens,
+and it is *not* marked — it is a state somebody produced rather than one the lab
+decided.
 
-This is the gap to leave alone. Closing it would mean the sandbox modelling
-Headscale's limitation rather than Tailscale's behaviour, and the guide is
-about Tailscale.
+This is still the gap to leave alone, for the same reason as before: closing it
+would mean the sandbox modelling Headscale's limitation rather than Tailscale's
+behaviour, and the guide is about Tailscale. What was wrong was never the
+decision — it was calling it permanent. **Measured against Headscale 0.29.3.**
 
 ### 2 · Nobody can reach your laptop from the internet, and the sandbox thought they could
 
-**Closed.** `day-one` scored 4/11 here and 3/11 in the sandbox. The extra pass is
-**"…nor your laptop"**, checked with the tailnet switched off entirely.
+**Closed.** When this was found, `day-one` scored 4/11 here and 3/11 in the
+sandbox — the two agree at 4/11 now, and this lab reads 5/11 for the unrelated
+reason in finding 1. The extra pass was **"…nor your laptop"**, checked with the
+tailnet switched off entirely.
 
 The sandbox gave every machine a public address and let a public path find one,
 so an attacker on the open internet reached `lab-ubuntu:22`. In the containers it
@@ -372,8 +422,9 @@ which masquerades outbound and forwards nothing inbound. There is no address for
 a stranger to aim at. The probe says so at rung 2 rather than inventing a path.
 
 That is what a laptop behind a home router actually looks like, and it is worth
-knowing which of the two you have been picturing. The sandbox now models it the
-same way: a machine with a NAT in front of it has no inbound address, and a
+knowing which of the two you have been picturing. It is also the one finding
+here that no version bump can move: it is the lab's own topology, not a
+behaviour of anything shipped. The sandbox now models it the same way: a machine with a NAT in front of it has no inbound address, and a
 probe aimed at one stops at rung 2 naming the router that swallowed it. It also
 does not let the configuration off the hook — the moment the laptop joins a
 tailnet, it becomes reachable from every other member, and checks 6 and 7 are
@@ -396,7 +447,9 @@ block, because the generated script has to be the script that chapter runs.
 The sandbox now prints `UDP: true` with the port dropped, and says in the
 readout why the two lines disagree — which is a better lesson than the one it
 replaced, and it came from running the command rather than from reasoning about
-it.
+it. **Measured against tailscale 1.102.3**, and this is a client-side reading:
+which port `netcheck` probes is the client's business, and a future one could
+change it.
 
 ### 4 · A twenty-second blackout does not kill an SSH session
 
@@ -434,6 +487,10 @@ sessions survive both acts, because the tailnet address does not change when the
 network under it does — which is the tailnet earning its keep, and a good reason
 to read chapters 01 and 03 together.
 
+This one is TCP's behaviour and mosh's, not any coordination server's, so it is
+the finding least likely to move under you. **Measured against tailscale
+1.102.3.**
+
 ### 5 · A key the tailnet refuses is still a machine on the internet
 
 **Closed, and this half is the one that changed.**
@@ -470,15 +527,21 @@ same attack stops at rung 4. **Let a key expire** behaves identically:
 `lab-roam` drops out of the tailnet on its own and still reaches `sshd` at rung
 5, until the public rule is gone.
 
-Re-scoring after the fix moved this lab's boot state from 8/11 to 7/11 — the
-extra failure is **"A stolen node key is refused"**, which is now honest. The
-four named configurations did not move, `hardened` included, because `hardened`
-had already closed public `:22`. The sandbox moved the same way, 9/11 to 8/11.
+Re-scoring after the fix cost this lab's boot state a point — the extra failure
+is **"A stolen node key is refused"**, which is now honest. The four named
+configurations did not move, `hardened` included, because `hardened` had already
+closed public `:22`. The sandbox moved the same way, 9/11 to 8/11. (The boot
+state read 7/11 for a while afterwards and reads 8/11 today; the point it got
+back is finding 1's, and has nothing to do with this one.)
 
 The lesson underneath is worth more than the score. Tailnet lock decides who is
 a *member*. Closing public `:22` decides who can reach the *machine*. Neither
 substitutes for the other, and both halves of this pair spent months implying
 the first did the second's job.
+
+**Re-measured against Headscale 0.29.3**, and it holds: the boot state still
+fails **"A stolen node key is refused"** for the same reason, which is why that
+row reads 8 and not 9.
 
 ---
 
@@ -513,18 +576,25 @@ everything. Two places where they do not:
   client takes is identical either way, and forcing traffic onto that path is
   what the lab actually tests.
 
-### A Headscale wrinkle the control server works around
+### A Headscale wrinkle the control server used to work around
 
-Headscale 0.26's policy manager keeps its own snapshot of the nodes and does not
-refresh it when `headscale nodes tag` changes one. A tag applied while it is
-running is visible in `headscale nodes list` and **invisible to every ACL** —
-every rule mentioning that tag silently compiles to nothing, and you get
-rung-3 denials with no explanation anywhere.
+Headscale 0.26's policy manager kept its own snapshot of the nodes and did not
+refresh it when `headscale nodes tag` changed one. A tag applied while it was
+running was visible in `headscale nodes list` and **invisible to every ACL** —
+every rule mentioning it silently compiled to nothing, and you got rung-3
+denials with no explanation anywhere. The control server worked around it by
+restarting the coordination server whenever it changed a tag.
 
-The control server therefore restarts the coordination server whenever it
-changes a tag. The nodes reconnect on their own within a few seconds. If a later
-Headscale drops this behaviour, drop the restart with it —
-`EnsureTags` in `control/state.go` is the place.
+**0.29.3 does not need that, and the restart is gone.** It was checked rather
+than assumed: with the coordination server left running, retagging `lab-vps`
+away from `tag:server` closes the `tag:laptop → tag:server:22` grant within
+seconds and retagging it back opens it again, and the same holds for
+`lab-ubuntu` on the source side of the same rule.
+
+If it ever comes back it will look like a grant that stops working after a
+configuration change and starts again after `docker restart headscale`.
+`EnsureTags` in `control/state.go` is the place, and its comment carries this
+paragraph in short form.
 
 ---
 
@@ -757,7 +827,8 @@ that carries everything.
 - **A machine never joins** — `docker compose logs lab-ubuntu`. The usual cause
   is that the lab CA was not there when it booted; `make reset && make up`.
 - **Every probe dies at rung 3** — check `docker exec headscale headscale policy get`,
-  and see the Headscale wrinkle above.
+  then `docker exec headscale headscale nodes list` and confirm each machine
+  carries the tag the policy names. See the Headscale wrinkle above.
 - **The control server refuses to start** — read what it says. It is almost
   certainly the loopback guard, and it is almost certainly right.
 - **A change to the page does not appear** — the UI is compiled into the

@@ -520,27 +520,30 @@
       verdict(rep.tone || "warn", rep.verdict);
       return;
     }
-    var ceilingNote = rep.ceiling
-      ? ' <span class="muted">· ' + rep.ceiling + " of the failures cannot pass in this lab</span>"
+    var stuckNote = rep.stuck
+      ? ' <span class="muted">· ' + rep.stuck +
+        " answered by this lab, not by your configuration</span>"
       : "";
     var html = '<p><span class="score">' + rep.passed + " / " + rep.total +
-      '</span> <span class="muted">checks held</span>' + ceilingNote + "</p>";
+      '</span> <span class="muted">checks held</span>' + stuckNote + "</p>";
 
     ["access", "attack", "config"].forEach(function (kind) {
       var rows = rep.checks.filter(function (c) { return c.kind === kind; });
       if (!rows.length) return;
       html += '<p class="group">' + esc(meta.groups[kind]) + "</p>";
       rows.forEach(function (c) {
-        /* A ceiling check still counts as a failure in the score — the number
-           has to stay honest — but it is marked differently, because "you
-           cannot fix this" and "you have not fixed this" are different things
-           to tell somebody at eleven at night. */
-        var state = c.pass ? "pass" : c.ceiling ? "ceiling" : "fail";
-        var mark = c.pass ? "✓" : c.ceiling ? "—" : "✗";
+        /* A stuck check scores exactly like any other — the number has to stay
+           honest — but it is marked, and the mark reads both ways. "You cannot
+           fix this" and "you have not fixed this" are different things to tell
+           somebody at eleven at night; so are "you closed this" and "this was
+           never yours to open", and the second pair is the more misleading. */
+        var state = (c.pass ? "pass" : "fail") + (c.stuck ? " stuck" : "");
+        var mark = c.pass ? "✓" : c.stuck ? "—" : "✗";
         html += '<div class="check ' + state + '">' +
           '<span class="mark">' + mark + "</span><div>" +
           "<div>" + esc(c.label) +
-          (c.ceiling && !c.pass ? ' <span class="tag">cannot pass here</span>' : "") + "</div>" +
+          (c.stuck ? ' <span class="tag">' +
+            (c.pass ? "cannot fail here" : "cannot pass here") + "</span>" : "") + "</div>" +
           '<div class="why">' + esc(c.pass ? c.why : c.fail) + "</div>" +
           (c.rule ? '<div class="rule">' + (c.rung ? "rung " + c.rung + " · " : "") + esc(c.rule) + "</div>" : "") +
           "</div></div>";

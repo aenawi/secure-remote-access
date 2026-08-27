@@ -49,7 +49,22 @@ derp:
   update_frequency: 24h
 
 disable_check_updates: true
-ephemeral_node_inactivity_timeout: 30m
+
+node:
+  # The standing key expiry Tailscale gives you and Headscale did not, until
+  # 0.29 added this knob (juanfont/headscale#1711, PR #3122). Nodes registered
+  # with a pre-auth key now get an expiry recorded at registration, which is
+  # what audit check 10 — "A lost device stops being a member on its own" —
+  # reads. 180 days, because that is Tailscale's default and the control
+  # surface's toggle says so out loud.
+  #
+  # Tagged pre-auth keys are exempt. Ours are not tagged: createKey makes a
+  # plain `--reusable -e 720h` key and the tags are applied afterwards with
+  # `headscale nodes tag`, so all three machines are covered.
+  expiry: 4320h
+  ephemeral:
+    # Was `ephemeral_node_inactivity_timeout` before 0.29 moved it in here.
+    inactivity_timeout: 30m
 
 database:
   type: sqlite
@@ -86,4 +101,8 @@ unix_socket_permission: "0770"
 logtail:
   enabled: false
 
-randomize_client_port: false
+# `randomize_client_port` was a top-level key until 0.29 removed it in favour of
+# a `randomizeClientPort` capability in the policy. It was set to false here,
+# which is the default either way, so there is nothing to carry across — the
+# lab wants WireGuard on its usual port so that chapter 13's "drop udp/41641"
+# is a rule with something to drop.

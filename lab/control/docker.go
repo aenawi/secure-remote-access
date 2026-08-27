@@ -222,11 +222,6 @@ func (l *Lab) Stop(ctx context.Context, name string) error {
 	return l.cli.ContainerStop(ctx, l.name(name), container.StopOptions{Timeout: &t})
 }
 
-func (l *Lab) Restart(ctx context.Context, name string) error {
-	t := 5
-	return l.cli.ContainerRestart(ctx, l.name(name), container.StopOptions{Timeout: &t})
-}
-
 // IPOn returns the container's address on a given compose network, matched by
 // suffix because compose prefixes network names with the project too.
 func (l *Lab) IPOn(ctx context.Context, name, netSuffix string) string {

@@ -196,7 +196,7 @@ func TestParseTrailingInt(t *testing.T) {
 func TestHeadscaleTimestampsDecodeAsObjects(t *testing.T) {
 	const raw = `[{"id":1,"name":"lab-ubuntu","given_name":"lab-ubuntu",
 	  "node_key":"nodekey:484168cada3f8ed7678bd35d65e69733172f374271e27bad692e29884e3b3c50",
-	  "forced_tags":["tag:laptop"],"online":true,
+	  "tags":["tag:laptop"],"online":true,
 	  "expiry":{"seconds":1790319306,"nanos":331658610}}]`
 
 	var ns []hsNode
@@ -214,8 +214,9 @@ func TestHeadscaleTimestampsDecodeAsObjects(t *testing.T) {
 			"survive the decode or rotate-key reports \"not measured\" forever")
 	}
 
-	// A node with no expiry recorded — which, in this lab, is all of them. The
-	// zero time is what expiryVerdict reads as the ceiling, so it has to be
+	// A node with no expiry recorded — which is every node in this lab up to
+	// Headscale 0.26, and none of them since 0.29's `node.expiry`. The zero
+	// time is what expiryVerdict reads as "no expiry at all", so it has to be
 	// the zero time and not the epoch.
 	var none []hsNode
 	if err := json.Unmarshal([]byte(`[{"given_name":"lab-vps","expiry":null}]`), &none); err != nil {
@@ -228,6 +229,27 @@ func TestHeadscaleTimestampsDecodeAsObjects(t *testing.T) {
 	// what headscale emits for `created_at` on a node it has no date for.
 	if !(&hsTime{}).Time().IsZero() {
 		t.Fatal("a zeroed timestamp is not 1970")
+	}
+}
+
+// The tag list headscale prints, under the name 0.29 gives it.
+//
+// It was `forced_tags` up to 0.26 and is `tags` from 0.29, and the rename is
+// silent in the worst way: JSON decoding into a field nothing populates leaves
+// an empty slice, EnsureTags reads that as "this node has no tag yet", tags it
+// again, sees a change and restarts the coordination server — on every pass of
+// the observe loop, forever. Nothing errors and the lab merely feels broken.
+func TestHeadscaleNodeTagsDecode(t *testing.T) {
+	const raw = `[{"id":1,"given_name":"lab-ubuntu","online":true,
+	  "tags":["tag:laptop"]}]`
+
+	var ns []hsNode
+	if err := json.Unmarshal([]byte(raw), &ns); err != nil {
+		t.Fatal(err)
+	}
+	if len(ns) != 1 || len(ns[0].Tags) != 1 || ns[0].Tags[0] != "tag:laptop" {
+		t.Fatalf("headscale 0.29 calls this field `tags`, and EnsureTags has to read it "+
+			"or it re-tags and restarts the coordination server on every pass: %+v", ns)
 	}
 }
 
