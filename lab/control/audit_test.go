@@ -32,11 +32,12 @@ import (
 type outcome struct {
 	name   string
 	passed []int
-	// ceiling names the checks that failed for a reason this stack cannot fix.
-	// In practice it is always the expiry check: Headscale records a node
-	// expiry only when the registration asks for one, and a pre-auth-key
-	// registration does not.
-	ceiling []int
+	// stuck names the checks this lab answers for you, whichever way it
+	// answers them. In practice it is always the expiry check: Headscale
+	// records an expiry on every registration because `node.expiry` is set in
+	// config/headscale/config.yaml, and offers no per-node way to turn one
+	// off — so the answer is the same whatever the configuration says.
+	stuck []int
 }
 
 func (o outcome) checks() []Check {
@@ -44,9 +45,9 @@ func (o outcome) checks() []Check {
 	for _, i := range o.passed {
 		pass[i] = true
 	}
-	ceil := make(map[int]bool, len(o.ceiling))
-	for _, i := range o.ceiling {
-		ceil[i] = true
+	stuck := make(map[int]bool, len(o.stuck))
+	for _, i := range o.stuck {
+		stuck[i] = true
 	}
 
 	out := make([]Check, 0, auditCheckCount)
@@ -58,10 +59,7 @@ func (o outcome) checks() []Check {
 		// the fixture flips with it rather than silently disagreeing.
 		ch.Got = ch.Want == pass[i]
 		ch.Pass = ch.Got == ch.Want
-		if !ch.Pass && ceil[i] {
-			ch.Ceiling = true
-			ch.Fail = ceilingFail
-		}
+		ch.Stuck = stuck[i]
 		out = append(out, ch)
 	}
 	return out
@@ -69,10 +67,12 @@ func (o outcome) checks() []Check {
 
 // The five configurations, as this lab scores them against real containers.
 //
-// The expiry check is the ceiling in every one of them, which is why every row
-// carries it: no arrangement of the switches turns it green here, and the
-// score counts it as a failure anyway, because a number that flatters itself
-// is worth nothing.
+// The expiry check is stuck in every one of them, which is why every row
+// carries it — and since Headscale 0.29 it is stuck *passing*: `node.expiry`
+// records one on every registration and nothing can turn it off, so three of
+// these five score a point the sandbox does not give them. The score counts it
+// as a pass anyway, because a number that argues with what was measured is
+// worth nothing. Finding 1 in lab/README.md is that gap.
 var scored = []outcome{
 	{
 		// A fresh VPS that has never heard of a tailnet. You can reach it
@@ -83,8 +83,9 @@ var scored = []outcome{
 			ckYouCanGetIn, ckRoamCanGetIn,
 			ckStrangerPublishedPort, // nothing is published
 			ckUntrustedToLaptop,     // no route to it at all, which is not a policy
+			ckExpiry,                // Headscale's, not this configuration's
 		},
-		ceiling: []int{ckExpiry},
+		stuck: []int{ckExpiry},
 	},
 	{
 		// The visible half of the job, done properly, and then it stopped.
@@ -93,44 +94,45 @@ var scored = []outcome{
 		passed: []int{
 			ckYouCanGetIn, ckRoamCanGetIn,
 			ckNoPasswords, ckNoRootLogin,
+			ckExpiry, // Headscale's, not this configuration's
 		},
-		ceiling: []int{ckExpiry},
+		stuck: []int{ckExpiry},
 	},
 	{
 		// Every protection that got in somebody's way, switched off on
 		// purpose. Nothing holds except the two that ask whether you can still
 		// work, and those hold for the wrong reason.
-		name:    "weak",
-		passed:  []int{ckYouCanGetIn, ckRoamCanGetIn},
-		ceiling: []int{ckExpiry},
+		name:   "weak",
+		passed: []int{ckYouCanGetIn, ckRoamCanGetIn, ckExpiry},
+		stuck:  []int{ckExpiry},
 	},
 	{
-		// What chapters 01 through 11 build towards. Everything that can be
-		// closed is closed; the one that is left cannot pass here at all.
+		// What chapters 01 through 11 build towards. Everything closed, and
+		// the same eleven out of eleven the sandbox gives it.
 		name: "hardened",
 		passed: []int{
 			ckYouCanGetIn, ckRoamCanGetIn,
 			ckStrangerSSH, ckStrangerPublishedPort, ckStolenKey,
 			ckUntrustedToServer, ckUntrustedToLaptop,
-			ckNoPasswords, ckNoRootLogin, ckSSHDNotPublic,
+			ckNoPasswords, ckNoRootLogin, ckExpiry, ckSSHDNotPublic,
 		},
-		ceiling: []int{ckExpiry},
+		stuck: []int{ckExpiry},
 	},
 	{
 		// Where `docker compose up -d` leaves you: a sensible policy and a
-		// public :22 still open. The two failures that are not the ceiling are
-		// the same failure seen from two directions — a stranger reaches sshd,
-		// and so does the holder of a key the tailnet refused. The second of
-		// those is finding 5 in the README, and it is the reason this row says
-		// 7 and not 8.
+		// public :22 still open. Two of the three failures are the same
+		// failure seen from two directions — a stranger reaches sshd, and so
+		// does the holder of a key the tailnet refused. The second of those is
+		// finding 5 in the README, and it is the reason this row says 8 and
+		// not 9.
 		name: "the boot state",
 		passed: []int{
 			ckYouCanGetIn, ckRoamCanGetIn,
 			ckStrangerPublishedPort,
 			ckUntrustedToServer, ckUntrustedToLaptop,
-			ckNoPasswords, ckNoRootLogin,
+			ckNoPasswords, ckNoRootLogin, ckExpiry,
 		},
-		ceiling: []int{ckExpiry},
+		stuck: []int{ckExpiry},
 	},
 }
 
@@ -230,11 +232,10 @@ func readReadmeScores(t *testing.T) map[string]int {
 // tone is what colours the banner and a green banner over a lock-out is the
 // single most dangerous thing this page could print.
 func TestScoreAuditVerdicts(t *testing.T) {
-	all := scored[3] // hardened: everything closed but the ceiling
-
 	t.Run("everything held", func(t *testing.T) {
-		perfect := outcome{passed: allElevenIndices()}
-		rep := scoreAudit(perfect.checks())
+		// scored[3] is `hardened`, which since Headscale 0.29 is a real
+		// eleven-out-of-eleven rather than a fixture invented to reach one.
+		rep := scoreAudit(scored[3].checks())
 		if rep.Tone != "ok" || rep.Passed != 11 {
 			t.Fatalf("tone %q, %d passed: %s", rep.Tone, rep.Passed, rep.Verdict)
 		}
@@ -243,15 +244,21 @@ func TestScoreAuditVerdicts(t *testing.T) {
 		}
 	})
 
-	t.Run("only the ceiling is left", func(t *testing.T) {
-		rep := scoreAudit(all.checks())
-		if rep.Ceiling != 1 {
-			t.Fatalf("one failure and it cannot pass here, so Ceiling is 1, got %d", rep.Ceiling)
+	t.Run("only a stuck failure is left", func(t *testing.T) {
+		// No configuration produces this on 0.29 — expiry is stuck passing
+		// now, not stuck failing. It is asserted from a fixture because the
+		// branch is the general one ("every failure left is one this lab
+		// decided"), and the next gap of that shape should not have to
+		// rediscover that the good-news ending exists.
+		one := outcome{passed: allElevenIndicesExcept(ckExpiry), stuck: []int{ckExpiry}}
+		rep := scoreAudit(one.checks())
+		if rep.Stuck != 1 || rep.Passed != 10 {
+			t.Fatalf("%d of %d, stuck %d", rep.Passed, rep.Total, rep.Stuck)
 		}
 		// Good news, and it has to read as good news: everything the reader
-		// controls is closed, and the remainder is a gap in Headscale.
+		// controls is closed, and the remainder is not theirs to close.
 		if rep.Tone != "ok" {
-			t.Fatalf("a run whose only failure is the lab's ceiling is not a warning: %q — %s",
+			t.Fatalf("a run whose only failure is one this lab decided is not a warning: %q — %s",
 				rep.Tone, rep.Verdict)
 		}
 		for _, want := range []string{"cannot pass in this lab at all", "Everything you can"} {
@@ -260,23 +267,75 @@ func TestScoreAuditVerdicts(t *testing.T) {
 			}
 		}
 		// And it must not be excused away in the note as well — that sentence
-		// is for the case where real failures sit alongside the ceiling.
+		// is for the case where real failures sit alongside it.
 		if strings.HasPrefix(rep.Note, "One of the failures below cannot pass") {
 			t.Error("the verdict already said it; the note is for the mixed case")
 		}
 	})
 
-	t.Run("the ceiling alongside real failures", func(t *testing.T) {
-		rep := scoreAudit(scored[4].checks()) // the boot state: 7 of 11
-		if rep.Ceiling != 1 || rep.Passed != 7 {
-			t.Fatalf("%d of %d, ceiling %d", rep.Passed, rep.Total, rep.Ceiling)
+	t.Run("a stuck failure alongside real ones", func(t *testing.T) {
+		mixed := outcome{
+			passed: []int{
+				ckYouCanGetIn, ckRoamCanGetIn,
+				ckStrangerPublishedPort,
+				ckUntrustedToServer, ckUntrustedToLaptop,
+				ckNoPasswords, ckNoRootLogin,
+			},
+			stuck: []int{ckExpiry},
+		}
+		rep := scoreAudit(mixed.checks())
+		if rep.Stuck != 1 || rep.Passed != 7 {
+			t.Fatalf("%d of %d, stuck %d", rep.Passed, rep.Total, rep.Stuck)
 		}
 		if rep.Tone == "ok" {
-			t.Fatalf("three failures, two of them real, is not an ok: %s", rep.Verdict)
+			t.Fatalf("four failures, three of them real, is not an ok: %s", rep.Verdict)
 		}
 		if !strings.HasPrefix(rep.Note, "One of the failures below cannot pass") {
 			t.Errorf("the reader has to be told which failure is not their fault, without "+
-				"the other two being excused with it: %s", rep.Note)
+				"the others being excused with it: %s", rep.Note)
+		}
+	})
+
+	// Both marks at once. Nothing produces this today — there is one stuck
+	// check and it passes — but the note builds itself from two independent
+	// warnings, and the failure mode of choosing between them is silence about
+	// the flattering one, which is the harder of the two to notice missing.
+	t.Run("both marks are declared, not one of them", func(t *testing.T) {
+		both := outcome{
+			passed: []int{
+				ckYouCanGetIn, ckRoamCanGetIn,
+				ckStrangerPublishedPort,
+				ckUntrustedToServer, ckUntrustedToLaptop,
+				ckNoPasswords, ckExpiry,
+			},
+			stuck: []int{ckExpiry, ckNoRootLogin},
+		}
+		rep := scoreAudit(both.checks())
+		if rep.Stuck != 2 {
+			t.Fatalf("two checks are marked and the report counts %d", rep.Stuck)
+		}
+		for _, want := range []string{"cannot pass in this lab at all", "whatever you set"} {
+			if !strings.Contains(rep.Note, want) {
+				t.Errorf("both marks have to reach the reader, and %q did not: %s",
+					want, rep.Note)
+			}
+		}
+	})
+
+	// The direction this lab is actually in since Headscale 0.29, and the more
+	// dangerous of the two: a green tick nothing the reader did produced. The
+	// note has to say so, or three of the five configurations quietly claim a
+	// point the sandbox does not give them.
+	t.Run("a stuck pass is declared", func(t *testing.T) {
+		rep := scoreAudit(scored[0].checks()) // day-one: 5 of 11, one of them Headscale's
+		if rep.Stuck != 1 || rep.Passed != 5 {
+			t.Fatalf("%d of %d, stuck %d", rep.Passed, rep.Total, rep.Stuck)
+		}
+		for _, want := range []string{"whatever you set", "sandbox"} {
+			if !strings.Contains(rep.Note, want) {
+				t.Errorf("a pass the configuration did not earn has to be named, and the "+
+					"note should say %q: %s", want, rep.Note)
+			}
 		}
 	})
 
@@ -311,26 +370,43 @@ func TestScoreAuditVerdicts(t *testing.T) {
 	})
 }
 
-// The score counts a ceiling failure as a failure. That is a deliberate choice
-// and the kind that gets quietly reversed by somebody trying to make a number
-// look better, so it is written down: a run marked ceiling scores exactly the
-// same as the same run without the mark, and only the prose differs.
-func TestTheCeilingStillCostsAPoint(t *testing.T) {
-	marked := scored[3]
-	unmarked := outcome{name: marked.name, passed: marked.passed} // same failures, no mark
+// The mark changes the prose and never the arithmetic. That is a deliberate
+// choice and the kind that gets quietly reversed by somebody trying to make a
+// number look better or worse, so it is written down: a run with a stuck check
+// scores exactly the same as the same run without the mark, in both
+// directions, and only what is said about it differs.
+func TestTheMarkNeverMovesTheScore(t *testing.T) {
+	t.Run("a stuck pass still earns its point", func(t *testing.T) {
+		marked := scored[0] // day-one, whose expiry pass is Headscale's
+		unmarked := outcome{name: marked.name, passed: marked.passed}
 
-	a, b := scoreAudit(marked.checks()), scoreAudit(unmarked.checks())
-	if a.Passed != b.Passed || a.Total != b.Total {
-		t.Fatalf("marking a failure as the lab's ceiling moved the score: %d/%d vs %d/%d",
-			a.Passed, a.Total, b.Passed, b.Total)
-	}
-	if a.Ceiling == b.Ceiling {
-		t.Fatal("the mark has to be visible somewhere, or a reader will hunt for a switch " +
-			"that does not exist")
-	}
-	if a.Verdict == b.Verdict {
-		t.Fatal("the two say the same thing, and they are different findings")
-	}
+		a, b := scoreAudit(marked.checks()), scoreAudit(unmarked.checks())
+		if a.Passed != b.Passed || a.Total != b.Total {
+			t.Fatalf("marking a pass as this lab's moved the score: %d/%d vs %d/%d",
+				a.Passed, a.Total, b.Passed, b.Total)
+		}
+		if a.Stuck == b.Stuck {
+			t.Fatal("the mark has to be visible somewhere, or a reader trusts a tick " +
+				"nothing they did produced")
+		}
+		if a.Note == b.Note {
+			t.Fatal("the two say the same thing, and they are different findings")
+		}
+	})
+
+	t.Run("a stuck failure still costs one", func(t *testing.T) {
+		marked := outcome{passed: allElevenIndicesExcept(ckExpiry), stuck: []int{ckExpiry}}
+		unmarked := outcome{passed: marked.passed}
+
+		a, b := scoreAudit(marked.checks()), scoreAudit(unmarked.checks())
+		if a.Passed != b.Passed || a.Total != b.Total {
+			t.Fatalf("marking a failure as this lab's moved the score: %d/%d vs %d/%d",
+				a.Passed, a.Total, b.Passed, b.Total)
+		}
+		if a.Verdict == b.Verdict {
+			t.Fatal("the two say the same thing, and they are different findings")
+		}
+	})
 }
 
 // An audit that never ran is not a score of nought. Nothing on this page should
@@ -346,14 +422,15 @@ func TestScoreAuditWithNothingMeasured(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Check 10 — the one that cannot pass here
+// Check 10 — the one this lab answers for you
 // ---------------------------------------------------------------------------
 
 // Real output from `headscale nodes list -o json` in this lab: a pre-auth-key
-// registration, which is every registration this lab makes, and which records
-// no expiry at all. The wire format is a protobuf timestamp — an object, not
-// the string the human-readable table prints — and decoding it as a string is
-// a quiet way to break the whole control server the moment one node has one.
+// registration, which is every registration this lab makes. Since 0.29 those
+// carry the expiry `node.expiry` asks for; before it they carried none, and
+// the check could not pass at all. The wire format is a protobuf timestamp —
+// an object, not the string the human-readable table prints — and decoding it
+// as a string is a quiet way to break the whole control server.
 func node(name string, exp *hsTime) hsNode {
 	return hsNode{Name: name, GivenName: name, Expiry: exp}
 }
@@ -363,34 +440,37 @@ func TestExpiryVerdict(t *testing.T) {
 	future := &hsTime{Seconds: now.Add(180 * 24 * time.Hour).Unix()}
 	past := &hsTime{Seconds: now.Add(-time.Hour).Unix()}
 
-	t.Run("the lab's ceiling", func(t *testing.T) {
-		// What Headscale actually returns here: expiry absent, and there is no
-		// way to add one afterwards. This must be reported as the ceiling, not
-		// as a configuration mistake, or the reader spends an evening looking
-		// for a switch.
-		ok, rule, ceiling := expiryVerdict([]hsNode{
+	t.Run("no expiry at all is a lab that needs fixing", func(t *testing.T) {
+		// What Headscale returned before 0.29, on every registration. With
+		// `node.expiry` set in config/headscale/config.yaml it should not
+		// happen any more, so it is no longer this lab's answer to give: it
+		// means the image was rolled back, the key was tagged, or the config
+		// key was dropped, and the prose has to send the reader at the lab
+		// rather than at their own switches.
+		ok, rule, stuck := expiryVerdict([]hsNode{
 			node("lab-ubuntu", nil), node("lab-roam", nil), node("lab-vps", nil),
 		}, now)
-		if ok || !ceiling {
-			t.Fatalf("ok %v, ceiling %v — %s", ok, ceiling, rule)
+		if ok || stuck {
+			t.Fatalf("ok %v, stuck %v — %s", ok, stuck, rule)
 		}
-		if !strings.Contains(rule, "ceiling") {
-			t.Errorf("the prose has to name it: %s", rule)
+		if !strings.Contains(rule, "node.expiry") {
+			t.Errorf("the prose has to name the config key that should have set one: %s", rule)
 		}
 	})
 
 	t.Run("an expiry that has passed is an ordinary failure", func(t *testing.T) {
-		// A machine that dropped out and was never reauthenticated. This one
-		// IS the reader's problem, and marking it as the ceiling would excuse
-		// a real finding.
-		ok, rule, ceiling := expiryVerdict([]hsNode{
+		// A machine that dropped out and was never reauthenticated — which is
+		// what the "Let a key expire" button produces. This one IS the
+		// reader's problem, and marking it as this lab's would excuse a real
+		// finding.
+		ok, rule, stuck := expiryVerdict([]hsNode{
 			node("lab-ubuntu", future), node("lab-roam", past), node("lab-vps", future),
 		}, now)
 		if ok {
 			t.Fatalf("an expired member is not a member: %s", rule)
 		}
-		if ceiling {
-			t.Fatalf("this is a configuration failure, not the lab's ceiling: %s", rule)
+		if stuck {
+			t.Fatalf("this is a real state somebody produced, not one this lab decided: %s", rule)
 		}
 		if !strings.Contains(rule, "lab-roam") {
 			t.Errorf("it should name the machine: %s", rule)
@@ -398,11 +478,18 @@ func TestExpiryVerdict(t *testing.T) {
 	})
 
 	t.Run("every machine you own carries a real one", func(t *testing.T) {
-		ok, rule, ceiling := expiryVerdict([]hsNode{
+		// The only answer any of the four configurations produces on 0.29, and
+		// it has to be marked as this lab's rather than the reader's: three of
+		// the four ask for expiry to be off, Headscale has no switch for that,
+		// and the sandbox scores them a point lower for it.
+		ok, rule, stuck := expiryVerdict([]hsNode{
 			node("lab-ubuntu", future), node("lab-roam", future), node("lab-vps", future),
 		}, now)
-		if !ok || ceiling {
-			t.Fatalf("ok %v, ceiling %v — %s", ok, ceiling, rule)
+		if !ok || !stuck {
+			t.Fatalf("ok %v, stuck %v — %s", ok, stuck, rule)
+		}
+		if !strings.Contains(rule, "whatever the configuration says") {
+			t.Errorf("a pass nothing the reader did produced has to say so: %s", rule)
 		}
 	})
 
@@ -423,12 +510,12 @@ func TestExpiryVerdict(t *testing.T) {
 
 	t.Run("nothing registered at all", func(t *testing.T) {
 		for _, ns := range [][]hsNode{nil, {node("evil-box", past)}} {
-			ok, rule, ceiling := expiryVerdict(ns, now)
+			ok, rule, stuck := expiryVerdict(ns, now)
 			if ok {
 				t.Fatalf("no machine of yours was checked, so nothing was proved: %s", rule)
 			}
-			if ceiling {
-				t.Fatalf("an empty lab is not the lab's ceiling: %s", rule)
+			if stuck {
+				t.Fatalf("an empty lab has not decided anything: %s", rule)
 			}
 		}
 	})
@@ -508,6 +595,19 @@ func allElevenIndices() []int {
 	out := make([]int, auditCheckCount)
 	for i := range out {
 		out[i] = i
+	}
+	return out
+}
+
+// allElevenIndicesExcept is the answer sheet for "everything held except one",
+// which is how a run reads when the only thing left is something this lab
+// decided rather than something the reader left open.
+func allElevenIndicesExcept(skip int) []int {
+	out := make([]int, 0, auditCheckCount-1)
+	for i := 0; i < auditCheckCount; i++ {
+		if i != skip {
+			out = append(out, i)
+		}
 	}
 	return out
 }

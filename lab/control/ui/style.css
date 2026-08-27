@@ -306,7 +306,10 @@ pre.out.live { max-height: 46vh; }
 .mark { flex: none; width: 18px; font-weight: 700; }
 .check.pass .mark { color: var(--ok); }
 .check.fail .mark { color: var(--danger); }
-.check.ceiling .mark { color: var(--text-faint); }
+/* After .pass and .fail on purpose: a check this lab answered for you is
+   marked whichever way it went, and the faint mark has to win over the green
+   tick as well as over the red cross. */
+.check.stuck .mark { color: var(--text-faint); }
 .check .tag {
   font-family: var(--mono); font-size: 10.5px; text-transform: uppercase;
   letter-spacing: .04em; padding: 1px 6px; border-radius: 999px;

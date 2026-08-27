@@ -35,13 +35,21 @@ type Check struct {
 	Rule    string `json:"rule,omitempty"`
 	Measure string `json:"measure,omitempty"`
 
-	// Ceiling marks a check that cannot pass in this lab no matter how the
-	// configuration is set — not because anything is misconfigured, but because
-	// the stack underneath does not expose the thing being checked. It still
-	// counts as a failure in the score, because pretending otherwise would make
-	// the number dishonest; it is flagged so a reader does not spend an evening
-	// hunting for a mistake they did not make.
-	Ceiling bool `json:"ceiling,omitempty"`
+	// Stuck marks a check this lab answers for you: the stack underneath does
+	// not expose the thing the configuration is supposed to change, so no
+	// arrangement of the switches moves it. It runs in both directions and
+	// both of them are dishonest in a different way. A stuck *failure* takes a
+	// point the reader did not deserve to lose, and leaves them hunting for a
+	// switch that does not exist — that was this lab up to Headscale 0.26,
+	// when a pre-auth-key registration recorded no expiry at all. A stuck
+	// *pass* hands them one they did not earn, which is the worse of the two
+	// and is where this lab is now: 0.29's `node.expiry` records one on every
+	// registration and there is still no per-node way to turn it off.
+	//
+	// It changes no arithmetic. A stuck check scores exactly as any other,
+	// because a number that argues with what was measured is worth nothing;
+	// the mark exists so the prose can say which of the two it is.
+	Stuck bool `json:"stuck,omitempty"`
 }
 
 var AuditGroups = map[string]string{
@@ -55,7 +63,7 @@ type AuditReport struct {
 	Total     int     `json:"total"`
 	Passed    int     `json:"passed"`
 	LockedOut bool    `json:"lockedOut"`
-	Ceiling   int     `json:"ceiling,omitempty"` // failures that cannot pass here
+	Stuck     int     `json:"stuck,omitempty"` // answers this lab gave, not your configuration
 	Tone      string  `json:"tone"`
 	Verdict   string  `json:"verdict"`
 	Note      string  `json:"note,omitempty"`
@@ -142,16 +150,6 @@ var auditPlan = [auditCheckCount]Check{
 		Fail: "sshd is listening on 0.0.0.0 with the public rule still in place — the exact " +
 			"state chapter 08 is written to get you out of."},
 }
-
-// ceilingFail is the wording check 10 carries when the reason it failed is that
-// this stack cannot do the thing at all. Kept next to the ordinary Fail so the
-// two are read together: the score treats them identically on purpose, and only
-// the prose is allowed to differ.
-const ceilingFail = "This one cannot pass in this lab, and it is not your configuration's " +
-	"fault. Headscale records a node expiry only when the registration asks for one, " +
-	"a pre-auth-key registration does not, and it will not let you add one afterwards " +
-	"— `tailscale debug set-expire` comes back with \"extending key is not allowed\". " +
-	"Real Tailscale sets 180 days for you. So 10 of 11 is the ceiling here."
 
 // Audit runs all eleven against the stack as it stands.
 func (c *Controller) Audit(ctx context.Context) AuditReport {
@@ -277,12 +275,9 @@ func (c *Controller) Audit(ctx context.Context) AuditReport {
 		v.PermitRoot, 5, "sshd -T | grep permitrootlogin",
 		"docker exec lab-vps sshd -T | grep -i permitrootlogin")
 
-	expiry, expiryRule, expiryCeiling := c.expiryHonoured(ctx)
+	expiry, expiryRule, expiryStuck := c.expiryHonoured(ctx)
 	expiryCheck := auditPlan[ckExpiry]
-	if expiryCeiling {
-		expiryCheck.Ceiling = true
-		expiryCheck.Fail = ceilingFail
-	}
+	expiryCheck.Stuck = expiryStuck
 	add(expiryCheck, expiry, 1, expiryRule, "headscale nodes list -o json | jq '.[].expiry'")
 
 	exposed := v.SSHDListen == "tailnet" || !v.AllowPublic22
@@ -302,12 +297,16 @@ func (c *Controller) Audit(ctx context.Context) AuditReport {
 //
 // Three of the endings are easy to get wrong and each one is a different claim:
 // a locked-out machine scores whatever it scores and the score is meaningless;
-// a run where every remaining failure is the lab's ceiling is "everything you
-// control is closed", which is good news; and a ceiling failure alongside real
-// ones is neither, so the note has to name it without excusing the rest.
+// a run where every remaining failure is one this lab decided is "everything
+// you control is closed", which is good news; and one of those alongside real
+// failures is neither, so the note has to name it without excusing the rest.
+// A fourth, quieter one: a check this lab decided in the reader's *favour*
+// still has to be declared, or a tick nothing they did produced reads as one
+// they earned.
 func scoreAudit(checks []Check) AuditReport {
 	rep := AuditReport{Checks: checks}
 	rep.Total = len(rep.Checks)
+	stuckFails := 0
 	for _, ch := range rep.Checks {
 		if ch.Pass {
 			rep.Passed++
@@ -315,8 +314,11 @@ func scoreAudit(checks []Check) AuditReport {
 		if ch.Kind == "access" && !ch.Pass {
 			rep.LockedOut = true
 		}
-		if !ch.Pass && ch.Ceiling {
-			rep.Ceiling++
+		if ch.Stuck {
+			rep.Stuck++
+			if !ch.Pass {
+				stuckFails++
+			}
 		}
 	}
 	failed := rep.Total - rep.Passed
@@ -335,14 +337,14 @@ func scoreAudit(checks []Check) AuditReport {
 	// Everything that can be closed is closed, and the only thing left is
 	// something this stack cannot do. Say that plainly instead of leaving the
 	// reader to hunt for a switch that does not exist.
-	case failed > 0 && failed == rep.Ceiling:
+	case failed > 0 && failed == stuckFails:
 		rep.Tone = "ok"
 		rep.Verdict = plur(rep.Passed, rep.Total) + " held, and the " +
 			map[bool]string{true: "one", false: "ones"}[failed == 1] +
 			" that did not cannot pass in this lab at all. Everything you can " +
-			"control is closed. The remainder is a gap in Headscale, not in your " +
-			"configuration — read it below, then read the same eleven in the sandbox, " +
-			"where it does pass."
+			"control is closed. The remainder is a gap in the stack underneath, not in " +
+			"your configuration — read it below, then read the same eleven in the " +
+			"sandbox, where it does pass."
 
 	case rep.Passed >= rep.Total-3:
 		rep.Tone = "warn"
@@ -354,9 +356,25 @@ func scoreAudit(checks []Check) AuditReport {
 	rep.Note = "Run the same eleven in the sandbox on chapter 14 with the same configuration " +
 		"loaded. If the two scores disagree, the model is wrong about something real, and " +
 		"that is worth an issue."
-	if rep.Ceiling > 0 && failed > rep.Ceiling {
+	// The two marks are different warnings and a run can carry both, so each
+	// is prepended on its own terms rather than chosen between. Choosing would
+	// mean a check decided in the reader's favour going unannounced because an
+	// unrelated one was decided against them.
+	if stuckFails > 0 && failed > stuckFails {
 		rep.Note = "One of the failures below cannot pass in this lab at all — it is marked, " +
-			"and it is a gap in Headscale rather than in your configuration. " + rep.Note
+			"and it is a gap in the stack underneath rather than in your configuration. " +
+			rep.Note
+	}
+	if stuckPasses := rep.Stuck - stuckFails; stuckPasses > 0 {
+		// The flattering direction, and the one this lab is in. It goes
+		// nearest the reader because it is the one that reads as good news:
+		// the sandbox can switch key expiry off and scores three of the four
+		// configurations a point lower for it.
+		rep.Note = itoa(stuckPasses) + " of the " + itoa(rep.Total) + " below " +
+			isAre(stuckPasses) + " marked: this lab answers " +
+			map[bool]string{true: "it", false: "them"}[stuckPasses == 1] +
+			" for you whatever you set here, so the pass is the stack's and not your " +
+			"configuration's. That is the gap to look at first. " + rep.Note
 	}
 	return rep
 }
@@ -364,9 +382,13 @@ func scoreAudit(checks []Check) AuditReport {
 // expiryHonoured reads the real expiry the coordination server holds for each
 // node, rather than a switch somebody set. Headscale has no per-node "disable
 // key expiry", so this check can only ever observe — see setExpiry.
-// The third return says whether a failure here is the lab's ceiling rather than
-// a configuration mistake: an expiry that was never recorded cannot be added
-// later, so no arrangement of the switches above will turn this one green.
+//
+// The third return says the answer was this lab's rather than the reader's.
+// Since 0.29, `node.expiry` in config/headscale/config.yaml records an expiry
+// on every pre-auth-key registration, and there is still nothing that turns
+// one off, so a pass here is the stack's and not the configuration's — which
+// matters, because three of the four configurations ask for expiry to be off
+// and get it anyway. Finding 1 in lab/README.md is that gap.
 func (c *Controller) expiryHonoured(ctx context.Context) (bool, string, bool) {
 	ns, err := c.nodes(ctx)
 	if err != nil {
@@ -377,11 +399,12 @@ func (c *Controller) expiryHonoured(ctx context.Context) (bool, string, bool) {
 
 // expiryVerdict is the deciding half of the check above, over the node list
 // headscale already printed. Separate because this is the one of the eleven
-// that cannot pass here, and a check that is allowed to fail is exactly the
-// kind that stops being read: the difference between "no expiry was ever
-// recorded" (the ceiling, and not your fault) and "the expiry has passed and
-// nobody reauthenticated" (an ordinary failure) is one line of prose and one
-// boolean, and both of them are load-bearing in the score.
+// this lab answers for you, and a check nothing can move is exactly the kind
+// that stops being read: the difference between "every machine carries one and
+// you could not have stopped it" (this lab's answer, and not something you
+// did) and "the expiry has passed and nobody reauthenticated" (an ordinary
+// failure, and the one the *Let a key expire* button produces) is one line of
+// prose and one boolean, and both of them are load-bearing in the score.
 func expiryVerdict(ns []hsNode, now time.Time) (bool, string, bool) {
 	if len(ns) == 0 {
 		return false, "the coordination server listed no nodes", false
@@ -398,10 +421,16 @@ func expiryVerdict(ns []hsNode, now time.Time) (bool, string, bool) {
 		seen++
 		exp := n.Expiry.Time()
 		if exp.IsZero() {
-			return false, n.GivenName + " has no expiry at all, and one cannot be added: " +
-				"Headscale refuses to extend a key that never expires. This is the lab's " +
-				"ceiling, not a setting you missed — see \"Where this lab and the sandbox " +
-				"disagree\" in lab/README.md", true
+			// Up to Headscale 0.26 this was every machine, every time, and
+			// nothing could be done about it. From 0.29 it should not happen
+			// at all, so it is no longer this lab's answer to give: it means
+			// `node.expiry` is missing from config/headscale/config.yaml, the
+			// image was rolled back, or the key the machine registered with
+			// carried tags — tagged pre-auth keys are exempt from the default.
+			return false, n.GivenName + " has no expiry at all, which Headscale 0.29's " +
+				"`node.expiry` is meant to record at registration. Check that the setting " +
+				"is still in config/headscale/config.yaml, that the image has not been " +
+				"rolled back, and that the pre-auth key was created without tags", false
 		}
 		if exp.Before(now) {
 			return false, n.GivenName + " expired at " + exp.Format(time.RFC3339) +
@@ -411,7 +440,19 @@ func expiryVerdict(ns []hsNode, now time.Time) (bool, string, bool) {
 	if seen == 0 {
 		return false, "none of your three machines are registered", false
 	}
-	return true, "every machine you own carries a real expiry in the future", false
+	return true, "every machine you own carries a real expiry in the future — Headscale's " +
+		"`node.expiry` set it at registration and offers no per-node way to turn it off, " +
+		"so this one holds whatever the configuration says", true
+}
+
+// isAre lets a sentence that counts something be written once rather than
+// twice. Small, and it earns its place: the alternative is two nearly
+// identical strings that drift apart the first time one of them is reworded.
+func isAre(n int) string {
+	if n == 1 {
+		return "is"
+	}
+	return "are"
 }
 
 func itoa(n int) string {

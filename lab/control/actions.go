@@ -545,8 +545,9 @@ func (c *Controller) setExpiry(ctx context.Context, on bool) Result {
 		c.with(func(s *State) { s.ACL.Expiry = on })
 		c.saveDesired()
 		res.OK = true
-		res.Why = "Every node in this lab already carries a real expiry — you can read it in " +
-			"`headscale nodes list`. Nothing to do."
+		res.Why = "Every node in this lab already carries a real expiry, 180 days from the " +
+			"moment it registered — `node.expiry` in config/headscale/config.yaml puts it " +
+			"there, and you can read it back in `headscale nodes list`. Nothing to do."
 		res.Cmds = []string{"headscale nodes list -o json | jq '.[].expiry'"}
 		return res
 	}
@@ -554,10 +555,12 @@ func (c *Controller) setExpiry(ctx context.Context, on bool) Result {
 	res.OK = false
 	res.Rung = 0
 	res.Rule = "Headscale has no per-node 'disable key expiry'"
-	res.Why = "The sandbox can switch this off because it is a model. This lab cannot, " +
-		"because Headscale does not expose it — and a real stack refusing to be made " +
-		"unsafe the way the model says is exactly the kind of gap this pair exists to " +
-		"find. The audit reads the real expiry either way, so the score stays honest."
+	res.Why = "The sandbox can switch this off because it is a model. This lab cannot: " +
+		"`node.expiry` applies to every registration and Headscale has no per-node way to " +
+		"undo it — and a real stack refusing to be made unsafe the way the model says is " +
+		"exactly the kind of gap this pair exists to find. It is also why `day-one`, " +
+		"`typical` and `weak` score a point here that the sandbox does not give them; the " +
+		"audit marks that check rather than letting the configuration take the credit."
 	return res
 }
 

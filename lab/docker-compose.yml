@@ -80,7 +80,7 @@ services:
 
   # ---- coordination server, and the lab's own DERP relay ------------------
   headscale:
-    image: headscale/headscale:0.26.1
+    image: headscale/headscale:0.29.3
     container_name: headscale
     restart: unless-stopped
     command: ["serve"]
