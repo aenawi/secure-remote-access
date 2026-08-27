@@ -10,19 +10,27 @@
 </head>
 <body>
 
-<!-- The page is one instrument, not a document you scroll.
+<!-- The page is one instrument, not a document you scroll, and the instrument
+     is the drawing.
 
-     Three bands, top to bottom, and none of them ever scroll away from each
-     other: the drawing, the verdict it just produced, and the deck. The deck
-     is two columns that scroll independently — what you change on the left,
-     what it said on the right — so flipping a switch and reading the answer
-     no longer means losing sight of the picture that changed.
+     The board runs edge to edge under the whole window. Everything else — this
+     bar, the two rails, the verdict, the rung ladder — floats on top of it as
+     glass. What you change is on the left, what the lab said back is on the
+     right, and the picture that changed is underneath both, uncovered in the
+     middle. Either rail folds to a spine when you want the width back.
+
+     This used to be three stacked bands with the drawing in the top one, and
+     the drawing lost that arrangement badly: a 52vh band, letterboxed to 21:9
+     inside it, put the picture on about a quarter of the screen and the
+     machine labels at eleven pixels. The rails now sit over the margins that
+     letterboxing was throwing away, and the board is told where they are so it
+     keeps the diagram in the gap rather than under one.
 
      Below 1000px, or on a short window, the whole thing falls back to an
      ordinary scrolling page with the drawing pinned to the top. -->
 <div class="app">
 
-  <header class="topbar">
+  <header class="topbar glass">
     <div class="brand">
       <b>The lab</b><span>real containers</span>
     </div>
@@ -89,10 +97,18 @@
             <div id="hud-transcript"></div>
           </div>
         </div>
-        <button type="button" class="homebtn" id="hud-home">reset view (h)</button>
+        <!-- Drag orbits, the wheel zooms, and these are the same two things
+             for anyone not using a wheel — or a pointer at all, since a button
+             can be tabbed to and a gesture cannot. -->
+        <div class="viewpad glass" role="group" aria-label="View">
+          <button type="button" id="hud-zoom-out" aria-label="Zoom out">&minus;</button>
+          <button type="button" id="hud-zoom-in" aria-label="Zoom in">+</button>
+          <span class="sep" aria-hidden="true"></span>
+          <button type="button" class="homebtn" id="hud-home">reset view (h)</button>
+        </div>
       </div>
 
-      <div class="hud-ladder" role="list">
+      <div class="hud-ladder glass" role="list">
         <div class="hud-rung" id="hud-rung-1" role="listitem"><div class="n">RUNG 1</div><div class="t">is anything alive</div></div>
         <div class="hud-rung" id="hud-rung-2" role="listitem"><div class="n">RUNG 2</div><div class="t">is there a path</div></div>
         <div class="hud-rung" id="hud-rung-3" role="listitem"><div class="n">RUNG 3</div><div class="t">did the tailnet allow it</div></div>
@@ -195,7 +211,7 @@
   <div class="grip" id="grip" role="separator" tabindex="0"
        aria-orientation="horizontal" aria-label="Resize the drawing — arrow keys, or drag"></div>
 
-  <div class="verdict" id="verdict">Reading the lab…</div>
+  <div class="verdict glass" id="verdict">Reading the lab…</div>
 
   <div class="deck">
 
@@ -203,9 +219,12 @@
          strip is built in app.js from the panels the control server declares,
          so a new panel there becomes a new tab here and nothing in this file
          has to know its name. -->
-    <section class="col" aria-label="Settings">
+    <section class="col glass" id="rail-left" aria-label="Settings">
       <div class="col-head">
         <div class="ctabs" id="ctabs" role="tablist" aria-label="Settings groups"></div>
+        <button type="button" class="railtog" data-rail="rail-left"
+                aria-expanded="true" aria-controls="rail-left"
+                aria-label="Fold the settings rail">&#10094;</button>
       </div>
       <div class="col-body" id="cpanes">
 
@@ -280,7 +299,7 @@
     <!-- Right: everything the lab said back, and the page's own documentation
          in the last tab so an explanation is never more than one click from
          the thing it explains. -->
-    <section class="col" aria-label="Readouts">
+    <section class="col glass" id="rail-right" aria-label="Readouts">
       <div class="col-head">
         <div class="tabs" role="tablist" aria-label="Readouts">
           <button type="button" class="tab on" data-tab="status">status</button>
@@ -290,6 +309,9 @@
           <button type="button" class="tab" data-tab="script">script</button>
           <button type="button" class="tab" data-tab="guide">guide</button>
         </div>
+        <button type="button" class="railtog" data-rail="rail-right"
+                aria-expanded="true" aria-controls="rail-right"
+                aria-label="Fold the readouts rail">&#10095;</button>
       </div>
       <div class="col-body">
 
@@ -359,13 +381,16 @@
 
             <h4>Where things are</h4>
             <ul>
-              <li><b>The drawing</b> stays at the top of the window. It never scrolls away, and
-                  the divider under it drags — grab it, or focus it and use the arrow keys.</li>
-              <li><b>The line under it</b> is the verdict: what the lab did, and which rung
-                  decided it.</li>
-              <li><b>The left column</b> is everything that changes the lab, one group per tab.</li>
-              <li><b>This column</b> is everything the lab said back — plus this page's own
+              <li><b>The drawing</b> is the window. It runs edge to edge underneath everything
+                  else and never scrolls away.</li>
+              <li><b>The left rail</b> is everything that changes the lab, one group per tab.</li>
+              <li><b>This rail</b> is everything the lab said back — plus this page's own
                   documentation, which is the tab you are reading.</li>
+              <li><b>Either rail folds</b> to a spine, with the chevron in its corner or with
+                  <b>[</b> and <b>]</b>. The board re-frames itself into whatever room that
+                  leaves, so folding one really does buy you a closer look.</li>
+              <li><b>The line along the bottom</b> is the verdict: what the lab did, and which
+                  rung decided it. Under that, the five-segment strip marks the rung.</li>
             </ul>
 
             <h4>How to read the board</h4>
@@ -376,8 +401,9 @@
               five-segment strip under the drawing marks it.
             </p>
             <p>
-              <b>Drag to orbit</b>, and press <b>h</b> — or <b>reset view</b> in the corner — to
-              put the camera back.
+              <b>Drag to orbit</b> and <b>scroll to zoom</b> — or pinch, or the <b>+</b> and
+              <b>&minus;</b> keys, or the buttons in the corner. Press <b>h</b>, or
+              <b>reset view</b>, to put the camera back where it started.
             </p>
             <p class="muted">
               <b>The canvas is decoration you can switch off.</b> Every state the board shows is

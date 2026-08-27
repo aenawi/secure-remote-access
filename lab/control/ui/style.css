@@ -72,23 +72,60 @@ body {
 }
 
 /* ---- the shell ----
-   One instrument in three fixed bands: the drawing, the verdict it produced,
-   and a deck of two independently scrolling columns. Nothing scrolls the whole
-   window, so the picture you just changed is still on screen when you read what
-   changed about it. --stage-h is the one thing the reader moves, via the grip.
+   One instrument, and the drawing is all of it. The board runs edge to edge
+   under the whole window; every other surface — the bar, the two rails, the
+   verdict, the ladder — floats on top of it as glass. Nothing is docked beside
+   the drawing, because the drawing is not a panel among panels, it is the
+   thing this page is.
+
+   That is a change of kind from the three stacked bands this used to be. Those
+   gave the board 52vh of a 100vh window and then centred it inside a canvas
+   whose outer thirds were empty anyway, so the picture got about a quarter of
+   the screen and the machine labels came out at eleven pixels. Reading them
+   meant leaning in. The rails now sit over exactly the margins the board was
+   already wasting, and the board is told about them — see setViewInset in
+   hud/scene.js — so it keeps the diagram in the gap rather than under a rail.
+
+   Every measurement the layout needs is a token, because both the CSS and the
+   JavaScript need the same numbers and two copies would drift the first time
+   one of them was adjusted.
 
    The narrow and short fallbacks are at the end of this file, and they turn all
    of this back into an ordinary page. */
+:root {
+  --rail-w: 336px;
+  --rail-w-shut: 44px;
+  --bar-h: 46px;
+  --hud-gap: 10px;
+}
+
 .app {
-  display: grid;
-  grid-template-rows: auto var(--stage-h, 52vh) auto auto minmax(0, 1fr);
+  position: relative;
   height: 100dvh;
+  overflow: hidden;
+}
+
+/* Glass, once, so every floating surface is the same material. Saturating the
+   backdrop as well as blurring it is what stops a rail over the red public
+   plane reading as a different colour from the same rail over the grid. */
+.glass {
+  background: color-mix(in srgb, var(--bg-raised) 82%, transparent);
+  backdrop-filter: blur(14px) saturate(1.4);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+/* backdrop-filter is the one thing here with no sensible degradation: without
+   it the panels are see-through and the text lands on a moving 3D scene. */
+@supports not (backdrop-filter: blur(4px)) {
+  .glass { background: var(--bg-raised); }
 }
 
 .topbar {
+  position: absolute; z-index: 30; inset: 0 0 auto 0;
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-  padding: 8px 16px; border-bottom: 1px solid var(--border);
-  background: var(--bg-raised);
+  padding: 0 14px; min-height: var(--bar-h);
+  border-width: 0 0 1px 0;
 }
 .topbar-gap { flex: 1 1 auto; }
 .brand { display: flex; align-items: baseline; gap: 8px; }
@@ -126,9 +163,11 @@ body {
    chapter 14, so the two drawings read as one picture of one network. The
    difference is where the numbers come from: every address and every path here
    was read back out of a container. */
+/* The board is the floor of the window, not a band in it. z-index 0 rather
+   than none, so the rails have something to stack against. */
 .stagewrap {
-  position: relative; min-height: 0; overflow: hidden;
-  background: var(--bg); border-bottom: 1px solid var(--border);
+  position: absolute; inset: 0; z-index: 0; overflow: hidden;
+  background: var(--bg);
 }
 .stagewrap > * { height: 100%; }
 
@@ -136,12 +175,12 @@ body {
 .stage[hidden] { display: none; }
 .stage svg { display: block; width: 100%; height: 100%; }
 
-/* The grip is thin, and its hit area is not: the ::after is the part a pointer
-   has to find, and it is three times the height of the line it draws. */
-.grip {
-  height: 6px; background: var(--bg-raised); border-bottom: 1px solid var(--border);
-  cursor: row-resize; position: relative; touch-action: none;
-}
+/* The grip divided the drawing from the deck, and there is no longer a line
+   between them to move: the drawing is the window and the deck floats on it.
+   The markup and its keyboard handling stay for the narrow layout at the end
+   of this file, where the two really are stacked and the divider means
+   something again. */
+.grip { display: none; }
 .grip::after {
   content: ""; position: absolute; left: 50%; top: 50%; translate: -50% -50%;
   width: 46px; height: 3px; border-radius: 999px; background: var(--border-strong);
@@ -184,37 +223,70 @@ body {
   .sb-svg-route.is-live { animation: none !important; }
 }
 
-/* The verdict is a band, not a card: it is the one line that answers "what did
-   that do", and it sits directly under the picture that did it. */
+/* The verdict is the one line that answers "what did that do". It floats in
+   the gap between the rails, low, where the eye already is after watching a
+   packet stop somewhere — and it is centred on the gap rather than on the
+   window, so opening one rail does not shove it behind the other. */
 .verdict {
-  padding: 9px 16px; background: var(--bg-raised);
-  border-bottom: 1px solid var(--border);
-  font-size: 14px; min-height: 42px; display: flex; align-items: center;
+  position: absolute; z-index: 25;
+  left: calc(var(--pad-l, 0px) + var(--hud-gap));
+  right: calc(var(--pad-r, 0px) + var(--hud-gap));
+  bottom: calc(var(--pad-b, 0px) + var(--hud-gap));
+  margin: 0 auto; max-width: 760px; width: fit-content;
+  padding: 8px 16px; border-radius: var(--radius);
+  font-size: 14px; min-height: 38px; display: flex; align-items: center;
+  transition: left .18s ease, right .18s ease;
 }
-.verdict.ok   { background: var(--ok-soft);     box-shadow: inset 3px 0 0 var(--ok); }
-.verdict.warn { background: var(--warn-soft);   box-shadow: inset 3px 0 0 var(--warn); }
-.verdict.bad  { background: var(--danger-soft); box-shadow: inset 3px 0 0 var(--danger); }
+.verdict.ok   { border-left: 3px solid var(--ok); }
+.verdict.warn { border-left: 3px solid var(--warn); }
+.verdict.bad  { border-left: 3px solid var(--danger); }
 .verdict b.rung { font-family: var(--mono); font-size: 13px; }
 
-/* ---- the deck ----
-   Two columns, each one a fixed head with a tab strip and a body that scrolls
-   on its own. min-height:0 on every rung of the chain, because a grid child
-   defaults to min-content and one missing line here is what makes the whole
-   page scroll instead of the column. */
+/* ---- the rails ----
+   The deck is no longer a deck. It is a transparent layer the width of the
+   window with a rail pinned to each edge, and it does not take pointer events
+   itself — only the rails do — so the board underneath stays draggable
+   everywhere the reader can actually see it. */
 .deck {
-  display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.1fr);
-  min-height: 0; overflow: hidden;
+  position: absolute; z-index: 20;
+  inset: var(--bar-h) 0 var(--ladder-h, 0px) 0;
+  display: flex; justify-content: space-between; align-items: stretch;
+  padding: var(--hud-gap); gap: var(--hud-gap);
+  pointer-events: none;
 }
+
 .col {
-  display: grid; grid-template-rows: auto minmax(0,1fr);
-  min-height: 0; min-width: 0; border-right: 1px solid var(--border);
+  pointer-events: auto;
+  display: grid; grid-template-rows: auto minmax(0, 1fr);
+  width: var(--rail-w); min-height: 0; min-width: 0;
+  border-radius: var(--radius); overflow: hidden;
+  transition: width .18s ease;
 }
-.col:last-child { border-right: 0; }
+
+/* Shut, a rail is a spine with a handle on it. It keeps its width in the
+   layout rather than disappearing, because a panel that vanishes entirely is
+   one the reader has to remember exists. */
+.col.shut { width: var(--rail-w-shut); }
+.col.shut .col-body, .col.shut .ctabs, .col.shut .tabs { display: none; }
+.col.shut .col-head { padding: 6px; justify-content: center; }
+
 .col-head {
-  padding: 8px 14px 0; background: var(--bg-raised);
-  border-bottom: 1px solid var(--border);
+  display: flex; align-items: flex-start; gap: 6px;
+  padding: 7px 8px 0; border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-raised) 55%, transparent);
 }
-.col-body { min-height: 0; overflow-y: auto; padding: 14px; }
+.col-head > .ctabs, .col-head > .tabs { flex: 1 1 auto; min-width: 0; }
+.col-body { min-height: 0; overflow-y: auto; padding: 13px; }
+
+/* The handle. Chevron direction is set per side in the markup's aria-label and
+   here by the rail's own class, so a shut rail always points at the way out. */
+.railtog {
+  flex: 0 0 auto; font: inherit; font-size: 13px; line-height: 1;
+  width: 28px; height: 28px; border-radius: 7px; cursor: pointer;
+  border: 1px solid transparent; background: none; color: var(--text-muted);
+}
+.railtog:hover { background: var(--bg-sunken); color: var(--text); }
+.railtog:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 .ctabs { display: flex; gap: 4px; flex-wrap: wrap; }
 .ctab {
@@ -448,21 +520,26 @@ pre.out.live { max-height: 38vh; overflow-y: auto; }
 }
 .viewswitch-note { font-size: 12.5px; color: var(--text-muted); }
 
-/* The board fills the band it was given and the rung strip rides underneath it,
-   so the two resize together when the grip moves — and the strip is exactly as
-   wide as the drawing, because its five segments are a ruler for the five gate
-   posts along the front edge.
+/* The board fills the window, and the rung strip rides at the bottom of it as
+   one more piece of glass.
 
-   The cap is on the pair of them: the camera behind the board keeps a vertical
-   field of view, so a frame much wider than the one it was staged for does not
-   show more board, it shows more nothing with the board shrinking into the
-   middle of it. Past 21:9 the leftover becomes bezel instead. The other
-   direction is safe and left alone — a frame taller than 21:9 simply sees
-   further up and down, which is what a narrow window should do. */
+   This used to be pinned to 21:9 and centred, and the cap was the right call
+   when the board had a 52vh band to live in: the camera keeps a *vertical*
+   field of view, so a frame wider than the one it was staged for shows more
+   nothing rather than more board, and letterboxing the surplus was tidier than
+   letting the diagram shrink into the middle of it.
+
+   Filling the window inverts that arithmetic. A 16:9 or 16:10 monitor is
+   *taller* than 21:9, which the old rule already called safe — it sees further
+   up and down, which is exactly what the extra room should buy. And the width
+   the cap used to throw away is now where the rails live, so on anything wider
+   the surplus is spent rather than bezelled. What the camera must not do is
+   centre the diagram under a rail, and that is handled properly at the source,
+   by setViewInset, instead of by refusing the width in the first place. */
 .stage3d {
   display: grid; grid-template-rows: minmax(0,1fr) auto;
-  width: auto; aspect-ratio: 21 / 9; max-width: 100%; margin-inline: auto;
-  background: var(--bg-sunken); border-inline: 1px solid var(--border);
+  width: 100%; height: 100%;
+  background: var(--bg-sunken);
 }
 .stage3d[hidden] { display: none; }
 
@@ -487,9 +564,15 @@ pre.out.live { max-height: 38vh; overflow-y: auto; }
 
 /* The overlay is text over a canvas that is aria-hidden, so it is the part a
    screen reader gets. It must never swallow a pointer except on its button. */
+/* Inset by whatever the rails are covering, for the same reason the camera is:
+   the gauges belong at the top corners of the *visible* board, and the corners
+   of the canvas are underneath a rail. */
 .hud-overlay {
-  position: absolute; inset: 0; pointer-events: none; padding: 12px;
+  position: absolute; inset: 0; pointer-events: none;
+  padding: 12px calc(var(--pad-r, 0px) + 12px) 12px calc(var(--pad-l, 0px) + 12px);
+  padding-top: calc(var(--pad-t, 0px) + 12px);
   display: grid; grid-template-rows: auto 1fr auto; gap: 8px;
+  transition: padding .18s ease;
 }
 .hud-overlay > * { pointer-events: none; }
 .hud-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
@@ -559,22 +642,54 @@ pre.out.live { max-height: 38vh; overflow-y: auto; }
 }
 #hud-nums:empty, #hud-transcript:empty { display: none; }
 
-.homebtn {
-  position: absolute; right: 12px; bottom: 12px; font: inherit; font-family: var(--mono);
-  font-size: 11px; padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border-strong);
-  background: var(--bg-raised); color: var(--text-muted); cursor: pointer;
+/* The view controls sit inside the right rail's gutter, above the ladder, so
+   they are near the hand that is already dragging the board and clear of the
+   verdict in the middle. They are the only part of the overlay that takes a
+   pointer. */
+.viewpad {
+  position: absolute; z-index: 24;
+  right: calc(var(--pad-r, 0px) + var(--hud-gap));
+  bottom: calc(var(--pad-b, 0px) + var(--hud-gap));
+  display: flex; align-items: center; gap: 4px; padding: 4px;
+  border-radius: var(--radius); pointer-events: auto;
+  transition: right .18s ease;
 }
-.homebtn:hover { border-color: var(--accent); color: var(--accent-text); }
+.viewpad button {
+  font: inherit; font-family: var(--mono); font-size: 12px; line-height: 1;
+  min-width: 28px; height: 28px; padding: 0 8px; border-radius: 6px;
+  border: 1px solid transparent; background: none;
+  color: var(--text-muted); cursor: pointer;
+}
+.viewpad button:hover:not(:disabled) { background: var(--bg-sunken); color: var(--accent-text); }
+.viewpad button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* At either end of the range the button still does nothing — saying so is
+   better than letting a reader press it twice and wonder. */
+.viewpad button:disabled { opacity: .35; cursor: default; }
+.viewpad .sep { width: 1px; height: 18px; background: var(--border); }
+
+.homebtn {
+  font: inherit; font-family: var(--mono);
+  font-size: 11px; padding: 5px 10px; border-radius: 6px; border: 1px solid transparent;
+  background: none; color: var(--text-muted); cursor: pointer;
+}
+.homebtn:hover { background: var(--bg-sunken); color: var(--accent-text); }
 
 /* The ladder is a ruler under the viewport: its five segments line up with the
-   five gate posts along the front edge of the board above. */
+   five gate posts along the front edge of the board above. It keeps that job
+   floating, so it spans the window rather than the rails — the posts it is a
+   ruler for are on the board, and the board is the window now. --ladder-h is
+   what the rails above it are told to stop at. */
+/* Sized by its own content, never by --ladder-h: that token is *measured from*
+   this element, and a height that read it back would settle at one pixel. */
 .hud-ladder {
+  position: relative; z-index: 22;
   display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px;
-  background: var(--border); border-top: 1px solid var(--border);
+  border-width: 1px 0 0 0; box-shadow: none;
 }
 .hud-rung {
   border-top: 3px solid var(--border-strong);
-  background: var(--bg-raised); padding: 5px 10px;
+  background: color-mix(in srgb, var(--bg-raised) 55%, transparent);
+  padding: 5px 10px; overflow: hidden;
 }
 .hud-rung .n { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; color: var(--text-faint); }
 .hud-rung .t { font-size: 12.5px; color: var(--text-muted); }
@@ -594,20 +709,44 @@ pre.out.live { max-height: 38vh; overflow-y: auto; }
    they are what stopped the switches being a mile of scroll, and that is as
    true on a phone as it is on a desktop.
    --------------------------------------------------------------------------- */
+/* Below this the glass comes off and the whole thing is an ordinary scrolling
+   page again, with the drawing pinned to the top. A rail 336px wide floating
+   over a 700px window is not a HUD, it is a blindfold — there is no margin
+   left to put it in, which was the one thing that made overlaying honest. */
 @media (max-width: 1000px), (max-height: 620px) {
-  .app { display: block; height: auto; }
+  .app { display: block; height: auto; overflow: visible; }
+  .topbar { position: sticky; inset: auto; }
   .stagewrap {
-    position: sticky; top: 0; z-index: 5;
+    position: sticky; top: 0; z-index: 5; inset: auto;
     height: 44vh; min-height: 240px; box-shadow: var(--shadow);
   }
+  .stage3d { height: 100%; }
   /* The band is a fixed fraction of the window here, so there is nothing for a
-     divider to divide — and the two sticky offsets below stay arithmetic
-     rather than a guess at how tall the verdict wrapped to. */
+     divider to divide — and the sticky offset below stays arithmetic rather
+     than a guess at how tall the verdict wrapped to. */
   .grip { display: none; }
-  .verdict { position: sticky; top: 44vh; z-index: 5; }
-  .deck { display: block; overflow: visible; }
-  .col { display: block; border-right: 0; border-top: 1px solid var(--border); }
+  .verdict {
+    position: sticky; inset: auto; top: 44vh; z-index: 5;
+    width: auto; max-width: none; margin: 0; border-radius: 0;
+    border-width: 0 0 1px 0;
+  }
+  /* Back to two ordinary stacked columns: absolute rails over a page that
+     scrolls would scroll away from the board they annotate. */
+  .deck {
+    position: static; inset: auto; display: block; padding: 0; gap: 0;
+    pointer-events: auto;
+  }
+  .col, .col.shut {
+    display: block; width: auto; border-radius: 0;
+    border-width: 1px 0 0 0; box-shadow: none; backdrop-filter: none;
+    background: var(--bg);
+  }
+  .col.shut .col-body, .col.shut .ctabs, .col.shut .tabs { display: block; }
   .col-body { overflow: visible; }
+  /* Both are gestures with no keyboard here and no room to land: the rails do
+     not float, and a pinch on a page this size is the browser's. */
+  .railtog, .viewpad { display: none; }
+  .hud-ladder { height: auto; }
 }
 
 @media (max-width: 720px) {
