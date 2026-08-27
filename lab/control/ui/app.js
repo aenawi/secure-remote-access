@@ -595,6 +595,26 @@
     });
   }
 
+  /* Every action that produces a Result ends here, so the board can never be
+     left blank or holding the previous action's frame under a new verdict.
+     Reads the lab back first, then plays the shot: the other order repaints
+     the board from the configuration a moment after the set-piece has drawn
+     what it measured, and the measurement loses. */
+  function playResult(id, res) {
+    return refresh().then(function () {
+      if (!boardOn()) return;
+      var ran = window.LabHUD.run(board, id, res, hudCtx());
+      if (ran) return;
+      /* No set-piece for this one yet. The board must still stop showing the
+         last one's held frame — an unnamed action sitting under the previous
+         action's verdict is worse than no picture. Ride it if it named two
+         machines; otherwise just report it. */
+      if (res.from && res.to) board.probe(res, true);
+      else board.report(res, true);
+      showTab("packets");
+    });
+  }
+
   document.addEventListener("change", function (e) {
     var n = e.target;
     if (n.classList && n.classList.contains("sw")) {
@@ -679,22 +699,7 @@
            and it is the record in the packets tab either way. */
         trace(res, label);
         verdict(res.danger ? "bad" : res.ok ? "ok" : "warn", res.why, res.rung);
-        /* Read the lab back first, then play the shot. The other order
-           repaints the board from the configuration a moment after the
-           set-piece has drawn what it measured, and the measurement loses. */
-        return refresh().then(function () {
-          if (!boardOn()) return;
-          var ran = window.LabHUD.run(board, id, res, hudCtx());
-          if (!ran) {
-            /* No set-piece for this one yet. The board must still stop
-               showing the last one's held frame — an unnamed attack sitting
-               under the previous attack's verdict is worse than no picture.
-               Ride it if it named two machines; otherwise just report it. */
-            if (res.from && res.to) board.probe(res, true);
-            else board.report(res, true);
-            showTab("packets");
-          }
-        });
+        return playResult(id, res);
       }).finally(function () { working(false); });
       return;
     }
@@ -744,25 +749,24 @@
       case "outage-btn":
         working(true);
         stopHudStream();
-        if (board) board.clearScratch();
-        showTab("packets");
+        if (!boardOn()) showTab("packets");
         verdict("", "Two sessions from lab-roam, then twenty seconds with no link. " +
           "This one takes about a minute, and it is worth watching.");
         post("/api/action", { id: "outage" }).then(function (res) {
           trace(res, "ssh and mosh, through a 20-second outage");
           verdict(res.ok ? "ok" : "warn", res.why, res.rung);
-          return refresh();
+          return playResult("outage", res);
         }).finally(function () { working(false); });
         break;
 
       case "rotate-btn":
         working(true);
         stopHudStream();
-        if (board) board.clearScratch();
+        if (!boardOn()) showTab("packets");
         post("/api/action", { id: "rotate-key" }).then(function (res) {
           trace(res, "rotate the key");
           verdict(res.ok ? "ok" : "bad", res.why, res.rung);
-          return refresh();
+          return playResult("rotate-key", res);
         }).finally(function () { working(false); });
         break;
 
