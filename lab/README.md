@@ -97,9 +97,28 @@ Everything below is one click in the UI. The command shown is what actually
 runs, and the **script** tab collects them all in order so you can paste them at
 the three Lima VMs in [chapter 13](../chapters/13-lab.html).
 
+### The layout
+
+The page is one instrument, not a document you scroll. It is three bands, and
+none of them moves relative to the others:
+
+- **the drawing**, pinned to the top of the window — drag the divider under it
+  to give it more of the window or less, double-click to put it back, or focus
+  it and use the arrow keys;
+- **the verdict**, one line directly under the drawing that produced it;
+- **the deck**, two columns that scroll independently: everything that
+  *changes* the lab on the left, one group per tab, and everything the lab
+  *said back* on the right — including this page's own documentation, in the
+  **guide** tab, which is what opens on a first visit.
+
+The point of the arrangement is that flipping a switch and reading what it did
+no longer costs you sight of the picture that changed. Below 1000px wide, or on
+a short window, it falls back to an ordinary scrolling page with the drawing
+stuck to the top of it and both tab strips intact.
+
 ### The picture
 
-Two drawings of the same lab, and a switch above them that picks one.
+Two drawings of the same lab, and a switch in the top bar that picks one.
 
 **The board** is the five-rung ladder from chapter 12 rebuilt as a place a
 packet has to travel through. **X is the ladder** — how far something got is
@@ -174,7 +193,9 @@ until there is something true to draw.
 
 ### Panels
 
-Four, with the same names and the same switches as the sandbox page:
+Four, with the same names and the same switches as the sandbox page — one tab
+each in the left column, labelled with the panel's id, so a panel added to
+`panels.go` becomes a tab without anything in the UI being told its name:
 
 - **Machines** — who is running, who the tailnet will accept, and whether
   `evil-box` is sitting on `lab-ubuntu`'s segment.
@@ -792,7 +813,7 @@ lab/
     ├── panels.go          the panel spec the UI renders
     ├── *_test.go          fixtures captured from a live lab; no containers needed
     └── ui/                the same vocabulary as chapter 14
-        ├── index.html     both drawings, the panels, the readout tabs
+        ├── index.html     the shell: both drawings, the two tab strips, the guide
         ├── app.js         a classic script, the same shape as assets/sandbox.js
         └── hud/
             ├── three.module.js  three.js r166, MIT, inside the binary

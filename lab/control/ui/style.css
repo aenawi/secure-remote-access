@@ -65,22 +65,48 @@
 body {
   background: var(--bg); color: var(--text);
   font-family: var(--sans); line-height: 1.6;
-  font-size: 15px; padding: 0 0 64px;
+  font-size: 15px;
 }
 
-.wrap { max-width: 1180px; margin: 0 auto; padding: 0 20px; }
+/* ---- the shell ----
+   One instrument in three fixed bands: the drawing, the verdict it produced,
+   and a deck of two independently scrolling columns. Nothing scrolls the whole
+   window, so the picture you just changed is still on screen when you read what
+   changed about it. --stage-h is the one thing the reader moves, via the grip.
 
-header.top {
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-raised); padding: 22px 0 18px; margin-bottom: 22px;
+   The narrow and short fallbacks are at the end of this file, and they turn all
+   of this back into an ordinary page. */
+.app {
+  display: grid;
+  grid-template-rows: auto var(--stage-h, 52vh) auto auto minmax(0, 1fr);
+  height: 100dvh;
 }
-.eyebrow {
-  font-size: 12px; letter-spacing: .08em; text-transform: uppercase;
-  color: var(--text-muted); font-weight: 600;
+
+.topbar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 8px 16px; border-bottom: 1px solid var(--border);
+  background: var(--bg-raised);
 }
-h1 { font-size: 26px; line-height: 1.25; margin: 4px 0 6px; letter-spacing: -.01em; }
-.lede { color: var(--text-muted); max-width: 68ch; }
-.lede a, .callout a { color: var(--accent-text); }
+.topbar-gap { flex: 1 1 auto; }
+.brand { display: flex; align-items: baseline; gap: 8px; }
+.brand b { font-size: 15px; letter-spacing: -.01em; }
+.brand span {
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--text-faint);
+}
+
+/* The safety notice is one line in the chrome rather than a block above the
+   drawing, and it is a button: pressing it opens the guide tab, where the whole
+   notice still is. A warning nobody can reach from where they are working is
+   not a warning, it is scrollback. */
+.warnchip {
+  font: inherit; font-size: 12.5px; padding: 3px 10px; border-radius: 999px;
+  border: 1px solid var(--danger); background: var(--danger-soft);
+  color: var(--danger); cursor: pointer; text-align: left;
+}
+.warnchip:hover { border-color: var(--danger); text-decoration: underline; }
+
+.callout a, .doc a { color: var(--accent-text); }
 
 .callout {
   border: 1px solid var(--border); border-left-width: 3px;
@@ -97,13 +123,29 @@ h1 { font-size: 26px; line-height: 1.25; margin: 4px 0 6px; letter-spacing: -.01
    chapter 14, so the two drawings read as one picture of one network. The
    difference is where the numbers come from: every address and every path here
    was read back out of a container. */
-.stage {
-  border: 1px solid var(--border); border-radius: var(--radius);
-  background: var(--bg-raised); padding: 10px; margin-bottom: 12px;
-  box-shadow: var(--shadow);
+.stagewrap {
+  position: relative; min-height: 0; overflow: hidden;
+  background: var(--bg); border-bottom: 1px solid var(--border);
 }
-.stage svg { display: block; width: 100%; height: auto; }
-.legend { font-size: 12.5px; color: var(--text-muted); margin: -4px 0 14px; }
+.stagewrap > * { height: 100%; }
+
+.stage { background: var(--bg-raised); padding: 10px; }
+.stage[hidden] { display: none; }
+.stage svg { display: block; width: 100%; height: 100%; }
+
+/* The grip is thin, and its hit area is not: the ::after is the part a pointer
+   has to find, and it is three times the height of the line it draws. */
+.grip {
+  height: 6px; background: var(--bg-raised); border-bottom: 1px solid var(--border);
+  cursor: row-resize; position: relative; touch-action: none;
+}
+.grip::after {
+  content: ""; position: absolute; left: 50%; top: 50%; translate: -50% -50%;
+  width: 46px; height: 3px; border-radius: 999px; background: var(--border-strong);
+}
+.grip:hover::after, .grip:focus-visible::after { background: var(--accent); width: 72px; }
+.grip:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.grip.dragging::after { background: var(--accent); }
 
 .is-hidden { display: none; }
 
@@ -139,26 +181,58 @@ h1 { font-size: 26px; line-height: 1.25; margin: 4px 0 6px; letter-spacing: -.01
   .sb-svg-route.is-live { animation: none !important; }
 }
 
+/* The verdict is a band, not a card: it is the one line that answers "what did
+   that do", and it sits directly under the picture that did it. */
 .verdict {
-  border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 12px 14px; margin: 0 0 18px; background: var(--bg-raised);
-  font-size: 14px; min-height: 46px;
+  padding: 9px 16px; background: var(--bg-raised);
+  border-bottom: 1px solid var(--border);
+  font-size: 14px; min-height: 42px; display: flex; align-items: center;
 }
-.verdict.ok   { border-color: var(--ok);     background: var(--ok-soft); }
-.verdict.warn { border-color: var(--warn);   background: var(--warn-soft); }
-.verdict.bad  { border-color: var(--danger); background: var(--danger-soft); }
+.verdict.ok   { background: var(--ok-soft);     box-shadow: inset 3px 0 0 var(--ok); }
+.verdict.warn { background: var(--warn-soft);   box-shadow: inset 3px 0 0 var(--warn); }
+.verdict.bad  { background: var(--danger-soft); box-shadow: inset 3px 0 0 var(--danger); }
 .verdict b.rung { font-family: var(--mono); font-size: 13px; }
 
-.grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.15fr); gap: 20px; }
-@media (max-width: 900px) { .grid { grid-template-columns: minmax(0,1fr); } }
-
-.panel {
-  border: 1px solid var(--border); border-radius: var(--radius);
-  background: var(--bg-raised); padding: 14px; margin-bottom: 16px;
-  box-shadow: var(--shadow);
+/* ---- the deck ----
+   Two columns, each one a fixed head with a tab strip and a body that scrolls
+   on its own. min-height:0 on every rung of the chain, because a grid child
+   defaults to min-content and one missing line here is what makes the whole
+   page scroll instead of the column. */
+.deck {
+  display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.1fr);
+  min-height: 0; overflow: hidden;
 }
-.panel h3 { font-size: 14px; letter-spacing: .01em; margin-bottom: 2px; }
-.panel .note { font-size: 13px; color: var(--text-muted); margin-bottom: 10px; }
+.col {
+  display: grid; grid-template-rows: auto minmax(0,1fr);
+  min-height: 0; min-width: 0; border-right: 1px solid var(--border);
+}
+.col:last-child { border-right: 0; }
+.col-head {
+  padding: 8px 14px 0; background: var(--bg-raised);
+  border-bottom: 1px solid var(--border);
+}
+.col-body { min-height: 0; overflow-y: auto; padding: 14px; }
+
+.ctabs { display: flex; gap: 4px; flex-wrap: wrap; }
+.ctab {
+  font: inherit; font-size: 13px; font-family: var(--mono); padding: 5px 11px;
+  border-radius: 7px 7px 0 0; border: 1px solid transparent; background: none;
+  color: var(--text-muted); cursor: pointer;
+}
+.ctab:hover { color: var(--text); }
+.ctab.on {
+  background: var(--bg-raised); border-color: var(--border);
+  border-bottom-color: var(--bg-raised); color: var(--text);
+  margin-bottom: -1px;
+}
+.cpane { display: none; }
+.cpane.on { display: block; }
+/* #panels is only a slot the control server's panels are rendered into; the
+   panes inside it are the things that show and hide. */
+#panels { display: contents; }
+
+.cpane h3, .panel h3 { font-size: 15px; letter-spacing: .01em; margin-bottom: 2px; }
+.cpane .note, .panel .note { font-size: 13px; color: var(--text-muted); margin-bottom: 10px; }
 .foot { font-size: 12.5px; color: var(--text-muted); margin-top: 10px; }
 
 /* ---- switches ---- */
@@ -258,29 +332,44 @@ h1 { font-size: 26px; line-height: 1.25; margin: 4px 0 6px; letter-spacing: -.01
 }
 .chip:hover { border-color: var(--accent); color: var(--accent-text); }
 
-/* ---- readout ----
-   The switches column is long and the readout is what you are watching while
-   you use them, so it follows you down the page rather than scrolling away. */
-.readout { position: sticky; top: 16px; align-self: start; }
-@media (max-width: 900px) { .readout { position: static; } }
-
-.tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 10px; }
+/* ---- readout ---- */
+.tabs { display: flex; gap: 4px; flex-wrap: wrap; }
 .tab {
   font: inherit; font-size: 13px; font-family: var(--mono); padding: 5px 11px;
   border-radius: 7px 7px 0 0; border: 1px solid transparent; background: none;
   color: var(--text-muted); cursor: pointer;
 }
-.tab.on { background: var(--bg-raised); border-color: var(--border); border-bottom-color: var(--bg-raised); color: var(--text); }
+.tab:hover { color: var(--text); }
+.tab.on {
+  background: var(--bg-raised); border-color: var(--border);
+  border-bottom-color: var(--bg-raised); color: var(--text);
+  margin-bottom: -1px;
+}
 
 .pane { display: none; }
 .pane.on { display: block; }
+/* The column scrolls, so the block inside it does not have to. The two live
+   tails are the exception: they pin themselves to the bottom as lines arrive,
+   which needs a box of their own to be the bottom of. */
 pre.out {
   font-family: var(--mono); font-size: 12.5px; line-height: 1.55;
   background: var(--bg-code); border: 1px solid var(--border);
   border-radius: var(--radius); padding: 12px; overflow-x: auto;
-  white-space: pre; max-height: 62vh; min-height: 220px;
+  white-space: pre;
 }
-pre.out.live { max-height: 46vh; }
+pre.out.live { max-height: 38vh; overflow-y: auto; }
+
+/* ---- the guide ---- */
+.doc { max-width: 68ch; }
+.doc h4 {
+  font-size: 12px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--text-faint); margin: 18px 0 5px;
+}
+.doc h4:first-child { margin-top: 0; }
+.doc p { margin-bottom: 9px; font-size: 14px; }
+.doc ul { margin: 0 0 9px; padding-left: 18px; font-size: 14px; }
+.doc li { margin-bottom: 4px; }
+.doc code { font-family: var(--mono); font-size: 12.5px; }
 
 .trace {
   border: 1px solid var(--border); border-radius: var(--radius);
@@ -324,17 +413,11 @@ pre.out.live { max-height: 46vh; }
 .muted { color: var(--text-muted); }
 
 .themebtn {
-  position: fixed; right: 16px; bottom: 16px; z-index: 10;
-  font: inherit; font-size: 13px; padding: 7px 12px; border-radius: 999px;
-  border: 1px solid var(--border-strong); background: var(--bg-raised);
-  color: var(--text); cursor: pointer; box-shadow: var(--shadow);
+  font: inherit; font-size: 12.5px; padding: 3px 11px; border-radius: 999px;
+  border: 1px solid var(--border-strong); background: var(--bg-sunken);
+  color: var(--text-muted); cursor: pointer;
 }
-
-footer.foot {
-  margin-top: 26px; padding-top: 14px; border-top: 1px solid var(--border);
-  font-size: 12.5px; color: var(--text-muted);
-}
-footer.foot a { color: var(--accent-text); }
+.themebtn:hover { border-color: var(--accent); color: var(--accent-text); }
 
 /* ---------------------------------------------------------------------------
    The board — Five Gates
@@ -352,7 +435,7 @@ footer.foot a { color: var(--accent-text); }
   clip: rect(0 0 0 0); white-space: nowrap;
 }
 
-.viewswitch { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; flex-wrap: wrap; }
+.viewswitch { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .viewswitch-k {
   font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em;
   text-transform: uppercase; color: var(--text-faint);
@@ -362,13 +445,39 @@ footer.foot a { color: var(--accent-text); }
 }
 .viewswitch-note { font-size: 12.5px; color: var(--text-muted); }
 
-.stage3d { margin: 0 0 14px; }
+/* The board fills the band it was given and the rung strip rides underneath it,
+   so the two resize together when the grip moves — and the strip is exactly as
+   wide as the drawing, because its five segments are a ruler for the five gate
+   posts along the front edge.
+
+   The cap is on the pair of them: the camera behind the board keeps a vertical
+   field of view, so a frame much wider than the one it was staged for does not
+   show more board, it shows more nothing with the board shrinking into the
+   middle of it. Past 21:9 the leftover becomes bezel instead. The other
+   direction is safe and left alone — a frame taller than 21:9 simply sees
+   further up and down, which is what a narrow window should do. */
+.stage3d {
+  display: grid; grid-template-rows: minmax(0,1fr) auto;
+  width: auto; aspect-ratio: 21 / 9; max-width: 100%; margin-inline: auto;
+  background: var(--bg-sunken); border-inline: 1px solid var(--border);
+}
 .stage3d[hidden] { display: none; }
 
-.viewport {
-  position: relative; background: var(--bg-sunken);
-  border: 1px solid var(--border-strong); border-radius: var(--radius);
-  overflow: hidden; aspect-ratio: 16 / 9; min-height: 380px;
+.viewport { position: relative; overflow: hidden; min-height: 0; container-type: size; }
+
+/* Wound right down, the frame is mostly readouts and the board is a stamp in
+   the middle of them. So the gauges give up their second lines first: the
+   number and the two dots are the part that has to survive, and the sentence
+   under each one is in the verdict band and the audit anyway. Keyed to the
+   frame rather than the window, because the grip changes one and not the
+   other. A browser without container queries keeps the full gauges, which is
+   the old behaviour and not a broken one. */
+@container (max-height: 320px) {
+  .hud-overlay { padding: 8px; }
+  .hud-gauge { min-width: 0; padding: 4px 9px; }
+  .hud-gauge .n { display: none; }
+  .hud-gauge .v { font-size: 15px; }
+  .hud-verdict .why { display: none; }
 }
 .viewport canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
 .viewport canvas:active { cursor: grabbing; }
@@ -385,6 +494,7 @@ footer.foot a { color: var(--accent-text); }
 .hud-chip {
   font-family: var(--mono); font-size: 12px; padding: 5px 11px; border-radius: 999px;
   border: 1px solid var(--border-strong); background: var(--bg-raised); color: var(--text-muted);
+  white-space: nowrap; align-self: flex-start;
 }
 .hud-chip.net { border-color: var(--accent); color: var(--accent-text); background: var(--accent-soft); }
 .hud-chip.pub { border-color: var(--danger); color: var(--danger); background: var(--danger-soft); }
@@ -455,10 +565,13 @@ footer.foot a { color: var(--accent-text); }
 
 /* The ladder is a ruler under the viewport: its five segments line up with the
    five gate posts along the front edge of the board above. */
-.hud-ladder { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin-top: 10px; }
+.hud-ladder {
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px;
+  background: var(--border); border-top: 1px solid var(--border);
+}
 .hud-rung {
-  border: 1px solid var(--border); border-top: 3px solid var(--border-strong);
-  border-radius: 0 0 7px 7px; background: var(--bg-raised); padding: 7px 10px;
+  border-top: 3px solid var(--border-strong);
+  background: var(--bg-raised); padding: 5px 10px;
 }
 .hud-rung .n { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; color: var(--text-faint); }
 .hud-rung .t { font-size: 12.5px; color: var(--text-muted); }
@@ -469,8 +582,32 @@ footer.foot a { color: var(--accent-text); }
 .hud-rung.delivered { border-top-color: var(--ok); background: var(--ok-soft); }
 .hud-rung.delivered .t { color: var(--ok); font-weight: 600; }
 
+/* ---------------------------------------------------------------------------
+   The fallback
+
+   A window too narrow for two columns, or too short for three bands, gets an
+   ordinary scrolling page again — with the drawing stuck to the top of it, so
+   the one property worth keeping survives at every size. The tab strips stay:
+   they are what stopped the switches being a mile of scroll, and that is as
+   true on a phone as it is on a desktop.
+   --------------------------------------------------------------------------- */
+@media (max-width: 1000px), (max-height: 620px) {
+  .app { display: block; height: auto; }
+  .stagewrap {
+    position: sticky; top: 0; z-index: 5;
+    height: 44vh; min-height: 240px; box-shadow: var(--shadow);
+  }
+  /* The band is a fixed fraction of the window here, so there is nothing for a
+     divider to divide — and the two sticky offsets below stay arithmetic
+     rather than a guess at how tall the verdict wrapped to. */
+  .grip { display: none; }
+  .verdict { position: sticky; top: 44vh; z-index: 5; }
+  .deck { display: block; overflow: visible; }
+  .col { display: block; border-right: 0; border-top: 1px solid var(--border); }
+  .col-body { overflow: visible; }
+}
+
 @media (max-width: 720px) {
-  .viewport { aspect-ratio: 4 / 3; min-height: 320px; }
   .hud-overlay { padding: 8px; }
   .hud-gauge { min-width: 112px; }
   .hud-verdict { max-width: 100%; }
