@@ -772,6 +772,102 @@ tailscale lock log</code></pre>
         not always.
       </p>
 
+      <h2>Tailcat: the same data plane, without the control plane</h2>
+      <p>
+        Everything above is the control plane earning its keep — an account, a coordination server,
+        device identities, ACLs, expiry. <a href="https://github.com/tailscale/tailcat">Tailcat</a> is
+        the other half on its own: WireGuard, DERP and the same NAT engineering described earlier in
+        this chapter, with all of that stripped out. Its own README puts it as <em>"like netcat, but
+        over Tailscale's data plane, without Tailscale's control plane"</em>.
+      </p>
+      <p>
+        No account, no admin console, no tailnet, no root, no daemon. A server prints an address;
+        whoever holds that address can connect. That is the whole model, and it is also the whole
+        problem.
+      </p>
+      <div class="callout warn">
+        <div class="ct">The address is a bearer capability</div>
+        <p>
+          It carries a pre-shared key inside it, so anyone you send it to can connect. There is no
+          identity behind the connection, nothing in an audit log, and nothing to revoke. The README
+          is blunt about what a saved key costs you: <em>"anyone you've ever shared that address with
+          can connect to any future server using that key"</em>. Ephemeral is the default and is the
+          right choice — the key lives in memory, and when the process exits the address is dead
+          forever. Reach for <code>--key=NAME</code> only with a reason, and understand that you have
+          just written an <code>authorized_keys</code> entry that never expires.
+        </p>
+      </div>
+
+      <h3>The one shape worth using</h3>
+      <p>
+        Serving a raw port hands the machine to the address. Serving <em>SSH</em> does not: the
+        address gets a stranger as far as the door, and the key policy from
+        <a href="02-ssh.html">chapter 02</a> decides whether it opens. Two locks, and the second one
+        is the one you already trust.
+      </p>
+      <pre><code># Install — one static binary, no daemon, no root
+brew install tailcat                                    # macOS
+go install github.com/tailscale/tailcat/cmd/tailcat@latest
+
+# On the machine being reached: ephemeral key, real SSH auth
+tailcat serve ssh --ssh-authorized-keys=~/.ssh/authorized_keys
+
+# Tighter — pin it to one client's public key
+tailcat genkey --client --key=client-default            # on the client, once
+tailcat serve ssh --ssh-authorized-keys=~/.ssh/authorized_keys \
+  --allow=nodekey:cfb6bf...ddfd16
+
+# From the client
+tailcat ssh tc...</code></pre>
+      <div class="callout warn">
+        <div class="ct">Four services that remove the second lock</div>
+        <p>
+          <code>serve no-auth-ssh</code> drops SSH authentication altogether — the address alone
+          becomes a shell. <code>serve all</code> exposes every port on the machine, and
+          <code>serve exit-node</code> exposes the network behind it, which is the blast radius
+          <a href="10-threat-model.html">chapter 10</a> asks you to keep small. Separately,
+          <code>--psk=false</code> shortens the address by dropping the pre-shared key, and with it
+          post-quantum protection and the guarantee that a public DERP operator cannot join the
+          tunnel. None of the four belong on a machine you care about.
+        </p>
+      </div>
+
+      <h3>When to reach for it, and when not</h3>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Situation</th><th>Use</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Your own machines, every day, for years</td>
+            <td><b>The tailnet.</b> Names, ACLs, expiry, device approval, offboarding — everything above this section.</td>
+          </tr>
+          <tr>
+            <td>Handing one port to one person for one afternoon</td>
+            <td><b>Tailcat.</b> They join nothing and install nothing permanent, and the address dies with the process.</td>
+          </tr>
+          <tr>
+            <td>A box where you cannot install a daemon or get root</td>
+            <td><b>Tailcat.</b> A single binary that needs neither.</td>
+          </tr>
+          <tr>
+            <td>Reaching a machine that has fallen off the tailnet</td>
+            <td><b>Tailcat</b>, as the proven second way in that <a href="12-troubleshooting.html">chapter 12</a> keeps insisting on — but only if you arranged it <em>before</em> you needed it.</td>
+          </tr>
+        </tbody>
+      </table>
+      </div>
+      <div class="callout tip">
+        <div class="ct">An escape hatch, not a step in the build</div>
+        <p>
+          This is deliberately absent from the build order in
+          <a href="11-runbooks.html">chapter 11</a>, and it should stay absent. The tailnet is the
+          thing you operate; this is the hatch you keep beside it. Tailcat is also young and says so
+          — the CLI flags, the Go API and the wire format may all change — so check
+          <code>tailcat serve --help</code> on your installed version rather than trusting the lines
+          above.
+        </p>
+      </div>
+
       <h2>Verify before moving on</h2>
       <ul class="checklist">
         <li>The identity provider behind the Tailscale account has a hardware key or TOTP on it — not SMS.</li>
