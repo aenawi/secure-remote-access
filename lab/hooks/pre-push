@@ -1,4 +1,7 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Hashem Aldhaheri
+
 #
 # Installed by `make hooks`, from lab/hooks/pre-push. Nothing installs it for
 # you. Remove it whenever you like:

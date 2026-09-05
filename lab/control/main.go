@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Hashem Aldhaheri
+
 // Command control is the lab's control surface: a small HTTP server with the
 // UI embedded in the binary, and a Docker socket. Every button on the page is
 // one or more real commands run inside a real container, and every result comes

@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Hashem Aldhaheri
+
 # Chapter 08's trap, reproduced on lab-vps: a published container port that
 # answers from the internet through a firewall whose default policy is deny.
 #

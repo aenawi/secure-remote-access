@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later
+   Copyright (C) 2026 Hashem Aldhaheri */
+
 /* ============================================================
    The nine attacks, and the two demonstrations that are not attacks,
    as set-pieces.

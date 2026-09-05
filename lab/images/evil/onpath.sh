@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Hashem Aldhaheri
+
 # Take the on-path position on lab-ubuntu's segment: become the router its
 # traffic leaves through, so every frame it sends really does pass through this
 # machine's kernel and really is available to tcpdump.

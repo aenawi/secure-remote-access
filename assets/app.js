@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later
+   Copyright (C) 2026 Hashem Aldhaheri */
+
 /* ============================================================
    Shared behaviour: theme, sidebar, TOC, search, copy buttons,
    and persistent checklists. Everything degrades gracefully and

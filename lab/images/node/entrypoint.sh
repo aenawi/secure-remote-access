@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Hashem Aldhaheri
+
 # Bring one lab machine up: trust the lab CA, take the route its NAT router
 # hands out, start sshd, start tailscaled on a real TUN device, and join the
 # lab's coordination server with the pre-auth key the control server wrote.

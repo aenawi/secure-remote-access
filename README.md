@@ -187,3 +187,39 @@ against their own docs rather than trusting any guide:
   and per OS version. The setting *names* are stable enough to search for; the menu
   paths are not. [dontkillmyapp.com](https://dontkillmyapp.com/) tracks them per
   vendor and is more current than this guide can be.
+
+## License
+
+Two licenses, because this repository is two things.
+
+**The guide** — `index.html`, everything in `chapters/`, and this README — is
+[CC BY-SA 4.0](LICENSE-docs). Read it, quote it, translate it, teach from it,
+sell a course built on it. The one condition: if you publish a changed or
+extended version, publish it under the same license so the next person gets what
+you got.
+
+**The code** — everything in `assets/` and `lab/` — is [GPL-3.0-or-later](LICENSE).
+Same bargain, expressed in the language the FSF wrote for software: run it, study
+it, change it, ship it. If you distribute your changed version, ship the source
+too.
+
+That is the whole point of the split. Neither license asks you for money or
+permission. Both ask that improvements stay reachable by the people who would
+learn from them, which is the only reason this exists.
+
+`SPDX-License-Identifier` headers on each source file say which applies, so the
+answer travels with the file rather than living only here. `lab/checks/licensed.sh`
+fails if a source file under `assets/` or `lab/` is missing one; `make check` runs
+it and the pre-push hook runs `make check`, which is there to catch the file that
+gets *written* without a header rather than the one that loses it.
+
+### Third-party
+
+`lab/control/ui/hud/three.module.js` is [three.js](https://threejs.org) r166,
+Copyright 2010–2024 Three.js Authors, MIT. The same bundle is inlined inside
+`lab/design/five-gates.html` for the reason that file explains. Its MIT notice is
+preserved at the head of both copies, and it is **not** covered by the GPL grant
+above — it stays under its own license, which the GPL is happy to accommodate.
+
+Go dependencies under `lab/control/` are MIT, Apache-2.0 and BSD; see
+`lab/control/go.sum` and each module's own license.

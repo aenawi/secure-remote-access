@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Hashem Aldhaheri
+
 # evil-box does nothing on boot. That is deliberate: every hostile thing in this
 # lab is something you pressed, not something that was already running when you
 # turned it on.

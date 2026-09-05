@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later
+   Copyright (C) 2026 Hashem Aldhaheri */
+
 /* ------------------------------------------------------------------
    anim.js — tiny SVG simulation engine for the guide's diagrams.
 

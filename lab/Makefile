@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Hashem Aldhaheri
+
 # The lab, in ten words or fewer per target.
 #
 #   make up       bring the lab up and tell you where to look
@@ -24,7 +27,7 @@ help:
 	@printf '  make attack     add evil-box (never starts on its own)\n'
 	@printf '  make status     tailscale status from the laptop\n'
 	@printf '  make audit      run the eleven checks and print the score\n'
-	@printf '  make check      go vet, go test, gofmt, and the UI JavaScript\n'
+	@printf '  make check      licences, go vet, go test, gofmt, and the UI JavaScript\n'
 	@printf '  make ui         parse-check ui/ and assets/, run the board rules\n'
 	@printf '  make hooks      install the pre-push hook that runs make check\n'
 	@printf '  make logs       follow every container\n'
@@ -97,6 +100,8 @@ print(r.get("verdict","")); print(); \
 # which is the point: this has to be runnable on a laptop with the lab down.
 # `ui` is fourth and adds about a tenth of one, when Node is there.
 check:
+	@printf 'licences\n'
+	@sh checks/licensed.sh
 	@printf 'go vet\n'
 	@cd control && go vet ./...
 	@printf 'go test\n'
