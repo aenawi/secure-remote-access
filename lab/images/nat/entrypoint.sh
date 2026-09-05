@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Hashem Aldhaheri
+
 # Masquerade one lab segment out onto the segment that stands in for the public
 # internet, and nothing else. No port forwards, no DMZ: whatever gets through to
 # a machine behind this router got there because Tailscale opened the way.

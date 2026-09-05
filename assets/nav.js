@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later
+   Copyright (C) 2026 Hashem Aldhaheri */
+
 /* Chapter index. Defined as a plain global (not fetched) so the guide works
    from file:// — fetch() is blocked on the file: scheme in most browsers. */
 window.GUIDE_NAV = [

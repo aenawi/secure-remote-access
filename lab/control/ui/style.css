@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later
+   Copyright (C) 2026 Hashem Aldhaheri */
+
 /* The lab's control surface.
    Same tokens as the guide's stylesheet so the two do not feel like different
    products, and the same theme rules: light on :root, dark guarded so an

@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later
+   Copyright (C) 2026 Hashem Aldhaheri */
+
 /* ============================================================
    sandbox.js — an operable model of the guide's topology.
 
