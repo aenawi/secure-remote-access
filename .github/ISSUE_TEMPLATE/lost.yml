@@ -1,0 +1,78 @@
+name: "I got lost — a part of the guide did not land"
+description: A paragraph, diagram or step lost you. That is a bug in the guide, not in you.
+title: "[lost] "
+labels: ["clarity"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **There is no such thing as too obvious a question here.**
+
+        This guide is written for someone who can build software and has never
+        had to defend it. Its biggest risk is being written by somebody who
+        already knows, for somebody who already knows. You are the only person
+        who can catch that, and you can only catch it once — after you
+        understand the paragraph, you will never see it fresh again.
+
+        So please do not go and work it out first. Report it while you are still
+        stuck. That version is more useful.
+
+  - type: input
+    id: where
+    attributes:
+      label: Where did you stop?
+      description: Chapter, section heading, or the first few words of the sentence.
+      placeholder: "chapter 02, 'the auth handshake' — the paragraph about host keys"
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you think it meant?
+      description: |
+        Your wrong reading is the valuable part. It shows exactly which way the
+        sentence bends when someone reads it without the background. Guessing is
+        fine. "No idea at all" is also a complete answer.
+    validations:
+      required: true
+
+  - type: textarea
+    id: missing
+    attributes:
+      label: What would have unstuck you?
+      description: A definition, a diagram, a worked example, an earlier chapter it should have linked to. Optional.
+
+  - type: dropdown
+    id: background
+    attributes:
+      label: Roughly where are you coming from?
+      description: |
+        Only so the fix is pitched at the right person. Every option here is a
+        welcome one.
+      options:
+        - "I build software; security is not my area"
+        - "I ship mostly with an AI coding assistant and want to not get burned"
+        - "I am learning security deliberately"
+        - "I do this for a living and the sentence is still ambiguous"
+        - "Rather not say"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: stage
+    attributes:
+      label: Were you reading, or running it?
+      options:
+        - "Reading the guide"
+        - "Running commands against my own machine"
+        - "In the chapter 14 sandbox"
+        - "In the lab (docker compose)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Screenshot, terminal output, the tab you had open next to it. Optional.

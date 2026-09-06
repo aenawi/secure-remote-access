@@ -1,0 +1,176 @@
+# Contributing
+
+## Do not argue with me. Beat me in the lab.
+
+Most security disagreements are two people trading confident opinions and
+neither of them moving. This repository has a way out of that, and it is the
+reason to bother contributing here rather than leaving a comment somewhere.
+
+[`lab/`](lab/README.md) is the guide's topology as real containers — four
+machines on four isolated segments, each behind its own NAT router, running real
+`tailscaled` on real TUN devices. Chapter 14 is the same topology as a model.
+When the two disagree, one of them is wrong about something real, and
+[**Where this lab and the sandbox disagree**](lab/README.md#where-this-lab-and-the-sandbox-disagree)
+is where that gets written down.
+
+There are five findings in that list. Twice the model was wrong and the model
+changed. Once the containers were wrong and the containers changed. Once
+Headscale shipped a feature and the gap flipped direction.
+
+**A sixth entry in that list is the most valuable thing you can send.** It is
+also the most fun, and it is the only kind of contribution where being right
+costs me a chapter rewrite and you get the credit in the file.
+
+So: if you think a chapter is wrong, you do not have to convince me. Build the
+case where it fails.
+
+```bash
+cd lab
+make up          # four machines, ~2 minutes, Docker is the only prerequisite
+make audit       # the eleven checks, scored, from the command line
+make attack      # add the attacker container — it never starts on its own
+```
+
+## Four things worth sending, most valuable first
+
+### 1 · A divergence
+
+The model says one thing, the containers say another. Open an issue with
+**Disagreement** on it. Say which configuration (`day-one`, `typical`, `weak`,
+`hardened`, or the boot state), what you ran, what each half reported.
+
+Findings get a date and a version, not a verdict. Every entry in that section
+names what it was last measured against, because Headscale is pinned
+(`headscale/headscale:0.29.3`) and the tailscale client is not. A divergence is
+a fact with a date on it rather than a property of the world — finding 1 is in
+that file precisely because it was once written without one.
+
+### 2 · The advice is wrong
+
+Not the lab, the guide. A command that does not do what chapter 08 says it does.
+A `sshd_config` key whose first-value-wins behaviour bites in a way the chapter
+misses. A macOS release that moved the SACL. A claim that was true in August
+2026 and is not true now.
+
+Open an issue with **Disagreement**. Bring your OS and version numbers — "it
+doesn't work" is unactionable, "OpenSSH 10.2 on Ubuntu 24.04, here is `sshd -T`"
+is a fix.
+
+You do not need a lab repro for this. It helps, and if the claim is one the lab
+can hold, turning it into a check is the difference between a fix and a fix that
+cannot silently regress.
+
+### 3 · You got lost
+
+This one surprises people, so it is worth saying plainly: **a beginner reporting
+confusion is a real bug report, and I want it.**
+
+The guide is written for someone who can build software and has never had to
+defend it. If you are that reader and a paragraph lost you, the paragraph is
+broken — not you. Tell me where you stopped and what you thought the sentence
+meant. Open an issue with **I got lost**.
+
+There is no such thing as too obvious a question here. The failure mode this
+guide is most at risk of is being written by someone who already knows, for
+someone who already knows.
+
+### 4 · Prose, commands, code
+
+Typos, dead links, a clearer sentence, a diagram step that skips a beat, a Go
+test, a new sandbox scenario. Send the PR.
+
+## Running the checks
+
+```bash
+cd lab
+make check       # the one target that runs with the lab down — Go and JavaScript
+make hooks       # install the pre-push hook that runs make check for you
+```
+
+`make check` wants Go rather than Docker and finishes in about a second: `go vet`,
+`go test`, `gofmt -l` and a parse-check over `assets/*.js` and the lab UI. It also
+asserts the five scores in the comparison table against a checked-in fixture, so a
+number in the README and the number `audit.go` computes cannot drift apart
+without a failing test naming both.
+
+`gofmt` fails on any output at all. A file listed is a file that is not
+formatted.
+
+Run `make hooks` once and you will stop thinking about this.
+
+## Things the repository holds, that a PR should not quietly break
+
+These are invariants rather than preferences. If your change needs one of them
+gone, that is a conversation worth having in an issue first — but it is a
+conversation, not a footnote in a diff.
+
+**The guide works from `file://`.** No build step, no server, no dependencies,
+double-click `index.html` and it works offline. This is why `nav.js` is a plain
+global instead of a fetch — `fetch()` is blocked on the `file:` scheme.
+
+**Everything degrades without JavaScript.** `anim.js` and `sandbox.js` are opt-in
+per page and add a class when they take over; `style.css` hides scenario layers
+except those tagged `data-poster` until then. Any new simulation needs a
+`data-poster` frame chosen deliberately — it is the one coherent picture a reader
+sees with scripting off.
+
+**A simulation is declared in markup.** `data-sim`, `data-at`, `data-scn`,
+`data-flow`. No per-diagram JavaScript.
+
+**`nav.js` is the single source of truth for navigation.** Add an entry there and
+the sidebar, filter, chapter cards and prev/next links all pick it up.
+
+**The engine returns the rung, never a bare pass/fail.** Both halves walk the
+chapter 12 ladder in order and report which rung decided the outcome. That is the
+thing worth preserving above all if you extend either.
+
+**The four board rules.** Nothing drawn that was not measured. A failed attack is
+not a green tick. `danger` outranks `ok`. Time is not faked. Four Go test files
+guard these; they are the kind of invariant that erodes without anyone deciding
+to erode it.
+
+**Mechanism before command.** A reader who runs a line they do not understand
+cannot debug it later, and the whole guide is aimed at the moment when they have
+to.
+
+**SPDX headers on every source file.** `lab/checks/licensed.sh` fails without
+one, and `make check` runs it.
+
+## Style
+
+British spelling, Oxford commas optional, prose over bullets where the idea has
+a shape. Sentences may be long if they earn it.
+
+Say what was measured and when. "Tailscale does X" is weaker than "tailscale
+1.102.3 did X on 2026-08-14, here is the output" — and the second one stays true
+when it stops being true, because it says which build it was about.
+
+Where a step can lock someone out of a machine they cannot walk over to, say so
+*before* the step, and say what the second way in should be.
+
+## Licensing your contribution
+
+The repository is two licences, and your contribution takes whichever covers the
+file you touched:
+
+- **Guide** — `index.html`, `chapters/`, `README.md` — [CC BY-SA 4.0](LICENSE-docs)
+- **Code** — `assets/`, `lab/` — [GPL-3.0-or-later](LICENSE)
+
+Opening a PR means you are fine with that, and that you have the right to send
+what you sent. No CLA, no copyright assignment, nothing to sign. You keep your
+copyright; the licence is what travels.
+
+## What I will say no to
+
+Not to be discouraging — to save you the afternoon.
+
+- A build step, a bundler, a framework, or a runtime dependency for the guide.
+- A JavaScript library added to a chapter page.
+- Vendor recommendations, affiliate links, or a product placed as advice.
+- A scenario in the sandbox that draws something the engine did not compute.
+- Confident security claims with no version, no date and no way to check them.
+
+## Reporting a vulnerability
+
+Not here — see [SECURITY.md](SECURITY.md). That covers both a flaw in the lab's
+code and, more likely, dangerous advice in a chapter.

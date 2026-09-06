@@ -10,6 +10,28 @@ whatever you point at it. The **session layer** (chapters 03 and 04 — Mosh and
 tmux) is what turns that into somewhere you can work for hours from a phone on a
 moving train. Build the first alone if that is all you need.
 
+## Who this is for
+
+Someone who can build things but has never had to defend them.
+
+That describes far more people than it used to. An AI coding assistant will hand
+you a working service, a database and a deployment in an afternoon, and none of
+it arrives with a threat model attached. The code runs — and the machine it runs
+on is now reachable, holds your keys, your customers' data, and whatever the
+assistant was given permission to read. The first half of shipping got easy. The
+second half did not.
+
+So the guide assumes you know how to make software and not how to lock a door.
+It explains the mechanism before the command — what a key type actually proves,
+what a firewall rule does to a packet — because a command you do not understand
+is a command you cannot debug at two in the morning from a phone. Where a step
+can lock you out of your own machine, it says so before the step, not after.
+
+If you already run infrastructure for a living you are not the reader. You may
+well be the reviewer, though, and [CONTRIBUTING.md](CONTRIBUTING.md) is written
+for you: the lab turns "I think that is wrong" into a test that either fails or
+does not.
+
 ## Open it
 
 ```bash
@@ -144,10 +166,34 @@ Its engine walks the chapter 12 ladder in order and always returns the rung that
 decided the outcome, never a bare pass/fail — that is the thing worth preserving if
 you extend it. State round-trips through the URL hash, so a configuration is a link.
 
+## Contributing
+
+The short version: **do not argue with me, beat me in the lab.**
+
+Chapter 14 is a model of this topology and [`lab/`](lab/README.md) is the same
+topology as real containers. When they disagree, one of them is wrong about
+something real, and
+[**Where this lab and the sandbox disagree**](lab/README.md#where-this-lab-and-the-sandbox-disagree)
+is the file that records it. There are five findings there. Twice the model was
+wrong and the model changed; once the containers were wrong and the containers
+changed. A sixth entry is the most valuable thing anyone can send.
+
+So if you think a chapter is wrong, you do not have to convince me — build the
+case where it fails. And if you are new to this and a paragraph lost you, that
+is a bug report too, and a welcome one: the guide's biggest risk is being
+written by someone who already knows, for someone who already knows.
+
+- [CONTRIBUTING.md](CONTRIBUTING.md) — what is worth sending, how to run the
+  checks, and the invariants a change should not quietly break
+- [SECURITY.md](SECURITY.md) — advice that would expose or lock out a reader is
+  a vulnerability, and goes privately first
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) — attack the claim, never the person
+
 ## Disclaimer
 
-Published under the [MIT licence](LICENSE), which means **no warranty of any
-kind**. Nobody who wrote, reviewed or contributed to this is responsible for
+Published under [CC BY-SA 4.0](LICENSE-docs) and [GPL-3.0-or-later](LICENSE) —
+see [License](#license) below for which covers what. Both mean **no warranty of
+any kind**. Nobody who wrote, reviewed or contributed to this is responsible for
 what happens on your machines.
 
 That is worth reading as more than boilerplate, because of what the commands
