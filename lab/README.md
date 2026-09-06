@@ -1,7 +1,7 @@
 # The lab
 
 A disposable network you can break. Real containers, real kernels, real
-WireGuard, real packets — and a control surface where every button is a command
+WireGuard, real packets, and a control surface where every button is a command
 that actually runs.
 
 ```bash
@@ -17,8 +17,8 @@ This is the **feel-it** half of a pair. The **understand-it** half is
 topology as a model in your browser. Same panel names, same button labels, same
 output format: if you can drive one you can drive the other blind. The
 difference is that the sandbox can only show you what somebody modelled, and
-this one has no model — so it can surprise you. It has already surprised us
-twice, and both surprises are written down further below — along with what
+this one has no model, so it can surprise you. It has already surprised us
+twice, and both surprises are written down further below, along with what
 changed in the sandbox afterwards, because a model that is told it is wrong and
 left alone was not worth building.
 
@@ -26,24 +26,24 @@ left alone was not worth building.
 
 ## Safety, before anything else
 
-**`evil-box` attacks containers you started, on hardware you own, on bridges
-that go nowhere.** It is behind a compose profile and does not exist until you
+`evil-box` attacks containers you started, on hardware you own, on bridges
+that go nowhere. It is behind a compose profile and does not exist until you
 ask for it with `--profile attack`. Its network reaches the other lab
-containers and nothing else — not your LAN, not your router, not the machine
+containers and nothing else: not your LAN, not your router, not the machine
 you are reading this on.
 
 The control server holds `/var/run/docker.sock`, which means anything that can
 talk to it can run commands as root on your machine. It therefore:
 
-- has **no authentication**, because nothing off this host can reach it;
+- has no authentication, because nothing off this host can reach it;
 - is published to `127.0.0.1:8099` only;
-- **reads its own port bindings at startup and refuses to run** if it finds
+- reads its own port bindings at startup and refuses to run if it finds
   itself published anywhere else.
 
 Do not change that `ports:` line. If you do, the server will tell you why it is
 not starting.
 
-Everything here is provided **as is**, with no warranty of any kind, under the
+Everything here is provided as is, with no warranty of any kind, under the
 [GPL-3.0-or-later licence](../LICENSE). The full terms and the reasoning behind them are in
 [the disclaimer](../index.html#disclaimer). Practise here; do not paste the
 generated script at a machine you rely on without reading it first.
@@ -59,11 +59,11 @@ docker compose up -d
 | Service | Role | Notes |
 |---|---|---|
 | `control` | The Go control server and its embedded UI | mounts the Docker socket, binds `127.0.0.1:8099` only |
-| `headscale` | Coordination server **and** the lab's DERP relay | one process, two roles — see the Headscale section |
-| `lab-vps` | The public box — [chapter 08](../chapters/08-vps.html) | `tailscaled`, `sshd`, `ufw`, and the published-port trap |
+| `headscale` | Coordination server **and** the lab's DERP relay | one process, two roles; see the Headscale section |
+| `lab-vps` | The public box ([chapter 08](../chapters/08-vps.html)) | `tailscaled`, `sshd`, `ufw`, and the published-port trap |
 | `lab-vps-web` | The container behind the published port | reachable only through `lab-vps`, and only when you turn the trap on |
-| `lab-ubuntu` | The laptop — [chapter 09](../chapters/09-ubuntu.html) | `tailscaled`, `sshd`, `mosh` |
-| `lab-roam` | The roaming client — [chapters 03](../chapters/03-mosh-blink.html) / [04](../chapters/04-tmux-herdr.html) | behind a deliberately unfriendly NAT |
+| `lab-ubuntu` | The laptop ([chapter 09](../chapters/09-ubuntu.html)) | `tailscaled`, `sshd`, `mosh` |
+| `lab-roam` | The roaming client ([chapters 03](../chapters/03-mosh-blink.html) / [04](../chapters/04-tmux-herdr.html)) | behind a deliberately unfriendly NAT |
 | `nat-ubuntu`, `nat-roam`, `nat-evil` | One home router per machine | masquerade only, no port forwards |
 | `evil-box` | The attacker | `nmap`, `tcpdump`, `tcpreplay`, `hping3`, `dsniff`, `wireguard-tools`. **Opt in with `--profile attack`** |
 
@@ -85,8 +85,8 @@ addresses on the shared segment are RFC 5737 documentation addresses, so
 nothing in this lab can be mistaken for a real host.
 
 `nat-roam` runs with `MASQUERADE --random`, which allocates a fresh source port
-per destination. That is an endpoint-*dependent* mapping — the unfriendly kind,
-the kind a phone on mobile data often gets — and it is why `lab-roam` is the
+per destination. That is an endpoint-*dependent* mapping, the unfriendly kind,
+the kind a phone on mobile data often gets, and it is why `lab-roam` is the
 machine that falls back to the relay first when anything else goes wrong.
 
 ---
@@ -102,13 +102,13 @@ the three Lima VMs in [chapter 13](../chapters/13-lab.html).
 The page is one instrument, not a document you scroll. It is three bands, and
 none of them moves relative to the others:
 
-- **the drawing**, pinned to the top of the window — drag the divider under it
+- **the drawing**, pinned to the top of the window: drag the divider under it
   to give it more of the window or less, double-click to put it back, or focus
   it and use the arrow keys;
 - **the verdict**, one line directly under the drawing that produced it;
 - **the deck**, two columns that scroll independently: everything that
   *changes* the lab on the left, one group per tab, and everything the lab
-  *said back* on the right — including this page's own documentation, in the
+  *said back* on the right, including this page's own documentation, in the
   **guide** tab, which is what opens on a first visit.
 
 The point of the arrangement is that flipping a switch and reading what it did
@@ -121,8 +121,8 @@ stuck to the top of it and both tab strips intact.
 Two drawings of the same lab, and a switch in the top bar that picks one.
 
 **The board** is the five-rung ladder from chapter 12 rebuilt as a place a
-packet has to travel through. **X is the ladder** — how far something got is
-the rung it reached — and **Y is protection**, with the tailnet floating above
+packet has to travel through. X is the ladder: how far something got is
+the rung it reached. Y is protection, with the tailnet floating above
 the machines and the public segment lying below, so a packet's height says
 whether it was readable while it went. Every gate on it renders the
 configuration continuously: turn `allow 22/tcp from anywhere` off and a slat
@@ -141,31 +141,31 @@ regex English to find a number the Go side already had.
 **ssh and mosh, through a 20-second outage** has a set-piece as well, and it is
 the only one with two acts. The blackout resolves and says what it proved
 before the roam starts, because the whole lesson is that the first act does not
-do what everybody expects it to — and that only reads if you are allowed to
+do what everybody expects it to, and that only reads if you are allowed to
 finish being surprised by it before the second act begins.
 
 So does **Rotate the key**, and it is the odd one out: nothing is attacking
 anything, and nothing is defending. Rotating a node key is maintenance, and
-maintenance is judged by what it does *not* disturb — so the claim is
+maintenance is judged by what it does *not* disturb, so the claim is
 continuity, in three parts. The coordination server stops holding the key it
 held; the machine stays inside the tailnet at the same address; and a session
 running over that address does not notice. Each part is measured, and each has
 an ending where it was not: a run that re-keyed nothing draws no re-key and
 says so instead. Unlike the outage demonstration this one runs over the
-**tailnet** address on purpose, so its lane rides up in the tailnet plane — a
+**tailnet** address on purpose, so its lane rides up in the tailnet plane. A
 rotation a session cannot feel even in principle would prove nothing about the
 rotation.
 
 The board holds to four rules, and they are why it is worth trusting:
 
-- **Nothing is drawn that was not measured.** An empty capture draws an empty
+- Nothing is drawn that was not measured. An empty capture draws an empty
   tray and says the run proves nothing either way, because a successful
   capture is the interesting picture and that is exactly why it must not be
   animated when there was not one.
-- **A failed attack is not a green tick.** `ok` on an attack means the defence
+- A failed attack is not a green tick. `ok` on an attack means the defence
   held; the shot renders the defence answering, and names it.
-- **`danger` outranks `ok` in tone.** `docker-bypass` succeeding is a red frame.
-- **Time is not faked.** The choreography is a fixed length. The millisecond
+- `danger` outranks `ok` in tone. `docker-bypass` succeeding is a red frame.
+- Time is not faked. The choreography is a fixed length. The millisecond
   figures stay the measured ones.
 
 It needs WebGL, and it is decoration you can switch off: every state it shows
@@ -180,9 +180,9 @@ falls back to the flat drawing and says so once.
 container, and the shape of the line is whatever `tailscale ping` last
 reported:
 
-- **straight across the middle** — direct, the punch completed;
-- **bending up through the box in the centre** — relayed through DERP;
-- **dipping into the red band** — it crossed the public segment, and the band
+- straight across the middle: direct, the punch completed;
+- bending up through the box in the centre: relayed through DERP;
+- dipping into the red band: it crossed the public segment, and the band
   lights up to say so.
 
 Before you probe anything it says **idle · run a probe**, and it means it. An
@@ -193,23 +193,23 @@ until there is something true to draw.
 
 ### Panels
 
-Four, with the same names and the same switches as the sandbox page — one tab
+Four, with the same names and the same switches as the sandbox, one tab
 each in the left column, labelled with the panel's id, so a panel added to
 `panels.go` becomes a tab without anything in the UI being told its name:
 
-- **Machines** — who is running, who the tailnet will accept, and whether
+- **Machines**: who is running, who the tailnet will accept, and whether
   `evil-box` is sitting on `lab-ubuntu`'s segment.
-- **The network** — the three levers chapter 13 shapes by hand: `ip link`,
+- **The network**: the three levers chapter 13 shapes by hand: `ip link`,
   `tc netem` loss and delay, and an `nft` rule dropping WireGuard's UDP port.
-- **Tailnet policy** — the default action, four named grants, tailnet lock,
+- **Tailnet policy**: the default action, four named grants, tailnet lock,
   key expiry, Tailscale SSH.
-- **The host — lab-vps** — `ufw` defaults and rules, the published container
+- **The host — lab-vps**: `ufw` defaults and rules, the published container
   port, `sshd`'s `ListenAddress`, `PasswordAuthentication`, `PermitRootLogin`.
 
 ### Probe
 
-The probe never answers yes or no. It answers **which rung**, using the same
-five-rung ladder [chapter 12](../chapters/12-troubleshooting.html) teaches — and
+The probe never answers yes or no. It answers which rung, using the same
+five-rung ladder [chapter 12](../chapters/12-troubleshooting.html) teaches, and
 unlike the sandbox, it works the rung out from evidence rather than from a
 model:
 
@@ -218,7 +218,7 @@ model:
    which keeps trying until it gets a direct path or runs out of attempts, so
    what you see is the path the pair settles on.
 3. Did the tailnet allow it? The probe starts a `tcpdump` on the destination
-   before it knocks. **If nothing arrives, the tailnet refused it** — and the
+   before it knocks. If nothing arrives, the tailnet refused it, and the
    far machine has no log line to show you, which is exactly how a rung-3
    denial feels when you are debugging one at three in the morning.
 4. Did the host firewall allow it? Something arrived and then died: visible on
@@ -238,7 +238,7 @@ defence that answered it.
 | Attack | What it actually does | What it proves |
 |---|---|---|
 | Scan from the open internet | `nmap` from `evil-box` at `lab-vps`'s public address | what a stranger sees with no credentials |
-| Scan from inside the tailnet | joins `evil-box`, then probes all three machines | membership is not authorisation — unless you left it that way |
+| Scan from inside the tailnet | joins `evil-box`, then probes all three machines | membership is not authorisation, unless you left it that way |
 | Sit on the wire and capture | puts `evil-box` on `lab-ubuntu`'s route and runs `tcpdump` | see below: this one has a control experiment in it |
 | Replay a captured frame | `tcpreplay` of the captured WireGuard frames, 20 loops | the receiving kernel discards every one |
 | Join with a stolen node key | `tailscale up` on `evil-box` with a key it should not have | what a leaked key is worth, with and without something vouching for it |
@@ -250,15 +250,15 @@ defence that answered it.
 Two more buttons sit underneath: **ssh and mosh, through a 20-second outage**
 and **Rotate the key**. The first of those is the session layer rather than the
 network layer, and it is the one demonstration on the board that runs at
-lab-vps's **public** address on purpose — so both sessions are encrypted and
+lab-vps's **public** address on purpose, so both sessions are encrypted and
 neither is up in the tailnet plane, which is what the shot says while it runs.
 
 The second is maintenance, and it has two situations. If `lab-roam` is a member
 it opens an ssh session over the **tailnet** address, forces the re-auth
 underneath it with `tailscale up --force-reauth`, and reports whether the
-session kept counting — the tick it had reached before, and the one it reached
-after. If `lab-roam` is out — usually because **Let a key expire** just put it
-there — there is nothing to keep, and the demonstration is instead that one
+session kept counting: the tick it had reached before, and the one it reached
+after. If `lab-roam` is out, usually because **Let a key expire** just put it
+there, there is nothing to keep, and the demonstration is instead that one
 command and the key you already had bring it back. Either way it reads the node
 key the coordination server holds before and after, so "it re-keyed" is
 something the run found rather than something the button claims. It takes about
@@ -266,7 +266,7 @@ a minute.
 
 #### The capture has a control experiment in it
 
-"We captured the traffic and could not read it" proves very little on its own —
+"We captured the traffic and could not read it" proves very little on its own:
 a broken capture looks identical. So the lab sends the same marker string twice
 while `tcpdump` is running: once in the clear over UDP, once through the tunnel
 inside WireGuard. Then it counts both in the raw capture file.
@@ -297,7 +297,7 @@ docker compose --profile weak     up cfg-weak
 docker compose --profile hardened up cfg-hardened
 ```
 
-Each one runs the same code the button in the UI runs — one binary, one code
+Each one runs the same code the button in the UI runs: one binary, one code
 path, so the two cannot drift apart.
 
 Then score it:
@@ -308,18 +308,18 @@ make audit          # or press "Audit this configuration"
 
 Eleven checks, the same eleven as the sandbox, with the same labels and the same
 rubric. The only thing that changed is how each one is answered: there it asks a
-model, here it asks a container. **Two of the eleven ask whether *you* can still
-get in.** They are not padding — without them, a machine you have locked
+model, here it asks a container. Two of the eleven ask whether *you* can still
+get in. They are not padding: without them, a machine you have locked
 yourself out of scores nearly perfectly and "closed" reads as "secure".
 
 The audit takes about a minute, because five of the eleven really do join and
 unjoin the attacker. It needs `evil-box`; without it the lab refuses to produce
 a score rather than reporting one with five holes in it.
 
-One check is **marked**: this lab answers it for you, whichever way it goes, and
+One check is marked: this lab answers it for you, whichever way it goes, and
 the readout says so rather than letting you take the credit or the blame. It
 still counts in the score, because a number that argues with what was measured
-is worth nothing — the mark only changes what is said about it. Today it is
+is worth nothing, and the mark only changes what is said about it. Today it is
 **"A lost device stops being a member on its own"**, and the mark reads *cannot
 fail here*: Headscale records an expiry on every registration and offers no
 switch to turn one off, so three of the four configurations pass it while asking
@@ -334,9 +334,9 @@ This is the most valuable part of the directory. A gap between the model and the
 containers means the model is wrong about something real, and finding those was
 the whole reason for building both halves.
 
-Three of the five below have since been **closed**. Twice the sandbox was
+Three of the five below have since been closed. Twice the sandbox was
 changed to match what the containers do; once, the other way about, the
-containers were changed to match the sandbox. A fourth — finding 1 — was closed
+containers were changed to match the sandbox. A fourth, finding 1, was closed
 by neither of us: Headscale shipped the feature the gap was made of, and closing
 it opened a new gap pointing the other way, which is why that one is still here
 and still open. Which direction a gap points is not decided in advance, and that
@@ -344,16 +344,16 @@ is the argument for keeping both halves. Closed ones are kept here rather than
 deleted, because the finding is the artefact this pair produces; the fix is just
 the consequence.
 
-**Everything in this section is an observation about one build of one stack.**
-The coordination server is pinned — `headscale/headscale:0.29.3` in
-[`docker-compose.yml`](docker-compose.yml) — and the tailscale client is not: the
+Everything in this section is an observation about one build of one stack.
+The coordination server is pinned (`headscale/headscale:0.29.3` in
+[`docker-compose.yml`](docker-compose.yml)) and the tailscale client is not: the
 machine image installs whatever `stable` holds when you build it, which was
 1.102.3 for the runs below. Each finding says what it was last measured against.
 A divergence is a fact with a date on it rather than a property of the world,
 and finding 1 is in this file precisely because it was once written without
 one.
 
-Both columns below were measured, not derived — the sandbox scores come from its
+Both columns below were measured, not derived. The sandbox scores come from its
 own comparison table, the lab scores from `make audit` against each profile:
 
 | Configuration | Sandbox | This lab | Why they differ |
@@ -369,7 +369,7 @@ asserts it against a checked-in fixture of which of the eleven each
 configuration passes, so a number here and the number `audit.go` computes
 cannot drift apart without a failing test naming both.
 
-Every gap in that table is still the same single divergence — key expiry — but
+Every gap in that table is still the same single divergence, key expiry, but
 it has changed sides. It used to cost this lab a point on the two configurations
 that asked for expiry *on*; it now hands this lab a point on the three that ask
 for it *off*. Apart from that one check, the two halves fail the same checks in
@@ -378,30 +378,30 @@ than score it. All five are below.
 
 ### 1 · Key expiry, which used to cost this lab a point and now gives it one
 
-**Open, and it changed sides.** The check is **"A lost device stops being a
+Open, and it changed sides. The check is **"A lost device stops being a
 member on its own"**, and it has been the only real divergence in the table for
 as long as the table has existed. What it says about the two halves is now the
 opposite of what it used to.
 
-**What it was, up to Headscale 0.26.1.** Headscale recorded a node expiry only
-when the registration asked for one, and a pre-auth-key registration did not —
+What it was, up to Headscale 0.26.1. Headscale recorded a node expiry only
+when the registration asked for one, and a pre-auth-key registration did not,
 so `headscale nodes list` showed `Expiration: N/A` for all three machines and
 one could not be added afterwards. `hardened` scored 10/11 here against 11/11 in
 the sandbox, and this file said, in as many words, that the gap was permanent
 and should be left alone.
 
-**It was not permanent.** The upstream bug was
+It was not permanent. The upstream bug was
 [juanfont/headscale#1711](https://github.com/juanfont/headscale/issues/1711),
 and 0.29.0 closed it by adding a `node.expiry` configuration key that sets a
 default expiry for nodes registered via auth key. That is a missing feature,
-shipped — not an architectural difference between Headscale and Tailscale, which
+shipped, not an architectural difference between Headscale and Tailscale, which
 is what this file had claimed it was. The lab pins `0.29.3` and
 [`config/headscale/config.yaml`](config/headscale/config.yaml) sets
 `node.expiry: 4320h`, which is Tailscale's 180 days.
 
-**And that setting does not reach these three machines.** It was written down
+And that setting does not reach these three machines. It was written down
 here as though it did, and for a while this file and the containers disagreed
-about the reason the check passed — which is the exact failure mode the lab
+about the reason the check passed, which is the exact failure mode the lab
 exists to catch, caught on the lab itself. Measured on 0.29.3: a node registered
 with a *single-use* pre-auth key comes back from `headscale nodes list` with an
 expiry 180 days out, and a node registered with a `--reusable` one comes back
@@ -409,9 +409,9 @@ with `Expiration: N/A`. This lab mints a single reusable key and every machine
 reads it from `/lab/state/authkey`, so all three landed in the second case and
 check 10 failed even under `hardened`.
 
-Sharing one key is worth keeping — a per-machine single-use key would have to be
-reissued on every rejoin, and rejoining is what half the buttons here do — so
-the expiry is stamped on afterwards instead. `EnsureNodes` in
+Sharing one key is worth keeping, because a per-machine single-use key would
+have to be reissued on every rejoin, and rejoining is what half the buttons here
+do, so the expiry is stamped on afterwards instead. `EnsureNodes` in
 [`control/state.go`](control/state.go) runs `headscale nodes expire -e <RFC3339>`
 against any owned node that has none, alongside the tag it already applied. It
 stamps only when the field is empty, which keeps it idempotent and keeps it out
@@ -421,10 +421,10 @@ check passes, and `hardened` and the boot state agree with the sandbox at 11/11
 and 8/11. The `node.expiry` setting stays: it is correct, it costs nothing, and
 it takes over if these keys ever stop being reusable.
 
-**And that opened the mirror image of the old gap.** Headscale still has no
-per-node "disable key expiry", and neither does this lab's stamp — it applies to
+And that opened the mirror image of the old gap. Headscale still has no
+per-node "disable key expiry", and neither does this lab's stamp: it applies to
 every registration and nothing in a configuration turns it off. `day-one`,
-`typical` and `weak` all ask for expiry to be *off* — and get it anyway, and
+`typical` and `weak` all ask for expiry to be *off*, and get it anyway, and
 score a point for it that the sandbox does not give them. That is why those
 three rows are now the ones in bold.
 
@@ -433,7 +433,7 @@ line reads *"the control server stamps one on at registration and Headscale
 offers no per-node way to turn it off, so this one holds whatever the
 configuration says"*, and the check is marked **cannot fail here** in the same place the old
 one was marked *cannot pass here*. The score counts it as a pass either way,
-because the alternative is a number that argues with what was measured — but a
+because the alternative is a number that argues with what was measured, but a
 tick nothing you did produced is the more misleading of the two marks, and it is
 the one the readout leads with. Turning **Key expiry** *off* in the UI still
 returns a typed refusal explaining that Headscale has no such switch, which is
@@ -442,18 +442,18 @@ the same fact met from the front.
 What still works, and is worth doing: **Let a key expire** calls
 `headscale nodes expire` and you can watch `lab-roam` fall out of the tailnet on
 its own within seconds. That is a real failure of this check when it happens,
-and it is *not* marked — it is a state somebody produced rather than one the lab
+and it is *not* marked: it is a state somebody produced rather than one the lab
 decided.
 
 This is still the gap to leave alone, for the same reason as before: closing it
 would mean the sandbox modelling Headscale's limitation rather than Tailscale's
 behaviour, and the guide is about Tailscale. What was wrong was never the
-decision — it was calling it permanent. **Measured against Headscale 0.29.3.**
+decision. It was calling it permanent. Measured against Headscale 0.29.3.
 
 ### 2 · Nobody can reach your laptop from the internet, and the sandbox thought they could
 
-**Closed.** When this was found, `day-one` scored 4/11 here and 3/11 in the
-sandbox — the two agree at 4/11 now, and this lab reads 5/11 for the unrelated
+Closed. When this was found, `day-one` scored 4/11 here and 3/11 in the
+sandbox. The two agree at 4/11 now, and this lab reads 5/11 for the unrelated
 reason in finding 1. The extra pass was **"…nor your laptop"**, checked with the
 tailnet switched off entirely.
 
@@ -466,20 +466,21 @@ a stranger to aim at. The probe says so at rung 2 rather than inventing a path.
 That is what a laptop behind a home router actually looks like, and it is worth
 knowing which of the two you have been picturing. It is also the one finding
 here that no version bump can move: it is the lab's own topology, not a
-behaviour of anything shipped. The sandbox now models it the same way: a machine with a NAT in front of it has no inbound address, and a
-probe aimed at one stops at rung 2 naming the router that swallowed it. It also
-does not let the configuration off the hook — the moment the laptop joins a
-tailnet, it becomes reachable from every other member, and checks 6 and 7 are
-what watch that. The sandbox says so out loud on that check now, so a pass
-earned by a home router does not read as a pass earned by your policy.
+behaviour of anything shipped. The sandbox now models it the same way: a machine
+with a NAT in front of it has no inbound address, and a probe aimed at one stops
+at rung 2 naming the router that swallowed it. It also does not let the
+configuration off the hook: the moment the laptop joins a tailnet, it becomes
+reachable from every other member, and checks 6 and 7 are what watch that. The
+sandbox says so out loud on that check now, so a pass earned by a home router
+does not read as a pass earned by your policy.
 
 ### 3 · Blocking UDP does not make `netcheck` say `UDP: false`
 
-**Closed.** The sandbox showed `tailscale netcheck` reporting `UDP: false` when
+Closed. The sandbox showed `tailscale netcheck` reporting `UDP: false` when
 you dropped WireGuard's port. The real thing does not, and it is right not to:
 `nft ... udp dport 41641 drop` blocks WireGuard, while `netcheck` probes UDP
 reachability using STUN on port 3478, which is still open. What *does* change,
-within a few seconds, is the path — `direct` becomes `relay`, exactly as the
+within a few seconds, is the path: `direct` becomes `relay`, exactly as the
 chapter says.
 
 A network that really does block all outbound UDP would report `UDP: false`.
@@ -487,9 +488,9 @@ This lab blocks the port [chapter 13](../chapters/13-lab.html) tells you to
 block, because the generated script has to be the script that chapter runs.
 
 The sandbox now prints `UDP: true` with the port dropped, and says in the
-readout why the two lines disagree — which is a better lesson than the one it
+readout why the two lines disagree, which is a better lesson than the one it
 replaced, and it came from running the command rather than from reasoning about
-it. **Measured against tailscale 1.102.3**, and this is a client-side reading:
+it. Measured against tailscale 1.102.3, and this is a client-side reading:
 which port `netcheck` probes is the client's business, and a future one could
 change it.
 
@@ -500,14 +501,14 @@ outage** and read the first half of the result: both sessions survive the
 blackout. TCP does not give up on a stalled connection anywhere near that fast,
 so a tunnel, a lift or a dead spot is not what ends your session.
 
-What ends it is the **address changing underneath the connection**, which is
+What ends it is the address changing underneath the connection, which is
 what actually happens when a phone moves between networks. So the demonstration
 has a second act: `lab-roam` gets a new address, and SSH stops dead while Mosh
 carries on, because Mosh is not holding a connection to lose.
 
 On **the board** those are two acts you watch rather than two halves of a
-paragraph. The ssh tunnel snaps at the machine end and its traffic scatters —
-still sealed, still going nowhere — while the mosh tunnel goes translucent,
+paragraph. The ssh tunnel snaps at the machine end and its traffic scatters,
+still sealed, still going nowhere, while the mosh tunnel goes translucent,
 holds, and re-solidifies against the new address. All four tick counts reach
 the drawing as numbers, on `Result.Evidence`; the two addresses reach it on
 `Result.Detail`, because a drawing that has to regex `Raw` to find out what
@@ -526,19 +527,19 @@ after the roam:      ssh reached tick 45, mosh reached tick 70
 
 It runs against `lab-vps`'s **public** address on purpose. Over the tailnet both
 sessions survive both acts, because the tailnet address does not change when the
-network under it does — which is the tailnet earning its keep, and a good reason
+network under it does, which is the tailnet earning its keep, and a good reason
 to read chapters 01 and 03 together.
 
 This one is TCP's behaviour and mosh's, not any coordination server's, so it is
-the finding least likely to move under you. **Measured against tailscale
-1.102.3.**
+the finding least likely to move under you. Measured against tailscale
+1.102.3.
 
 ### 5 · A key the tailnet refuses is still a machine on the internet
 
-**Closed, and this half is the one that changed.**
+Closed, and this half is the one that changed.
 
 The sandbox used to stop an unsigned or expired node key at rung 1, which meant
-tailnet lock refused traffic it has no say over — an ordinary TCP connection to
+tailnet lock refused traffic it has no say over: an ordinary TCP connection to
 a public address, nothing to do with the tailnet at all. Lock and expiry now
 decide *membership* there: a refused node is simply not on the tailnet, so it
 falls through to the ordinary network and reaches whatever is publicly
@@ -546,7 +547,7 @@ reachable.
 
 This lab had the same bug, arrived at from the other end. Its **Tailnet lock**
 switch is "does a key exist for a machine you did not authorise", so with it on
-`evil-box` cannot join at all — and `audit.go` used to report the check refused
+`evil-box` cannot join at all, and `audit.go` used to report the check refused
 at rung 1 without probing, rather than asking what `evil-box` reaches *without*
 a tailnet session. `Probe` had modelled it correctly all along; the audit simply
 never called it on that path. So tailnet lock was taking credit for a public
@@ -563,13 +564,13 @@ lab-vps saw it arrive:
 08:21:49.001182 IP 203.0.113.66.49588 > 203.0.113.11.22: Flags [S], …
 ```
 
-That is `tcpdump` on `lab-vps` watching the SYN land while `evil-box` knocks —
+That is `tcpdump` on `lab-vps` watching the SYN land while `evil-box` knocks:
 the key was refused and the packet arrived anyway. Close public `:22` and the
 same attack stops at rung 4. **Let a key expire** behaves identically:
 `lab-roam` drops out of the tailnet on its own and still reaches `sshd` at rung
 5, until the public rule is gone.
 
-Re-scoring after the fix cost this lab's boot state a point — the extra failure
+Re-scoring after the fix cost this lab's boot state a point. The extra failure
 is **"A stolen node key is refused"**, which is now honest. The four named
 configurations did not move, `hardened` included, because `hardened` had already
 closed public `:22`. The sandbox moved the same way, 9/11 to 8/11. (The boot
@@ -581,7 +582,7 @@ a *member*. Closing public `:22` decides who can reach the *machine*. Neither
 substitutes for the other, and both halves of this pair spent months implying
 the first did the second's job.
 
-**Re-measured against Headscale 0.29.3**, and it holds: the boot state still
+Re-measured against Headscale 0.29.3, and it holds: the boot state still
 fails **"A stolen node key is refused"** for the same reason, which is why that
 row reads 8 and not 9.
 
@@ -593,26 +594,26 @@ row reads 8 and not 9.
 for the hand-built VM rig, and that advice still stands there. This stack
 diverges on purpose.
 
-**Why:** a lab you are going to point an attacker at should not need an account,
+Why: a lab you are going to point an attacker at should not need an account,
 an internet connection, or anybody's production infrastructure. Headscale makes
 this offline, free, repeatable and safe to break. `make reset` throws the whole
 control plane away and the next `make up` is a lab that has never existed
 before.
 
-**What it costs you:** Headscale is a compatible reimplementation, so a
+What it costs you: Headscale is a compatible reimplementation, so a
 behaviour you observe here is *Headscale's* behaviour. Chapter 01 describes
 Tailscale's. They agree on almost everything; do not assume they agree on
 everything. Two places where they do not:
 
-- **Tailnet lock does not exist in Headscale.** The **Tailnet lock** switch in
+- Tailnet lock does not exist in Headscale. The **Tailnet lock** switch in
   this lab controls the nearest honest equivalent: whether a key exists at all
   for a machine you did not authorise. With it on, `evil-box` cannot join and
-  gets no session — which is the property tailnet lock gives you, reached by a
+  gets no session, which is the property tailnet lock gives you, reached by a
   different mechanism. The lab says so in the result text rather than hiding it.
   What it does not do is end the story: a machine with no tailnet session is an
   ordinary machine on the internet, and what it reaches next is the host
   firewall's question. See 5 above.
-- **DERP lives inside the coordination server.** The ticket this was built from
+- DERP lives inside the coordination server. The ticket this was built from
   asked for a separate `derper` container. A separate one needs its own trusted
   TLS certificate, which means shipping a CA for no gain: the relay path a
   client takes is identical either way, and forcing traffic onto that path is
@@ -622,12 +623,12 @@ everything. Two places where they do not:
 
 Headscale 0.26's policy manager kept its own snapshot of the nodes and did not
 refresh it when `headscale nodes tag` changed one. A tag applied while it was
-running was visible in `headscale nodes list` and **invisible to every ACL** —
+running was visible in `headscale nodes list` and invisible to every ACL:
 every rule mentioning it silently compiled to nothing, and you got rung-3
 denials with no explanation anywhere. The control server worked around it by
 restarting the coordination server whenever it changed a tag.
 
-**0.29.3 does not need that, and the restart is gone.** It was checked rather
+0.29.3 does not need that, and the restart is gone. It was checked rather
 than assumed: with the coordination server left running, retagging `lab-vps`
 away from `tag:server` closes the `tag:laptop → tag:server:22` grant within
 seconds and retagging it back opens it again, and the same holds for
@@ -652,12 +653,12 @@ iptables -t nat -A DOCKER ! -i <lan> -p tcp --dport 8080 -j DNAT --to 10.0.11.20
 ```
 
 `lab-vps-web` is a genuine second container on a bridge `lab-vps` routes for, so
-the packet really is **forwarded** rather than delivered locally — which is the
+the packet really is **forwarded** rather than delivered locally, which is the
 whole reason `ufw`'s `INPUT` rules never get a say. `ufw status verbose` says
 `Default: deny (incoming)` and `curl http://203.0.113.11:8080/` answers `HTTP
 200` from `evil-box`, on the open segment, with no credentials.
 
-**What is not real:** dockerd. Running a real Docker daemon inside `lab-vps`
+What is not real: dockerd. Running a real Docker daemon inside `lab-vps`
 would mean a privileged container, and a privileged container is a genuine
 escape route onto your own machine. The mechanism under test is the chain order,
 and the chain order is exact. `images/node/docker-trap.sh` says the same thing
@@ -701,11 +702,11 @@ make check      # go vet ./...  ·  go test ./...  ·  gofmt -l .  ·  the UI Ja
 ```
 
 The first three run against `control/`, the only Go in the repo, and all three
-finish in about a second — which is the point, because a check you have to
+finish in about a second, which is the point, because a check you have to
 bring the lab up for is a check you will skip. `gofmt` fails on any output at
 all: a file listed is a file that is not formatted.
 
-It is worth the second because of the four board rules — nothing drawn that
+It is worth the second because of the four board rules: nothing drawn that
 was not measured, a failed attack is not a green tick, `danger` outranks `ok`,
 time is not faked. Those are the kind of invariant that erodes without anyone
 deciding to erode it, and four test files guard them:
@@ -719,10 +720,10 @@ deciding to erode it, and four test files guard them:
 
 None of them start a container. The rung is a pure function of what one command
 printed at one end and another printed at the other, and the score is a pure
-function of eleven booleans — so the fixtures were captured once, checked in,
+function of eleven booleans, so the fixtures were captured once, checked in,
 and the decisions they drive are now asserted in about a second rather than in
-about a minute. That matters more than a coverage number: **finding 5 below was
-a rung-classification bug in exactly that pure function**, it survived for
+about a minute. That matters more than a coverage number: finding 5 below was
+a rung-classification bug in exactly that pure function, it survived for
 months, and it was caught by running containers.
 
 ### The JavaScript half
@@ -730,28 +731,28 @@ months, and it was caught by running containers.
 `control/ui/` is about three thousand lines, and it ships exactly as written:
 `//go:embed ui` puts it in the binary, `app.js` is a classic script, `hud/` is
 ES modules served over HTTP, and nothing anywhere compiles, bundles or
-minifies. That is deliberate — it is why `docker compose up` is the only
-prerequisite — and it means a stray comma reaches the browser intact.
+minifies. That is deliberate, and it is why `docker compose up` is the only
+prerequisite, but it means a stray comma reaches the browser intact.
 
 The browser is then quiet about it in the worst possible way. `run()` in
 `hud/setpieces.js` wraps every shot in a `try`/`catch` so a broken set-piece
 cannot take the page down: it logs, clears, and `app.js` falls back to the text
 trace. That is the right behaviour and it stays. It also means that, to anyone
 driving the lab, a typo in a set-piece looks almost exactly like an action that
-never had a set-piece — which is how `rotate-key` went a release with nothing
+never had a set-piece, which is how `rotate-key` went a release with nothing
 drawn and nothing said about it.
 
 So `make check` ends with two cheap answers to that, in `checks/`:
 
 | File | What it holds |
 |---|---|
-| `syntax.mjs` | `node --check` over the eight files the browser loads, each in the goal it is loaded in — script for `app.js` and the guide's `assets/`, module for `hud/` |
+| `syntax.mjs` | `node --check` over the eight files the browser loads, each in the goal it is loaded in: script for `app.js` and the guide's `assets/`, module for `hud/` |
 | `reading.test.mjs` | the board rules themselves: `danger` outranks `ok`, a scan that never ran reports no counts, an empty capture draws an empty tray |
-| `setpieces.test.mjs` | that `hud/` still links, and that `missing()` names an action with no shot — the check ticket 33 did not have |
+| `setpieces.test.mjs` | that `hud/` still links, and that `missing()` names an action with no shot; the check ticket 33 did not have |
 
 That second one is the point of the exercise. The four honesty rules at the top
 of `setpieces.js` were guarded on the Go side only, which guards what the
-server *reports* and not what the board *does with it* — and the shots are
+server *reports* and not what the board *does with it*, and the shots are
 precisely where `run()` hides a mistake. So the deciding half moved into
 `hud/reading.js`: pure functions of a `Result`, no three.js, no canvas, no DOM,
 which is what lets twenty assertions run in under a tenth of a second.
@@ -769,10 +770,10 @@ three.js wanting a browser Node cannot give it, and only skips for the second.
 make ui         # or: node checks/syntax.mjs && node --test checks/*.test.mjs
 ```
 
-**Node is not a prerequisite, and is not becoming one.** There is no `npm`
+Node is not a prerequisite, and is not becoming one. There is no `npm`
 here, no `package.json`, no `node_modules`, and nothing in `checks/` uses
-anything Node does not ship with. If Node is missing — or older than 18, which
-is what `node --test` wants — `make check` prints a line saying so and holds.
+anything Node does not ship with. If Node is missing, or older than 18, which
+is what `node --test` wants, `make check` prints a line saying so and holds.
 Failing the gate over a tool the lab does not require would only teach people
 to reach for `--no-verify`, and Docker remains the one thing you have to have.
 
@@ -864,15 +865,15 @@ that carries everything.
 
 ## If something will not start
 
-- **`/dev/net/tun` is missing** — the machines need it to run real WireGuard.
+- `/dev/net/tun` is missing. The machines need it to run real WireGuard.
   Docker Desktop provides it; a hardened host may not.
-- **A machine never joins** — `docker compose logs lab-ubuntu`. The usual cause
+- A machine never joins. Try `docker compose logs lab-ubuntu`. The usual cause
   is that the lab CA was not there when it booted; `make reset && make up`.
-- **Every probe dies at rung 3** — check `docker exec headscale headscale policy get`,
+- Every probe dies at rung 3. Check `docker exec headscale headscale policy get`,
   then `docker exec headscale headscale nodes list` and confirm each machine
   carries the tag the policy names. See the Headscale wrinkle above.
-- **The control server refuses to start** — read what it says. It is almost
+- The control server refuses to start. Read what it says. It is almost
   certainly the loopback guard, and it is almost certainly right.
-- **A change to the page does not appear** — the UI is compiled into the
+- A change to the page does not appear. The UI is compiled into the
   binary. `docker compose up -d --build control`. See
   [If you edit the UI, rebuild](#if-you-edit-the-ui-rebuild).
