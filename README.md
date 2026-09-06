@@ -1,12 +1,12 @@
-# Secure Remote Access — a guide
+# Secure Remote Access: a guide
 
 A self-contained HTML guide to reaching your own laptops, servers and phones
-from anywhere — privately, and without losing your session when the connection
+from anywhere: privately, and without losing your session when the connection
 drops.
 
 It is built in two separable layers. The **network layer** (chapters 01, 02 and
 the per-machine hardening chapters) gives you private reachability and is useful
-whatever you point at it. The **session layer** (chapters 03 and 04 — Mosh and
+whatever you point at it. The **session layer** (chapters 03 and 04, Mosh and
 tmux) is what turns that into somewhere you can work for hours from a phone on a
 moving train. Build the first alone if that is all you need.
 
@@ -16,14 +16,14 @@ Someone who can build things but has never had to defend them.
 
 That describes far more people than it used to. An AI coding assistant will hand
 you a working service, a database and a deployment in an afternoon, and none of
-it arrives with a threat model attached. The code runs — and the machine it runs
+it arrives with a threat model attached. The code runs, and the machine it runs
 on is now reachable, holds your keys, your customers' data, and whatever the
 assistant was given permission to read. The first half of shipping got easy. The
 second half did not.
 
 So the guide assumes you know how to make software and not how to lock a door.
-It explains the mechanism before the command — what a key type actually proves,
-what a firewall rule does to a packet — because a command you do not understand
+It explains the mechanism before the command (what a key type actually proves,
+what a firewall rule does to a packet), because a command you do not understand
 is a command you cannot debug at two in the morning from a phone. Where a step
 can lock you out of your own machine, it says so before the step, not after.
 
@@ -68,41 +68,43 @@ python3 -m http.server -d . 8080   # then visit http://localhost:8080
 
 ## Features
 
-- **Interactive diagrams.** Every chapter carries stepped simulations rather than
-  static pictures: pick a scenario, then step through it with the controls or the
-  arrow keys. The drawing, the narration and a mock terminal all advance together,
-  so you can watch a NAT punch through, an SSH replay get rejected, or a launchd
-  job fall into a restart loop. With JavaScript off each one collapses to a
-  readable static poster frame.
-- **A sandbox, not just diagrams.** Chapter 14 drops the timeline
-  entirely: it holds state, a rules engine and a render, so you change something and
-  it works out the consequence. Close a port, kill a link, leak a node key, put a
-  hostile machine on the wire — every probe reports the rung of the diagnostic ladder
-  that decided it, with round-trip times, byte counts and retransmits. The keypairs
-  and the AES-GCM seal are genuine WebCrypto, so when the attacker fails to decrypt a
-  captured frame it is the cipher refusing, in your browser. Everything you do there
-  also emits the real `nft` / `tc` / `ufw` / `tailscale` command, so the page doubles
-  as a script generator for the chapter 13 VMs.
-- **A lab that runs.** [`lab/`](lab/README.md) is the same topology as real
-  containers — four machines on four isolated segments, each behind its own NAT
-  router, running real `tailscaled` on real TUN devices. `docker compose up` and
-  a browser is the whole setup; Docker is the only prerequisite. Every switch on
-  the page is a command that runs inside a container, every probe watches the far
-  end while it knocks and reports the rung that decided it, and the eleven-check
-  audit is the same eleven the sandbox scores — so a real stack and the model can
-  be compared directly. Where they disagree, the README says so and explains why;
-  that is the most useful thing the pair produces. Twice it has been the model
-  that was wrong, and twice the model is what changed; once it was the lab, and
-  the lab is what changed. An attacker container is included and never starts
-  unless you ask for it.
-- **Persistent checklists.** Ticks are saved in `localStorage`, per chapter.
-  The full deployment checklist in chapter 11 has a progress bar and a reset button.
-- **Dark and light themes**, following your system by default, with a toggle
-  (bottom right) that overrides and remembers.
-- **Copy buttons** on every command block.
-- **Responsive** — genuinely readable on the phone the guide is about.
-- **Inline SVG throughout**, themed with the page rather than shipped as images.
-- **Printable** — navigation chrome is hidden in print stylesheets.
+Every chapter carries stepped simulations rather than static pictures. Pick a
+scenario, then step through it with the controls or the arrow keys. The drawing,
+the narration and a mock terminal all advance together, so you can watch a NAT
+punch through, an SSH replay get rejected, or a launchd job fall into a restart
+loop. With JavaScript off each one collapses to a readable static poster frame.
+
+Chapter 14 goes further and drops the timeline entirely. It holds state, a rules
+engine and a render, so you change something and it works out the consequence.
+Close a port, kill a link, leak a node key, put a hostile machine on the wire,
+and every probe reports the rung of the diagnostic ladder that decided it, with
+round-trip times, byte counts and retransmits. The keypairs and the AES-GCM seal
+are genuine WebCrypto, so when the attacker fails to decrypt a captured frame it
+is the cipher refusing, in your browser. Everything you do there also emits the
+real `nft` / `tc` / `ufw` / `tailscale` command, so the page doubles as a script
+generator for the chapter 13 VMs.
+
+Then there is a lab that runs. [`lab/`](lab/README.md) is the same topology as
+real containers: four machines on four isolated segments, each behind its own
+NAT router, running real `tailscaled` on real TUN devices. `docker compose up`
+and a browser is the whole setup; Docker is the only prerequisite. Every switch
+on the page is a command that runs inside a container, every probe watches the
+far end while it knocks and reports the rung that decided it, and the
+eleven-check audit is the same eleven the sandbox scores, so a real stack and
+the model can be compared directly. Where they disagree, the README says so and
+explains why; that is the most useful thing the pair produces. Twice it has been
+the model that was wrong, and twice the model is what changed; once it was the
+lab, and the lab is what changed. An attacker container is included and never
+starts unless you ask for it.
+
+Smaller things: checklist ticks are saved in `localStorage`, per chapter, and
+the full deployment checklist in chapter 11 has a progress bar and a reset
+button. Dark and light themes follow your system by default, with a toggle
+(bottom right) that overrides and remembers. Every command block has a copy
+button. The SVG is inline throughout, themed with the page rather than shipped
+as images. It is responsive enough to be genuinely readable on the phone the
+guide is about, and printable, with the navigation chrome hidden in print
+stylesheets.
 
 ## Structure
 
@@ -132,7 +134,7 @@ same without it.
 
 The guide's four scripts have no build step and no tests, which suits four
 files that degrade to a readable static page when they do not run. They are
-parse-checked, though — `make -C lab check` runs `node --check` over
+parse-checked, though. `make -C lab check` runs `node --check` over
 `assets/*.js` along with the lab's own UI, so a stray comma is caught before it
 ships rather than in somebody's console. It skips itself when Node is not
 installed; see [lab/README.md](lab/README.md#the-javascript-half).
@@ -142,7 +144,7 @@ sidebar, filter, chapter cards and prev/next links all pick it up. Each chapter
 page sets `data-page` on `<body>` to match its `id` in `nav.js`, and `data-depth="1"`
 so asset paths resolve.
 
-`anim.js` is opt-in per page — only chapters containing a `<figure class="diagram sim">`
+`anim.js` is opt-in per page: only chapters containing a `<figure class="diagram sim">`
 load it. A simulation is declared entirely in markup, with no per-diagram
 JavaScript: `data-sim` on the figure, `data-at` to say which step an element
 belongs to (`"2"`, `"2+"`, `"0-3"`), `data-scn` to bind it to a scenario button, and
@@ -151,19 +153,19 @@ belongs to (`"2"`, `"2+"`, `"0-3"`), `data-scn` to bind it to a scenario button,
 The no-JavaScript fallback is pure CSS rather than script: `anim.js` adds `sim-on`
 to the figure when it takes over, and [`style.css`](assets/style.css) hides every
 scenario-specific layer *except* those tagged `data-poster` until it does. So
-`data-poster` marks the one coherent frame a reader sees with scripting off — worth
-setting deliberately on any new simulation.
+`data-poster` marks the one coherent frame a reader sees with scripting off, and is
+worth setting deliberately on any new simulation.
 
 Navigation is defined as a plain global rather than fetched, because `fetch()` is
-blocked on the `file:` scheme — this is what lets the guide work by double-clicking
-`index.html`.
+blocked on the `file:` scheme, and that is what lets the guide work by
+double-clicking `index.html`.
 
 `sandbox.js` follows the same opt-in rule as `anim.js`: only a page containing
 `[data-sandbox]` loads it. It builds its control panels from a declarative spec and
 mutates the topology SVG through `data-el` and `data-route` hooks, so with scripting
 off the page keeps a readable static figure and a poster explaining what it does.
 Its engine walks the chapter 12 ladder in order and always returns the rung that
-decided the outcome, never a bare pass/fail — that is the thing worth preserving if
+decided the outcome, never a bare pass/fail. That is the thing worth preserving if
 you extend it. State round-trips through the URL hash, so a configuration is a link.
 
 ## Contributing
@@ -173,21 +175,21 @@ The short version: **do not argue with me, beat me in the lab.**
 Chapter 14 is a model of this topology and [`lab/`](lab/README.md) is the same
 topology as real containers. When they disagree, one of them is wrong about
 something real, and
-[**Where this lab and the sandbox disagree**](lab/README.md#where-this-lab-and-the-sandbox-disagree)
+[Where this lab and the sandbox disagree](lab/README.md#where-this-lab-and-the-sandbox-disagree)
 is the file that records it. There are five findings there. Twice the model was
 wrong and the model changed; once the containers were wrong and the containers
 changed. A sixth entry is the most valuable thing anyone can send.
 
-So if you think a chapter is wrong, you do not have to convince me — build the
+So if you think a chapter is wrong, you do not have to convince me. Build the
 case where it fails. And if you are new to this and a paragraph lost you, that
 is a bug report too, and a welcome one: the guide's biggest risk is being
 written by someone who already knows, for someone who already knows.
 
-- [CONTRIBUTING.md](CONTRIBUTING.md) — what is worth sending, how to run the
+- [CONTRIBUTING.md](CONTRIBUTING.md): what is worth sending, how to run the
   checks, and the invariants a change should not quietly break
-- [SECURITY.md](SECURITY.md) — advice that would expose or lock out a reader is
+- [SECURITY.md](SECURITY.md): advice that would expose or lock out a reader is
   a vulnerability, and goes privately first
-- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) — attack the claim, never the person
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md): attack the claim, never the person
 
 ### Branch from `develop`, not `main`
 
@@ -200,17 +202,17 @@ written by someone who already knows, for someone who already knows.
                      a release, back-merged
 ```
 
-**`main` is the published guide and nothing else.** It is what
+`main` is the published guide and nothing else. It is what
 [the site](https://aenawi.github.io/secure-remote-access/) serves, so a commit
-reaching it is a release — somebody may run that command tonight, against a
-machine they cannot walk over to. **`develop` is where the work happens**, and
+reaching it is a release. Somebody may run that command tonight, against a
+machine they cannot walk over to. `develop` is where the work happens, and
 everything merges there first. Periodically `develop` goes to `main` as one pull
 request, which is the only routine way anything ships.
 
-The one exception is a **hotfix**: published advice that locks a reader out or
+The one exception is a hotfix: published advice that locks a reader out or
 leaves them exposed goes straight to `main`, because a release train is a delay
 with a cost attached. It is then back-merged to `develop` so the next release
-does not revert it. Hotfixes are for harm, not for hurry — a typo is not one.
+does not revert it. Hotfixes are for harm, not for hurry; a typo is not one.
 
 Both branches are protected: no direct pushes, everything through a pull request,
 and `make check` runs on GitHub before anything merges.
@@ -218,9 +220,9 @@ and `make check` runs on GitHub before anything merges.
 
 ## Disclaimer
 
-Published under [CC BY-SA 4.0](LICENSE-docs) and [GPL-3.0-or-later](LICENSE) —
-see [License](#license) below for which covers what. Both mean **no warranty of
-any kind**. Nobody who wrote, reviewed or contributed to this is responsible for
+Published under [CC BY-SA 4.0](LICENSE-docs) and [GPL-3.0-or-later](LICENSE);
+see [License](#license) below for which covers what. Both mean no warranty of
+any kind. Nobody who wrote, reviewed or contributed to this is responsible for
 what happens on your machines.
 
 That is worth reading as more than boilerplate, because of what the commands
@@ -232,15 +234,15 @@ real risk; those warnings are not decoration.
 
 Before running any of it against something you care about:
 
-- **Your environment is not this one.** Versions drift and providers differ.
-  Understand what a line does before you run it.
-- **Practise somewhere disposable.** Chapter 14 is a simulation and costs
+- Your environment is not this one. Versions drift and providers differ, so
+  understand what a line does before you run it.
+- Practise somewhere disposable. Chapter 14 is a simulation and costs
   nothing; chapter 13 builds throwaway VMs; [`lab/`](lab/README.md) builds
   throwaway containers in one command. A green result in any of them is not a
   promise about your production box.
-- **Keep a second way in** — another SSH session, a provider console, physical
-  access — proven working *before* you change anything.
-- **The decision is yours, and so is the outcome.** If something breaks, that is
+- Keep a second way in, whether another SSH session, a provider console or
+  physical access, proven working *before* you change anything.
+- The decision is yours, and so is the outcome. If something breaks, that is
   not a fault of this repository, its owner, or any contributor.
 
 None of which is a reason to skip the work. It is a reason to do it in the order
@@ -252,11 +254,11 @@ Commands were written against macOS 26, Ubuntu 24.04 LTS, OpenSSH 10.x and
 Tailscale as of August 2026. Three things move fastest and are worth checking
 against their own docs rather than trusting any guide:
 
-- **Herdr** is young; keybindings and config keys are still settling. Use
+- Herdr is young; keybindings and config keys are still settling. Use
   `herdr --default-config` and `prefix + ?` on your installed version.
-- **Tailscale SSH** server support is Linux plus the open-source macOS CLI build
-  only — *not* the standard macOS app.
-- **Android vendor settings** (chapter 07) move constantly and differ per handset
+- Tailscale SSH server support is Linux plus the open-source macOS CLI build
+  only, *not* the standard macOS app.
+- Android vendor settings (chapter 07) move constantly and differ per handset
   and per OS version. The setting *names* are stable enough to search for; the menu
   paths are not. [dontkillmyapp.com](https://dontkillmyapp.com/) tracks them per
   vendor and is more current than this guide can be.
@@ -265,13 +267,13 @@ against their own docs rather than trusting any guide:
 
 Two licenses, because this repository is two things.
 
-**The guide** — `index.html`, everything in `chapters/`, and this README — is
+The guide (`index.html`, everything in `chapters/`, and this README) is
 [CC BY-SA 4.0](LICENSE-docs). Read it, quote it, translate it, teach from it,
 sell a course built on it. The one condition: if you publish a changed or
 extended version, publish it under the same license so the next person gets what
 you got.
 
-**The code** — everything in `assets/` and `lab/` — is [GPL-3.0-or-later](LICENSE).
+The code (everything in `assets/` and `lab/`) is [GPL-3.0-or-later](LICENSE).
 Same bargain, expressed in the language the FSF wrote for software: run it, study
 it, change it, ship it. If you distribute your changed version, ship the source
 too.
@@ -291,8 +293,8 @@ gets *written* without a header rather than the one that loses it.
 `lab/control/ui/hud/three.module.js` is [three.js](https://threejs.org) r166,
 Copyright 2010–2024 Three.js Authors, MIT. The same bundle is inlined inside
 `lab/design/five-gates.html` for the reason that file explains. Its MIT notice is
-preserved at the head of both copies, and it is **not** covered by the GPL grant
-above — it stays under its own license, which the GPL is happy to accommodate.
+preserved at the head of both copies, and it is not covered by the GPL grant
+above; it stays under its own license, which the GPL is happy to accommodate.
 
 Go dependencies under `lab/control/` are MIT, Apache-2.0 and BSD; see
 `lab/control/go.sum` and each module's own license.
