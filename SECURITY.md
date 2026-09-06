@@ -47,6 +47,14 @@ This is a personal project, not a vendor, so no SLA — but the intent is:
 | First assessment | within 14 days |
 | Fix or a public explanation of why not | as fast as the finding is bad |
 
+That last row has a lane behind it rather than a good intention. `main` is the
+published guide and normally only changes when a release is cut, but advice that
+locks a reader out or leaves them exposed goes straight there as a **hotfix** and
+is back-merged afterwards — see
+[CONTRIBUTING.md](CONTRIBUTING.md#hotfixes--the-exception-and-why-it-exists).
+A release train is a delay with a cost attached, and this is the category where
+that cost lands on somebody else's machine.
+
 Credit in the fix commit and in the chapter, unless you would rather not be
 named. There is no bounty; there is no budget.
 

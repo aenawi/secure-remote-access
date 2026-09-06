@@ -79,6 +79,105 @@ someone who already knows.
 Typos, dead links, a clearer sentence, a diagram step that skips a beat, a Go
 test, a new sandbox scenario. Send the PR.
 
+## Which branch to start from
+
+**Branch from `develop`. Never from `main`.**
+
+`develop` is the default branch, so a fresh `git clone` already puts you on it
+and the pull request box already points at it. If you took a copy before that
+changed, or you are working from a fork that has drifted, check:
+
+```bash
+git checkout develop
+git pull origin develop
+git checkout -b your-branch
+```
+
+### What each branch is
+
+**`main` is the published guide, and nothing else.** It is what
+[aenawi.github.io/secure-remote-access](https://aenawi.github.io/secure-remote-access/)
+serves. A commit reaching it is a release: somebody's phone now shows that
+sentence, and somebody may run the command in it tonight against a machine they
+cannot walk over to. Nothing lands there because it compiles. It lands there
+because it is ready to be followed.
+
+**`develop` is where the work happens.** Everything merges here first — a fix, a
+new chapter, a lab scenario, a typo. It is expected to be good and not expected
+to be released. Nothing on `develop` is visible to a reader, which is exactly
+what makes it the right place to be wrong in public for a while.
+
+**Your branch comes off `develop` and goes back into `develop`.** One idea per
+branch. Name it for what it does: `fix/ufw-docker-ordering`,
+`chapter/15-backups`, `lab/expiry-divergence`.
+
+```text
+  your branch  ──►  develop  ──►  main  ──►  the published guide
+                       ▲            │
+                       └────────────┘
+                     a release, back-merged
+```
+
+### Releases
+
+Periodically `develop` goes to `main` as one pull request titled for the release.
+That is the only routine way anything reaches `main`. It is a deliberate act, not
+a consequence of merging — the point of the split is that shipping is a decision
+somebody makes on purpose.
+
+**Squash every branch into `develop`. Never squash `develop` into `main`.**
+
+That is not a style preference and it is the one mistake in this model that gets
+worse the longer it goes unnoticed. Squashing writes a *new* commit with no link
+to the ones it replaced. Inside `develop` that is exactly what you want: one
+readable commit per idea. But squashing a release makes `main` a branch that
+merely resembles `develop` rather than one that contains it — so the next release
+re-offers every change again, conflicting against the copy already sitting there,
+and every release after that is worse.
+
+```bash
+gh pr merge <n> --merge      # releases, and hotfixes back into develop
+gh pr merge <n> --squash     # everything else
+```
+
+A release keeps the individual commits. That is the second reason for the merge:
+`main`'s history is then the list of what shipped and when, which is the question
+you will actually ask it later.
+
+### Hotfixes — the exception, and why it exists
+
+**If published advice is dangerous, it does not wait for a release.**
+
+This guide tells people to change firewall rules, disable password login and
+remove the only route into a machine they may be a long way from. If a chapter
+on `main` is wrong in a way that locks somebody out or leaves them exposed, the
+release train is not a process — it is a delay with a cost attached.
+
+So there is one lane straight to `main`:
+
+```bash
+git checkout main
+git pull origin main
+git checkout -b hotfix/what-it-fixes
+# fix it, open a PR into main
+```
+
+Once it merges, **back-merge `main` into `develop` immediately**, or the next
+release will quietly revert the fix:
+
+```bash
+git checkout develop
+git pull origin develop
+git merge origin/main
+git push origin develop
+```
+
+Hotfixes are for harm, not for hurry. A typo is not a hotfix. "It has been wrong
+for a week and I want it fixed" is not a hotfix. The question is only whether a
+reader following the current published text gets hurt before the next release.
+If you are unsure, it is not one — open it against `develop` and say in the PR
+that you think it might warrant a hotfix, and it can be retargeted.
+
 ## Running the checks
 
 ```bash
@@ -86,6 +185,12 @@ cd lab
 make check       # the one target that runs with the lab down — Go and JavaScript
 make hooks       # install the pre-push hook that runs make check for you
 ```
+
+The same `make check` runs on GitHub for every pull request into `develop` and
+`main` — [`.github/workflows/check.yml`](.github/workflows/check.yml) — and both
+branches require it to pass before anything merges. The hook is the fast copy on
+your laptop; CI is the one that counts, because a fork does not have your hook
+and `--no-verify` skips it.
 
 `make check` wants Go rather than Docker and finishes in about a second: `go vet`,
 `go test`, `gofmt -l` and a parse-check over `assets/*.js` and the lab UI. It also
