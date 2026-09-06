@@ -495,6 +495,11 @@ td code { font-size: 12.5px; }
 .sb-svg-route { stroke: var(--border-strong); stroke-width: 2.4; stroke-linecap: round; }
 .sb-svg-route.is-live { stroke: var(--accent); stroke-dasharray: 7 6; }
 .sb-svg-route.is-dead { stroke: var(--danger); stroke-dasharray: 2 5; }
+/* The tailcat route never borrows the accent the tailnet paths use. A tunnel
+   that works is not good news, so it reads as the hatch it is whichever way
+   it resolves, and the verdict text carries whether that was good or bad. */
+.sb-svg-route-hatch.is-live,
+.sb-svg-route-hatch.is-dead { stroke: var(--warn); stroke-dasharray: 11 4; }
 .sb-stage [data-el].is-off { opacity: .38; }
 .sb-stage .is-hidden { display: none; }
 
@@ -646,6 +651,20 @@ td code { font-size: 12.5px; }
   margin: 0 0 4px; padding: 0 2px;
 }
 .sb-scale b { color: var(--text-muted); font-weight: 660; }
+
+/* The blind spot in the score. Deliberately styled like a callout rather than
+   like a check, because it is not one and must not be counted as one. */
+.sb-tailcat {
+  font-size: 11.5px; line-height: 1.6; color: var(--text);
+  margin: 10px 0 4px; padding: 10px 12px; border-radius: 8px;
+  border: 1px solid var(--border); border-left: 3px solid var(--text-faint);
+  background: var(--bg-sunken);
+}
+.sb-tailcat b { font-weight: 660; }
+.sb-tailcat.is-warn { background: var(--warn-soft);   border-left-color: var(--warn); }
+.sb-tailcat.is-warn b { color: var(--warn); }
+.sb-tailcat.is-bad  { background: var(--danger-soft); border-left-color: var(--danger); }
+.sb-tailcat.is-bad b { color: var(--danger); }
 
 .sb-audit-group {
   font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em;
