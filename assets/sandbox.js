@@ -167,7 +167,23 @@
     "vps.dockerPublish": "Docker publishes :8080",
     "vps.sshdListen": "sshd ListenAddress",
     "vps.passwordAuth": "PasswordAuthentication",
-    "vps.permitRoot": "PermitRootLogin"
+    "vps.permitRoot": "PermitRootLogin",
+    "tailcat.on": "tailcat serve running",
+    "tailcat.host": "tailcat serve · host",
+    "tailcat.service": "tailcat serve · service",
+    "tailcat.allow": "tailcat --allow pins one client key",
+    "tailcat.shared": "tailcat address held by evil-box"
+  };
+
+  /* A tailcat address is one long opaque string, not an address your network
+     means anything by. Truncated ones, fixed per machine, so the packet log
+     reads like the real thing and there is visibly nothing here to write a
+     firewall rule against. */
+  var TAILCAT_ADDR = {
+    "lab-vps":    "tcomFwWCCcjS5nKN…dKdn",
+    "lab-ubuntu": "tcq7Xb2LhVn0PsAe…R4mv",
+    "lab-roam":   "tck93Twz1BdQfYuC…8HtL",
+    "evil-box":   "tcZx4Nc7pKrLg2Vm…s10Q"
   };
 
   /* ============================================================
@@ -204,6 +220,17 @@
         sshdListen: "all",
         passwordAuth: false,
         permitRoot: false
+      },
+      /* The escape hatch from chapter 01, off until somebody runs it. When it
+         comes on it starts in the shape that chapter recommends — `serve ssh`
+         against real authorized_keys, address still in your own hands — so
+         every switch below it is a deliberate step away from the advice. */
+      tailcat: {
+        on: false,
+        host: "lab-ubuntu",
+        service: "ssh",
+        allow: false,
+        shared: false
       },
       probe: { from: "lab-ubuntu", to: "lab-vps", port: "22" }
     };
@@ -370,9 +397,33 @@
     return true;
   }
 
+  /* The tailcat address is the whole credential, so "who can reach this" is
+     exactly "who was sent the string". Your own machines started it and have
+     it; the hostile one has it only once you say the address got out. */
+  function holdsTailcat(id) {
+    return BY_ID[id].hostile ? S.tailcat.shared : true;
+  }
+
   /* Rung 2. Which way do these two reach each other, if at all? */
   function choosePath(from, to) {
     var lf = S.links[from], lt = S.links[to];
+
+    /* Tailcat answers before either of the paths below it, because it is
+       neither of them and does not care what either would have said. The data
+       plane is the one the tailnet uses — DERP to find each other, a direct
+       punch when the NATs allow it — with no control plane above it to ask.
+       That is the whole of the lesson and it happens here, in the path, before
+       a single rung of the ladder has run. */
+    if (S.tailcat.on && to === S.tailcat.host && from !== to && holdsTailcat(from)) {
+      if (S.tailcat.allow && BY_ID[from].hostile) {
+        return { kind: "none", iface: "tailcat0", base: 0,
+                 note: "tailcat --allow pins the server to one client public key",
+                 why: from + " holds the address and the address is not enough: the " +
+                      "server was started with --allow, and its key is not the pinned one" };
+      }
+      return { kind: "tailcat", iface: "tailcat0", base: 18,
+               note: "tailcat — the tailnet's data plane with no control plane over it" };
+    }
 
     if (onTailnet(from) && onTailnet(to)) {
       if (lf.udpBlocked || lt.udpBlocked) {
@@ -442,6 +493,15 @@
   /* Rung 4. Order is the lesson here: Docker's chain is consulted before
      UFW's, which is why a published port answers through a deny-all. */
   function firewallCheck(to, port, path) {
+    /* Nothing arrives inbound on a tailcat path. The serving machine dialled
+       out to a relay and the session came back down that connection, so a
+       default-deny incoming policy is still in force, still correct, and was
+       never asked. This is rung 4 being skipped, not rung 4 being beaten. */
+    if (path.iface === "tailcat0") {
+      return { allow: true, danger: true,
+        rule: "no firewall rule was consulted — the tunnel was dialled outbound, so " +
+              "nothing ever arrived on an interface UFW filters" };
+    }
     if (to !== "lab-vps") {
       return { allow: true, rule: "no firewall configured on " + to + " in this lab" };
     }
@@ -468,8 +528,29 @@
   }
 
   /* Rung 5. A rule that permits a packet is not a service that answers it. */
-  function listenCheck(to, port, path) {
+  function listenCheck(to, port, path, from) {
     port = String(port);
+    /* Tailcat is its own listener. `serve ssh` runs tailcat's SSH server and
+       not sshd, which is why binding sshd to the tailnet address does nothing
+       to it — and that server still wants a key, which is the one lock left
+       standing on this path. */
+    if (path.iface === "tailcat0") {
+      var svc = S.tailcat.service;
+      if (svc === "all") {
+        return { ok: true, what: "tailcat serve all, proxying straight through to :" + port };
+      }
+      if (port !== "22") {
+        return { ok: false, why: "tailcat is serving ssh only, so nothing answers on :" + port };
+      }
+      if (svc === "no-auth-ssh") {
+        return { ok: true, what: "tailcat's own SSH server, with authentication switched off" };
+      }
+      if (from && BY_ID[from].hostile) {
+        return { ok: false, why: "tailcat's SSH server answered and asked for a key " + from +
+          " does not have — the address got it to the door and no further" };
+      }
+      return { ok: true, what: "tailcat's own SSH server, checking authorized_keys" };
+    }
     if (to !== "lab-vps") {
       if (port === "22") return { ok: true, what: "sshd" };
       return { ok: false, what: null, why: "nothing is listening on :" + port };
@@ -496,7 +577,7 @@
     var t = {
       from: from, to: to, port: port, ok: false, rung: 0, rule: "", why: "",
       path: null, rttMs: 0, lossPct: 0, packets: 0, retransmits: 0,
-      bytesSent: 0, bytesDelivered: 0, danger: false
+      bytesSent: 0, bytesDelivered: 0, danger: false, skipped: []
     };
 
     /* Which way these two would reach each other is settled before the ladder
@@ -530,7 +611,8 @@
     t.rung = 2;
     t.rule = path.note;
     if (path.kind === "none") {
-      t.why = "nothing on the public internet has an address for " + to + ", so the " +
+      t.why = path.why ||
+              "nothing on the public internet has an address for " + to + ", so the " +
               "packet has nowhere to go — no firewall was ever consulted";
       return t;
     }
@@ -544,6 +626,11 @@
         t.why = "the tailnet refused it before a single packet reached " + to;
         return t;
       }
+    } else if (path.iface === "tailcat0") {
+      /* Not "the ACL allowed it" — the ACL was never a participant. Saying so
+         out loud is the entire point of this path existing. */
+      t.skipped.push("rung 3 · tailnet policy — never consulted: tailcat has no " +
+                     "control plane, so there is no grant and no default action to ask");
     }
 
     /* --- rung 4 · host firewall ----------------------------------- */
@@ -555,13 +642,19 @@
       t.why = "the packet reached " + to + " and its firewall dropped it";
       return t;
     }
+    if (path.iface === "tailcat0") {
+      t.skipped.push("rung 4 · host firewall — never consulted: the tunnel was dialled " +
+                     "outbound, so nothing arrived on an interface UFW filters");
+    }
 
     /* --- rung 5 · a listener -------------------------------------- */
     t.rung = 5;
-    var li = listenCheck(to, port, path);
+    var li = listenCheck(to, port, path, from);
     if (!li.ok) {
       t.why = li.why;
-      t.rule = "the firewall permitted it — that is not the same as an answer";
+      t.rule = path.iface === "tailcat0"
+        ? "nothing in the network stopped this — the key policy did"
+        : "the firewall permitted it — that is not the same as an answer";
       return t;
     }
 
@@ -584,6 +677,9 @@
 
   function addrFor(id, path) {
     if (!path) return BY_ID[id].ts;
+    /* Not an address in any sense your network understands — which is why the
+       log shows it rather than an IP. There is nothing here to filter on. */
+    if (path.iface === "tailcat0") return TAILCAT_ADDR[id];
     if (path.iface === "tailscale0") return BY_ID[id].ts;
     if (path.kind === "lan") return lanAddr(id);
     /* On the "none" path that address belongs to the router, not the machine —
@@ -704,6 +800,15 @@
     out.push("listenaddress " + (v.sshdListen === "tailnet" ? BY_ID["lab-vps"].ts : "0.0.0.0"));
     out.push("passwordauthentication " + (v.passwordAuth ? "yes" : "no"));
     out.push("permitrootlogin " + (v.permitRoot ? "yes" : "no"));
+    /* `ss` sees it, because it is an ordinary process holding an ordinary
+       outbound socket. That is the only place a tailcat tunnel shows up on the
+       host at all — there is no bound inbound port to find. */
+    if (S.tailcat.on) {
+      out.push("", S.tailcat.host + " # ss -tnp | grep tailcat");
+      out.push("ESTAB 0 0  " + lanAddr(S.tailcat.host) + ":52104  derp:443   tailcat");
+      out.push("# no LISTEN line anywhere: the socket is outbound, so a port audit " +
+               "finds nothing");
+    }
     return out.join("\n");
   }
 
@@ -779,6 +884,12 @@
     } else {
       lines.push("0 bytes delivered — stopped at rung " + t.rung + " of 5");
       if (t.rule) lines.push(t.rule);
+    }
+    /* A rung that was never asked is not a rung that passed, and the log has
+       to say which of the two happened or the reader draws the wrong lesson
+       from a green line. */
+    if (t.skipped && t.skipped.length) {
+      t.skipped.forEach(function (s) { lines.push(s); });
     }
     record({
       ok: t.ok, danger: t.danger, rung: t.rung,
@@ -965,7 +1076,9 @@
       };
     }
 
-    if (kind === "direct") {
+    /* Tailcat draws on the direct line deliberately: it goes straight to the
+       machine, under the tailnet box, touching nothing the tailnet owns. */
+    if (kind === "direct" || kind === "tailcat") {
       /* straight across, under the tailnet box */
       return { in: "M" + LEFT_X + " " + sy + " L258 " + sy +
                    " C " + CORRIDOR + " " + sy + " " + CORRIDOR + " " + dy + " 322 " + dy +
@@ -1033,7 +1146,7 @@
     var kind = t.rung > 1 && t.path && t.path.kind !== "none" ? t.path.kind : null;
     var d = kind ? routeD(kind, S.probe.from, S.probe.to) : null;
 
-    ["direct", "relay", "public", "lan"].forEach(function (k) {
+    ["direct", "relay", "public", "lan", "tailcat"].forEach(function (k) {
       var els = svg.querySelectorAll('[data-route="' + k + '"]');
       Array.prototype.forEach.call(els, function (p) {
         var leg = p.getAttribute("data-leg") === "out" ? "out" : "in";
@@ -1169,6 +1282,50 @@
         { t: "toggle", p: "vps.permitRoot", label: "PermitRootLogin yes", danger: true,
           cmd: function (v) { return { c: "# sshd_config: PermitRootLogin " + (v ? "yes" : "no"), w: "lab-vps" }; } }
       ]
+    },
+    {
+      id: "tailcat", title: "Tailcat — the escape hatch",
+      note: "Chapter 01's data plane with no control plane over it. Nothing here is part " +
+            "of the build; this is what somebody runs when the build is in their way.",
+      rows: [
+        { t: "toggle", p: "tailcat.on", label: "Somebody ran tailcat serve", danger: true,
+          sub: "no account, no root, no daemon — one binary and an address",
+          cmd: function (v) {
+            return { c: v ? "tailcat serve ssh --ssh-authorized-keys=~/.ssh/authorized_keys"
+                          : "# tailcat stopped — an ephemeral address dies with the process",
+                     w: S.tailcat.host };
+          } },
+        { t: "seg", p: "tailcat.host", label: "…on which machine", dep: "tailcat.on",
+          options: [{ v: "lab-ubuntu", l: "lab-ubuntu" },
+                    { v: "lab-roam", l: "lab-roam" },
+                    { v: "lab-vps", l: "lab-vps" }],
+          cmd: function (v) { return { c: "# tailcat serve is running on " + v, w: v }; } },
+        { t: "seg", p: "tailcat.service", label: "…serving what", dep: "tailcat.on",
+          options: [{ v: "ssh", l: "ssh" },
+                    { v: "no-auth-ssh", l: "no-auth" },
+                    { v: "all", l: "all" }],
+          cmd: function (v) {
+            return { c: "tailcat serve " + v +
+                        (v === "ssh" ? " --ssh-authorized-keys=~/.ssh/authorized_keys" : ""),
+                     w: S.tailcat.host };
+          } },
+        { t: "hr" },
+        { t: "toggle", p: "tailcat.allow", label: "--allow pins one client key",
+          sub: "the address on its own stops being enough",
+          dep: "tailcat.on",
+          cmd: function (v) {
+            return { c: v ? "tailcat serve … --allow=nodekey:cfb6bf…ddfd16"
+                          : "# no --allow: the address is the whole credential",
+                     w: S.tailcat.host };
+          } },
+        { t: "toggle", p: "tailcat.shared", label: "The address reached evil-box", danger: true,
+          sub: "a paste in a chat, a shell history, a screenshot",
+          dep: "tailcat.on",
+          cmd: function (v) {
+            return { c: v ? "# the address is now in somebody else's hands, and cannot be recalled"
+                          : "# the address has not left your own machines" };
+          } }
+      ]
     }
   ];
 
@@ -1267,6 +1424,11 @@
         node.classList.toggle("is-disabled", !ok);
         var input = node.querySelector("input");
         if (input) input.disabled = !ok;
+        /* Segmented rows have buttons rather than an input, and greying one
+           out without disabling it leaves a control that still answers. */
+        Array.prototype.forEach.call(node.querySelectorAll(".pp-seg-btn"), function (b) {
+          b.disabled = !ok;
+        });
       });
     });
 
@@ -1511,6 +1673,55 @@
         verdict("ok", "It never got as far as the policy — something earlier in the " +
           "ladder stopped it. Read the rung numbers in the packet log; a defence " +
           "answering at rung 1 or 2 tells you nothing about whether your ACL is any good.");
+      }
+    },
+
+    /* The only attack here that does not attack the network. Everything the
+       reader built stays exactly as they left it — the point is that none of
+       it is consulted, so the interesting output is the list of rungs that
+       never ran rather than the one that stopped it. */
+    "tailcat-tunnel": function () {
+      ensure("machines.evil-box.online", true, "Started evil-box.");
+      ensure("tailcat.on", true,
+        "Somebody on " + S.tailcat.host + " ran tailcat serve. No root, no daemon, " +
+        "nothing added to the tailnet, nothing changed in your firewall.");
+      ensure("tailcat.shared", true,
+        "The address reached evil-box — pasted, screenshotted, or read out of a shell history.");
+
+      var host = S.tailcat.host;
+      var t = deliver({ from: "evil-box", to: host, port: "22", bytes: 4096 });
+      recordTrace("tailcat ssh " + TAILCAT_ADDR[host] + "  (from evil-box)", t);
+      note("tailcat ssh " + TAILCAT_ADDR[host], "evil-box");
+
+      /* The same probe over the ordinary network, for the contrast. On a NAT'd
+         machine this is the "there is no address to aim at" result the
+         containers taught this model — and it is still true, which is exactly
+         why the line above it matters. */
+      var saved = S.tailcat.on;
+      S.tailcat.on = false;
+      var w = deliver({ from: "evil-box", to: host, port: "22", bytes: 4096 });
+      S.tailcat.on = saved;
+      recordTrace("ssh " + host + "  (the ordinary way, for comparison)", w);
+
+      if (t.ok) {
+        verdict("bad",
+          "evil-box has a shell on " + host + ", and not one thing you configured was " +
+          "asked about it. The ACL was never consulted — there is no control plane to " +
+          "hold one. The firewall was never consulted — nothing arrived inbound. " +
+          "Without tailcat the same probe stopped at rung " + w.rung + " of 5. Your " +
+          "defences are all still there, all still correct, and all still off to one side.");
+      } else if (t.rung === 5) {
+        verdict("warn",
+          "It got past every network defence you have and was stopped by an SSH key it " +
+          "does not hold. That is chapter 02 doing the work on its own, at rung 5, with " +
+          "rungs 3 and 4 never asked. It held — but count what is holding it: one lock, " +
+          "not the layers you spent ten chapters building.");
+      } else {
+        verdict("ok",
+          "Refused at rung " + t.rung + " of 5. --allow pins the server to one client " +
+          "public key, so holding the address is not enough and a leaked string is worth " +
+          "nothing. This is the only switch on this panel that puts an identity back " +
+          "into the path.");
       }
     },
 
@@ -1766,6 +1977,12 @@
     note("# sshd_config: PasswordAuthentication " + (v.passwordAuth ? "yes" : "no"), "lab-vps");
     note("# sshd_config: PermitRootLogin " + (v.permitRoot ? "yes" : "no"), "lab-vps");
     note("sudo sshd -t && sudo systemctl reload ssh", "lab-vps");
+    if (S.tailcat.on) {
+      note("# and, on " + S.tailcat.host + ", outside all of the above:");
+      note("tailcat serve " + S.tailcat.service +
+        (S.tailcat.service === "ssh" ? " --ssh-authorized-keys=~/.ssh/authorized_keys" : "") +
+        (S.tailcat.allow ? " --allow=nodekey:cfb6bf…ddfd16" : ""), S.tailcat.host);
+    }
   }
 
   function presetById(id) {
@@ -1787,6 +2004,9 @@
     });
     s.machines["evil-box"] = { online: false, onTailnet: false, signed: false, keyExpired: false };
     s.segmentShared = false;
+    /* A named configuration is a configuration, not a configuration plus
+       whatever somebody left running on the side. */
+    s.tailcat = defaults().tailcat;
     if (cleanLinks) s.links = defaults().links;
     return s;
   }
@@ -1976,15 +2196,60 @@
     var pass = results.filter(function (r) { return r.pass; }).length;
     var lockedOut = results.some(function (r) { return r.c.kind === "access" && !r.pass; });
     showTab("audit");
-    verdict(lockedOut ? "bad" : pass === total ? "ok" : "warn",
-      lockedOut
+    /* A perfect score with a tunnel open is the most misleading thing this
+       page could print, so the tunnel gets said first. */
+    var hatch = S.tailcat.on && !S.tailcat.allow
+      ? " A tailcat tunnel is also open on " + S.tailcat.host + ", and no check below asks " +
+        "about it — read the banner above the list before trusting this number."
+      : "";
+    verdict(lockedOut ? "bad" : (pass === total && !hatch) ? "ok" : "warn",
+      (lockedOut
         ? pass + " of " + total + " checks held — but you are locked out of your own server, " +
           "so the score is meaningless. Closed is not the same as secure."
         : pass === total
           ? "All " + total + " held. Everything the attacker was allowed to try was refused, " +
             "and you can still work. This is the configuration the guide builds towards."
           : pass + " of " + total + " held. Each failure below names what it costs you — and " +
-            "the number moves as you change anything above.");
+            "the number moves as you change anything above.") + hatch);
+  }
+
+  /* Deliberately a banner and not a twelfth check. The eleven are a rubric
+     shared one-for-one with the containers in lab/, and only a real host can
+     honestly be inspected for a tunnel process — so until that lands (issue
+     #46) this names the gap rather than moving a number it has not earned.
+
+     Note what driving it actually showed: the score is not uniformly blind.
+     A tunnel on lab-vps drops it to 7/11 and one on lab-ubuntu to 10/11,
+     because some checks happen to probe those machines — but the same tunnel
+     on lab-roam leaves a clean 11/11. A score that moves only when the
+     attacker's route happens to cross a check is the more honest lesson, and
+     the wording below says so rather than claiming blanket blindness. */
+  function tailcatBanner() {
+    if (!S.tailcat.on) return "";
+    var t = S.tailcat, tone, text;
+    if (t.allow) {
+      tone = "warn";
+      text = "A tailcat tunnel is running on " + t.host + ", pinned to one client key with " +
+             "--allow. That is the mitigated shape, and it is still a way in that nothing " +
+             "below looks at.";
+    } else if (t.service === "all" || t.service === "no-auth-ssh") {
+      tone = "bad";
+      text = "A tailcat tunnel is running on " + t.host + ", serving " + t.service + ", with " +
+             "the address as the only credential" +
+             (t.shared ? " — and evil-box is holding it" : "") + ". Anyone who has that " +
+             "string has " + (t.service === "all" ? "the machine" : "a shell") + ".";
+    } else {
+      tone = "warn";
+      text = "A tailcat tunnel is running on " + t.host + ". One SSH key stands between the " +
+             "address and a shell, and nothing below knows the tunnel is there.";
+    }
+    return '<div class="sb-tailcat is-' + tone + '">' +
+      "<b>No check below asks whether a tunnel is running.</b> " + esc(text) +
+      " Some checks may still move, because the tunnel changed what evil-box can reach — but " +
+      "only where a check happens to probe that particular machine. Move the same tunnel to " +
+      "lab-roam, which nothing here probes, and the score reads a clean 11 / 11 with the " +
+      "tunnel still open. That is the failure mode worth remembering: not a number that drops, " +
+      "a number that has nothing to say.</div>";
   }
 
   function paintAudit() {
@@ -2012,7 +2277,7 @@
       "<em>you</em> can still get in — without those, a machine with every door bricked shut " +
       "would score nearly full marks. The number recomputes on every change you make above, " +
       "so you can watch a single switch move it." +
-      "</p>";
+      "</p>" + tailcatBanner();
 
     ["access", "attack", "config"].forEach(function (kind) {
       var rows = results.filter(function (r) { return r.c.kind === kind; });
@@ -2051,7 +2316,7 @@
     try {
       var slim = {
         m: S.machines, l: S.links, g: S.segmentShared,
-        a: S.acl, v: S.vps, p: S.probe
+        a: S.acl, v: S.vps, p: S.probe, c: S.tailcat
       };
       var json = JSON.stringify(slim);
       var b64 = btoa(unescape(encodeURIComponent(json)));
@@ -2071,6 +2336,7 @@
       if (o.a) S.acl = o.a;
       if (o.v) S.vps = o.v;
       if (o.p) S.probe = o.p;
+      if (o.c) S.tailcat = o.c;
     } catch (e) { S = defaults(); }
   }
 

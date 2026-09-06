@@ -34,7 +34,11 @@
           exported as a script and run against the three VMs in
           <a href="13-lab.html">chapter 13</a>, or you can run the same topology as containers with
           <code>docker compose up</code> in <a href="../lab/README.md"><code>lab/</code></a>, which
-          has the same panels and the same eleven checks as this page.
+          has the same eleven checks and the same panels as this page — with one exception.
+          <b>Tailcat — the escape hatch</b>, at the bottom of the controls, has no counterpart
+          over there yet: a tunnel needs a relay to find its far end, and that lab is deliberately
+          offline. Until it grows one, that panel is the one place here you cannot go and confirm
+          against real containers.
         </p>
       </div>
 
@@ -130,6 +134,7 @@
             <path data-route="direct" data-poster class="sb-svg-route is-live"
                   d="M164 206 L676 206" fill="none"/>
             <path data-route="public" class="sb-svg-route is-hidden" fill="none"/>
+            <path data-route="tailcat" class="sb-svg-route sb-svg-route-hatch is-hidden" fill="none"/>
             <path data-route="lan" class="sb-svg-route is-hidden" d="M89 160 L89 178" fill="none"/>
             <path data-el="path-evil-tap" class="sb-svg-tap is-hidden" d="M89 160 L89 178" fill="none"/>
 
@@ -286,6 +291,10 @@
                 <button type="button" class="pp-attack" data-attack="docker-bypass">
                   <b>Publish a Docker port</b>
                   <span>UFW says deny. The port answers anyway.</span>
+                </button>
+                <button type="button" class="pp-attack" data-attack="tailcat-tunnel">
+                  <b>Open a tailcat tunnel from the inside</b>
+                  <span>Nothing you configured is consulted, because none of it is asked</span>
                 </button>
                 <button type="button" class="pp-attack is-danger" data-attack="lock-out">
                   <b>Run the build order wrong</b>
