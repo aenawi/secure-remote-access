@@ -530,6 +530,13 @@ func (c *Controller) Bootstrap(ctx context.Context) error {
 	// One reusable key for the three machines you own. The attacker does not
 	// get one until you turn "tailnet lock" off — see lab/README.md for why
 	// that is the nearest honest equivalent Headscale has.
+	//
+	// Reusable is what costs these machines the `node.expiry` default: Headscale
+	// 0.29 records an expiry at registration for a single-use key and none for a
+	// reusable one. Sharing one key through /lab/state/authkey is worth more than
+	// the setting — a per-machine key would have to be reissued on every rejoin,
+	// and rejoining is something half the buttons in this lab do — so EnsureNodes
+	// puts the expiry back afterwards.
 	key, err := c.createKey(ctx, uid)
 	if err != nil {
 		return err
@@ -628,7 +635,7 @@ type hsNode struct {
 	// 0.26 and renamed it `tags` in 0.29, at the same time as it started
 	// describing `headscale nodes tag` as "converting a user-owned node to a
 	// tagged node". Reading the old name against a new server decodes to
-	// nothing, which EnsureTags cannot tell apart from an untagged node.
+	// nothing, which EnsureNodes cannot tell apart from an untagged node.
 	Tags   []string `json:"tags"`
 	Expiry *hsTime  `json:"expiry"`
 	Online bool     `json:"online"`
@@ -666,9 +673,32 @@ func (c *Controller) nodeFor(ctx context.Context, host string) (hsNode, bool) {
 	return hsNode{}, false
 }
 
-// EnsureTags gives every machine the tag the policy talks about. Tags are what
-// turn "this specific laptop" into "any laptop", and every grant in this lab is
-// written against them.
+// nodeExpiry is how long a registration lasts before the machine has to
+// reauthenticate — 180 days, because that is Tailscale's default and the
+// control surface's toggle says so out loud.
+//
+// It lives here rather than only in config/headscale/config.yaml because
+// `node.expiry` does not reach the machines in this lab. That was measured:
+// Headscale 0.29.3 records an expiry at registration for a *single-use*
+// pre-auth key and records none at all for a `--reusable` one, and this lab
+// hands the same reusable key to all three machines through
+// /lab/state/authkey. So the yaml setting is real and simply does not apply,
+// and EnsureNodes stamps the expiry on afterwards instead.
+const nodeExpiry = 4320 * time.Hour
+
+// EnsureNodes reconciles the three things a registration needs after the
+// machine has joined: no stale duplicates, the right tag, and an expiry.
+//
+// Tags are what turn "this specific laptop" into "any laptop", and every grant
+// in this lab is written against them.
+//
+// The expiry is stamped only when the node has none. That is what keeps this
+// idempotent — re-running it must not slide the date forward every few seconds
+// — and it is also what keeps it out of the way of `atkExpiredKey`, which sets
+// an expiry in the *past* to show a lost device dropping out. Re-stamping that
+// would quietly undo the demonstration. A machine that re-registers afterwards
+// comes back with no expiry and gets a fresh one here, which is the behaviour
+// you want.
 //
 // This used to restart the coordination server whenever a tag changed, and the
 // restart was not tidiness: Headscale 0.26's policy manager held its own
@@ -685,7 +715,7 @@ func (c *Controller) nodeFor(ctx context.Context, host string) (hsNode, bool) {
 // is gone. If it ever comes back, it will look like a grant that stops working
 // after a configuration change and starts again after `docker restart
 // headscale`.
-func (c *Controller) EnsureTags(ctx context.Context) {
+func (c *Controller) EnsureNodes(ctx context.Context) {
 	ns, err := c.nodes(ctx)
 	if err != nil {
 		return
@@ -703,6 +733,16 @@ func (c *Controller) EnsureTags(ctx context.Context) {
 				continue
 			}
 		}
+		if n.Expiry.Time().IsZero() {
+			until := time.Now().Add(nodeExpiry).UTC().Format(time.RFC3339)
+			if _, err := c.lab.Exec(ctx, "headscale", "headscale", "nodes", "expire",
+				"-i", n.ID.String(), "-e", until, "--force"); err != nil {
+				c.log("expiry for %s: %v", m.ID, err)
+			} else {
+				c.log("%s now expires at %s", m.ID, until)
+			}
+		}
+
 		if len(n.Tags) == 1 && n.Tags[0] == m.Tag {
 			continue
 		}

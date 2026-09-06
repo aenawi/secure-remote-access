@@ -143,6 +143,10 @@
     var saved = null;
     try { saved = localStorage.getItem("lab-view"); } catch (e) {}
     setView(saved === "flat" ? "flat" : "board");
+    /* The rails were measured before there was a board to tell, which is the
+       ordinary case: the layout settles long before WebGL does. */
+    measureRails();
+    syncZoom();
   }
 
   if (window.LabHUD) startBoard();
@@ -207,6 +211,127 @@
       .observe(document.querySelector(".viewport"));
   }
 
+  /* ---- the rails --------------------------------------------------
+     The canvas runs the full window and the rails float over it, so the board
+     has to be told which parts of itself are covered — otherwise it centres
+     the diagram in the canvas, which is underneath a rail, and the reader
+     orbits a picture they can only see two thirds of.
+
+     One measurement, two consumers. The CSS reads --pad-* to keep the verdict
+     and the view controls inside the gap; scene.js reads the same numbers
+     through setViewInset to aim the camera at it. Measured from the live
+     elements rather than computed from the width tokens, because a folded rail
+     and a media query both change the answer and getBoundingClientRect already
+     knows about all of them. */
+  var RAILS = ["rail-left", "rail-right"];
+
+  /* The same breakpoint as the stylesheet's narrow fallback. Below it nothing
+     floats: the rails are stacked blocks in a scrolling page, they cover
+     nothing, and the inset must go back to zero. */
+  var floatQ = window.matchMedia("(max-width: 1000px), (max-height: 620px)");
+
+  /* Two different questions, and they have different answers at the bottom
+     edge. What covers the *canvas* is what the camera has to aim around; what
+     is occupied at the bottom of the *window* is what a floating panel has to
+     sit above. The rung ladder is the case that separates them: it sits below
+     the viewport rather than over it, so it hides none of the board and the
+     camera must not compensate for it — but the verdict still cannot be drawn
+     on top of it. Collapsing the two is a diagram nudged permanently upward by
+     the height of a strip that was never in the way. */
+  function measureRails() {
+    var root = document.documentElement.style;
+    var covered = { left: 0, right: 0, top: 0, bottom: 0 };
+    var ladderH = 0;
+
+    if (!floatQ.matches) {
+      var vp = document.querySelector(".viewport").getBoundingClientRect();
+      var bar = document.querySelector(".topbar").getBoundingClientRect();
+      var lad = document.querySelector(".hud-ladder");
+
+      RAILS.forEach(function (id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        var r = el.getBoundingClientRect();
+        /* Overlap with the viewport, not the rail's own width: a rail that has
+           scrolled or been clipped covers less than it measures. */
+        if (id === "rail-left")  covered.left  = Math.max(0, r.right - vp.left);
+        if (id === "rail-right") covered.right = Math.max(0, vp.right - r.left);
+      });
+      covered.top = Math.max(0, bar.bottom - vp.top);
+      /* The bar is min-height, not height: it wraps on a narrow window and on
+         a long safety notice, and the rails below start where it actually
+         ended rather than where the token guessed it would. */
+      root.setProperty("--bar-h", Math.round(bar.height) + "px");
+      if (lad) {
+        var lr = lad.getBoundingClientRect();
+        ladderH = lr.height;
+        covered.bottom = Math.max(0, vp.bottom - lr.top);
+      }
+    }
+
+    root.setProperty("--ladder-h", Math.round(ladderH) + "px");
+    root.setProperty("--pad-l", Math.round(covered.left) + "px");
+    root.setProperty("--pad-r", Math.round(covered.right) + "px");
+    root.setProperty("--pad-t", Math.round(covered.top) + "px");
+    /* The floating panels clear the ladder; the camera, above, does not. */
+    root.setProperty("--pad-b", Math.round(Math.max(covered.bottom, ladderH)) + "px");
+    if (board && board.setViewInset) board.setViewInset(covered);
+  }
+
+  function toggleRail(id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    var shut = el.classList.toggle("shut");
+    var tog = el.querySelector(".railtog");
+    if (tog) {
+      tog.setAttribute("aria-expanded", String(!shut));
+      /* The chevron points the way the rail is about to go, which on the right
+         is the mirror of the left. */
+      var out = id === "rail-left" ? "❮" : "❯";
+      var back = id === "rail-left" ? "❯" : "❮";
+      tog.innerHTML = shut ? back : out;
+      tog.setAttribute("aria-label",
+        (shut ? "Unfold the " : "Fold the ") +
+        (id === "rail-left" ? "settings" : "readouts") + " rail");
+    }
+    try { localStorage.setItem("lab-" + id, shut ? "shut" : "open"); } catch (e) {}
+    /* The width transition is 180ms; measuring now would read the old width.
+       Waiting for transitionend would be exact and would also never fire when
+       the reader has reduced motion on, so this re-measures on both edges. */
+    measureRails();
+    setTimeout(measureRails, 200);
+  }
+
+  RAILS.forEach(function (id) {
+    var want = null;
+    try { want = localStorage.getItem("lab-" + id); } catch (e) {}
+    if (want === "shut") toggleRail(id);
+  });
+
+  if (window.ResizeObserver) {
+    var ro = new ResizeObserver(measureRails);
+    RAILS.forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) ro.observe(el);
+    });
+    ro.observe(document.querySelector(".viewport"));
+  }
+  window.addEventListener("resize", measureRails);
+  if (floatQ.addEventListener) floatQ.addEventListener("change", measureRails);
+  measureRails();
+
+  /* Either end of the zoom range is a button that would do nothing, and a
+     control that looks live and is not is worse than one that says so. */
+  function syncZoom() {
+    if (!board) return;
+    var z = board.zoom;
+    var i = $("#hud-zoom-in"), o = $("#hud-zoom-out");
+    if (i) i.disabled = z > 0.995;
+    if (o) o.disabled = z < 0.005;
+  }
+  document.querySelector(".viewport")
+    .addEventListener("wheel", function () { setTimeout(syncZoom, 0); }, { passive: true });
+
   /* ---- talking to the control server ------------------------------ */
   function get(url) { return fetch(url).then(function (r) { return r.json(); }); }
   function text(url) { return fetch(url).then(function (r) { return r.text(); }); }
@@ -227,7 +352,10 @@
   /* ---- the verdict line ------------------------------------------- */
   function verdict(tone, msg, rung) {
     var v = $("#verdict");
-    v.className = "verdict" + (tone ? " " + tone : "");
+    /* glass is what the thing is made of, not what it is saying — rewriting
+       the whole class list to change the tone took the material off with it
+       and left the sentence lying directly on the board. */
+    v.className = "verdict glass" + (tone ? " " + tone : "");
     v.innerHTML = (rung ? '<b class="rung">rung ' + rung + " of 5</b> — " : "") + esc(msg);
   }
 
@@ -777,7 +905,10 @@
        documentation. Everything below the guard changes something. */
     if (b.id === "view-board") { setView("board"); return; }
     if (b.id === "view-flat")  { setView("flat"); return; }
-    if (b.id === "hud-home")   { if (board) board.home(); return; }
+    if (b.id === "hud-home")   { if (board) board.home(); syncZoom(); return; }
+    if (b.id === "hud-zoom-in")  { if (board) board.zoomIn();  syncZoom(); return; }
+    if (b.id === "hud-zoom-out") { if (board) board.zoomOut(); syncZoom(); return; }
+    if (b.classList.contains("railtog")) { toggleRail(b.getAttribute("data-rail")); return; }
     if (b.id === "to-guide")   { showTab("guide"); return; }
     if (b.classList.contains("tab"))  { showTab(b.getAttribute("data-tab")); return; }
     if (b.classList.contains("ctab")) { pickCTab(b.getAttribute("data-ctab")); return; }
@@ -909,7 +1040,14 @@
 
   document.addEventListener("keydown", function (e) {
     if (e.target.matches("input, select, textarea, button")) return;
-    if (e.key === "h" && board && boardOn()) board.home();
+    if (!board || !boardOn()) return;
+    /* "=" as well as "+", because the unshifted key is the one people press.
+       The rails get a bracket each, on the side they are on. */
+    if (e.key === "h") { board.home(); syncZoom(); return; }
+    if (e.key === "+" || e.key === "=") { board.zoomIn(); syncZoom(); e.preventDefault(); return; }
+    if (e.key === "-" || e.key === "_") { board.zoomOut(); syncZoom(); e.preventDefault(); return; }
+    if (e.key === "[") { toggleRail("rail-left"); e.preventDefault(); return; }
+    if (e.key === "]") { toggleRail("rail-right"); e.preventDefault(); return; }
   });
 
   /* ---- go ----------------------------------------------------------

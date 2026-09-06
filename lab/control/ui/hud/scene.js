@@ -43,6 +43,29 @@ const ANY = new V3(-9.4, Y_PUB, -2.6);  /* where a stranger stands */
 
 const HOME_POS = new V3(0.6, 9.4, 25.5), HOME_AT = new V3(0, 1.3, 0.4);
 
+/* How far in and out the wheel is allowed to take you, as a distance from the
+   point the camera is looking at. Home sits at ~26.4, so this is roughly 2.5x
+   closer and 1.6x further. The near end stops just before the machines start
+   clipping through the front plane; the far end stops while the board still
+   fills enough of the frame to be worth looking at. */
+const CAM_MIN = 10.5, CAM_MAX = 62;
+
+/* How far HOME_AT is from the furthest thing worth keeping in frame. The board
+   runs from about x -10 to x 9 and y -4 to y 7, and this is the corner of that
+   with a little air around it. Used to work out how far back the camera has to
+   stand, which is not a constant any more: it depends on the shape of the hole
+   the rails leave, and that changes when one folds. */
+const BOARD_R = 12.9;
+/* Elevation is held as an angle rather than a height, which is what lets zoom
+   and orbit compose: scaling a distance keeps an angle, and clamping a raw y
+   would flatten the shot every time you came close. Just above the ground
+   plane, to just short of straight down. */
+const PITCH_MIN = 0.08, PITCH_MAX = 1.30;
+
+/* Label textures are drawn at this multiple of their laid-out size. See
+   label() — it buys sharpness under zoom and costs only texture memory. */
+const LABEL_SS = 3;
+
 const GATE_POSTS = [
   { x: GX.g1, t: "1 · alive" }, { x: GX.g2, t: "2 · path" }, { x: GX.g3, t: "3 · policy" },
   { x: GX.g4, t: "4 · firewall" }, { x: GX.g5, t: "5 · listener" }
@@ -82,6 +105,9 @@ export function createBoard(canvas, hud) {
 
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  /* Asked for once. Reading it per label would be a driver round-trip inside a
+     loop that builds a few hundred of them. */
+  const maxAniso = Math.min(8, renderer.capabilities.getMaxAnisotropy?.() || 1);
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(38, 16 / 9, 0.1, 200);
 
@@ -178,7 +204,15 @@ export function createBoard(canvas, hud) {
   /* Text as a canvas sprite. Monospace, because everything the lab prints is. */
   function label(text, opts) {
     opts = opts || {};
-    const px = opts.px || 44, pad = 10;
+    /* The glyphs are rendered at LABEL_SS times the size they are laid out at,
+       and the sprite is scaled back down by the same factor. Nothing about the
+       board's geometry moves — the world size below is unchanged — but there
+       are now enough texels to hold up when the wheel brings you close, which
+       is the whole reason zoom is worth having. Mipmaps do the other half: a
+       texture this much larger than its footprint crawls badly under plain
+       LinearFilter as the camera moves, and this is a board with things
+       orbiting on it. */
+    const px = (opts.px || 44) * LABEL_SS, pad = 10 * LABEL_SS;
     const cv = document.createElement("canvas");
     let ctx = cv.getContext("2d");
     const font = (opts.weight || 500) + " " + px + "px ui-monospace, 'JetBrains Mono', monospace";
@@ -190,7 +224,10 @@ export function createBoard(canvas, hud) {
     ctx.fillStyle = "#ffffff";
     ctx.fillText(text, pad, cv.height / 2);
     const tex = new THREE.CanvasTexture(cv);
-    tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false;
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.generateMipmaps = true;
+    tex.anisotropy = maxAniso;
     const mat = new THREE.SpriteMaterial({
       map: tex, transparent: true, depthTest: false,
       opacity: opts.opacity == null ? 1 : opts.opacity
@@ -903,7 +940,56 @@ export function createBoard(canvas, hud) {
     wantPos.copy(pos); wantAt.copy(at);
     if (reduced()) { camPos.copy(pos); camAt.copy(at); }
   }
-  function home() { fly(HOME_POS, HOME_AT); }
+
+  /* How far back the camera has to stand for the whole board to land in the
+     part of the canvas nothing is covering.
+
+     This used to be a constant, and could be: the frame was pinned to 21:9 and
+     nothing was ever laid over it, so one hand-tuned distance was right
+     forever. Neither is true now. The canvas is whatever shape the window is,
+     and a rail is sitting on each end of it, so the hole the board has to fit
+     through is nearer square than the shot was staged for — and a distance
+     that framed it beautifully at 21:9 pushes lab-vps under the right rail at
+     16:10.
+
+     So: take the frustum, shrink it by the fraction of each axis the HUD is
+     covering, and stand far enough back that a sphere around the board fits
+     the tighter of the two. The board is wide, so on most windows that is the
+     horizontal one, and folding a rail genuinely buys you a closer shot. */
+  function fitDistance() {
+    const r = canvas.parentElement.getBoundingClientRect();
+    const w = Math.max(1, r.width), h = Math.max(1, r.height);
+    const halfV = THREE.MathUtils.degToRad(camera.fov) / 2;
+
+    /* Never let a rail wider than its own side of the window drive this to
+       infinity — below that the narrow layout has taken over anyway. */
+    const gapW = Math.max(w * 0.2, w - inset.left - inset.right);
+    const gapH = Math.max(h * 0.2, h - inset.top - inset.bottom);
+
+    const tanV = Math.tan(halfV) * (gapH / h);
+    const tanH = Math.tan(halfV) * (w / h) * (gapW / w);
+    return THREE.MathUtils.clamp(BOARD_R / Math.min(tanV, tanH), CAM_MIN, CAM_MAX);
+  }
+
+  function home() {
+    const off = HOME_POS.clone().sub(HOME_AT).setLength(fitDistance());
+    fly(HOME_AT.clone().add(off), HOME_AT);
+  }
+
+  /* Folding a rail changes the hole, which changes the fit. Re-framing to the
+     new one would be right and would also throw away a zoom the reader had
+     chosen, so what is preserved is how far in they were *relative to* the
+     fit: someone at twice the standing distance stays at twice it. */
+  function refit(prevFit) {
+    const next = fitDistance();
+    if (!prevFit || !next) return;
+    const off = wantPos.clone().sub(wantAt);
+    const r = off.length();
+    if (r < 1e-4) return;
+    const scaled = THREE.MathUtils.clamp(r * (next / prevFit), CAM_MIN, CAM_MAX);
+    wantPos.copy(wantAt).add(off.setLength(scaled));
+    if (reduced()) camPos.copy(wantPos);
+  }
 
   /* A set-piece is a list of {t, fn} in seconds. Under reduced motion every
      step runs at once and the last one is the frame that is held — the shot
@@ -1028,37 +1114,144 @@ export function createBoard(canvas, hud) {
   }
 
   /* ---------- wiring ---------------------------------------------- */
+
+  /* How much of the canvas the HUD is sitting on top of, per edge, in CSS
+     pixels. The canvas runs the full window now and the rails float over it,
+     so without this the board would centre itself underneath a rail and the
+     reader would orbit a diagram they are only seeing two thirds of.
+
+     setViewOffset is the right tool and an odd-looking one: it is normally for
+     tiling one render across several screens. Handing it the full size with a
+     shifted origin renders the same frustum aimed somewhere else, which is
+     exactly "keep the picture in the gap". Shifting the camera target instead
+     would work until someone orbited, at which point the offset would swing
+     round with the shot. */
+  const inset = { left: 0, right: 0, top: 0, bottom: 0 };
+  function setViewInset(next) {
+    const before = fitDistance();
+    Object.assign(inset, next);
+    resize();
+    refit(before);
+  }
+
   function resize() {
     const r = canvas.parentElement.getBoundingClientRect();
     if (!r.width || !r.height) return;
     renderer.setSize(r.width, r.height, false);
     camera.aspect = r.width / Math.max(1, r.height);
+
+    const dx = (inset.left - inset.right) / 2;
+    const dy = (inset.top - inset.bottom) / 2;
+    /* A rail wider than the window it is in would push the board off screen
+       entirely; below that threshold the narrow layout has taken over anyway
+       and there is nothing overlapping to correct for. */
+    if ((dx || dy) && inset.left + inset.right < r.width * 0.8) {
+      camera.setViewOffset(r.width, r.height, -dx, -dy, r.width, r.height);
+    } else {
+      camera.clearViewOffset();
+    }
     camera.updateProjectionMatrix();
   }
   window.addEventListener("resize", resize);
 
-  /* Drag to orbit, gently — this is an instrument, not a flight sim. */
-  let drag = null;
+  /* Drag to orbit, wheel to close in — this is an instrument, not a flight
+     sim, so both are gentle and both are clamped.
+
+     The camera is held as an offset from what it looks at, and read as three
+     spherical numbers: how far round, how high up, and how far away. Orbit
+     moves the first two and leaves the third alone; zoom moves the third and
+     leaves the first two alone. That is the whole reason for the conversion —
+     the previous version moved a raw y, which meant every drag also changed
+     the distance, and once a wheel exists that stops composing: zoom in far
+     enough and the elevation clamp would flatten the shot on the next drag. */
+  function orbit(dTheta, dPitch, scale) {
+    const off = wantPos.clone().sub(wantAt);
+    let r = off.length();
+    if (r < 1e-4) return;
+    let theta = Math.atan2(off.z, off.x);
+    let pitch = Math.asin(Math.max(-1, Math.min(1, off.y / r)));
+
+    theta += dTheta;
+    pitch = Math.max(PITCH_MIN, Math.min(PITCH_MAX, pitch + dPitch));
+    r = Math.max(CAM_MIN, Math.min(CAM_MAX, r * (scale || 1)));
+
+    const flat = Math.cos(pitch) * r;
+    wantPos.set(
+      wantAt.x + Math.cos(theta) * flat,
+      wantAt.y + Math.sin(pitch) * r,
+      wantAt.z + Math.sin(theta) * flat
+    );
+    if (reduced()) camPos.copy(wantPos);
+  }
+
+  /* How far the camera is from what it is looking at, 0 at CAM_MAX and 1 at
+     CAM_MIN. The HUD reads it to grey out a button that would do nothing. */
+  function zoomLevel() {
+    const r = wantPos.distanceTo(wantAt);
+    return 1 - (r - CAM_MIN) / (CAM_MAX - CAM_MIN);
+  }
+
+  /* Pointers are tracked in a map rather than a single `drag`, because two of
+     them at once is a pinch and one is a drag, and a board people will open on
+     a tablet should not make them choose. */
+  const pointers = new Map();
+  let pinchDist = 0;
+
+  const spread = () => {
+    const p = [...pointers.values()];
+    return Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
+  };
+
   canvas.addEventListener("pointerdown", (e) => {
-    drag = { x: e.clientX, y: e.clientY };
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 2) pinchDist = spread();
     canvas.setPointerCapture(e.pointerId);
   });
-  canvas.addEventListener("pointerup", () => { drag = null; });
-  canvas.addEventListener("pointercancel", () => { drag = null; });
+  const release = (e) => {
+    pointers.delete(e.pointerId);
+    if (pointers.size === 2) pinchDist = spread();
+  };
+  canvas.addEventListener("pointerup", release);
+  canvas.addEventListener("pointercancel", release);
+  canvas.addEventListener("pointerleave", release);
+
   canvas.addEventListener("pointermove", (e) => {
-    if (!drag) return;
-    const dx = (e.clientX - drag.x) * 0.02, dy = (e.clientY - drag.y) * 0.02;
-    drag = { x: e.clientX, y: e.clientY };
-    const off = wantPos.clone().sub(wantAt);
-    const a = Math.atan2(off.z, off.x) - dx * 0.12;
-    const r = Math.sqrt(off.x * off.x + off.z * off.z);
-    off.x = Math.cos(a) * r; off.z = Math.sin(a) * r;
-    off.y = Math.max(2, Math.min(22, off.y + dy * 1.4));
-    wantPos.copy(wantAt).add(off);
-    if (reduced()) camPos.copy(wantPos);
+    const prev = pointers.get(e.pointerId);
+    if (!prev) return;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (pointers.size >= 2) {
+      /* Pinch. Only the distance between the two is read — a two-finger twist
+         or slide does nothing, which is the safe reading of an ambiguous
+         gesture on a board where one finger already means orbit. */
+      const d = spread();
+      if (pinchDist > 0 && d > 0) orbit(0, 0, pinchDist / d);
+      pinchDist = d;
+      return;
+    }
+
+    const dx = (e.clientX - prev.x) * 0.02, dy = (e.clientY - prev.y) * 0.02;
+    orbit(-dx * 0.12, dy * 0.09, 1);
   });
 
+  /* The wheel zooms, and does not scroll the page: the board fills the window
+     now, so a wheel event that got through would move nothing a reader wants
+     moved. Non-passive for exactly that reason — preventDefault has to work. */
+  canvas.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    /* Trackpads send small pixel deltas and mice send large ones; normalising
+       to lines first is what keeps one notch of a mouse wheel from crossing
+       half the range. */
+    const lines = e.deltaMode === 1 ? e.deltaY : e.deltaY / 53;
+    orbit(0, 0, Math.exp(Math.max(-3, Math.min(3, lines)) * 0.12));
+  }, { passive: false });
+
   resize();
+  /* HOME_POS is a direction and a hand-tuned 21:9 distance. Only the direction
+     survives contact with a window of unknown shape, so the opening shot is
+     framed rather than assumed. */
+  home();
+  camPos.copy(wantPos);
   frame();
 
   /* ---------- the board's public surface -------------------------- */
@@ -1070,6 +1263,14 @@ export function createBoard(canvas, hud) {
              strangerDot, strangerLb, shutter },
     mk: { line, slab, label, sphere, tint, setSlab },
     adopt,
+
+    /* Zoom, for the buttons and the keyboard. The wheel calls orbit() direct;
+       these exist so the HUD does not have to know what a scale factor is. */
+    zoomIn() { orbit(0, 0, 1 / 1.22); },
+    zoomOut() { orbit(0, 0, 1.22); },
+    get zoom() { return zoomLevel(); },
+    setViewInset,
+    resize,
 
     get state() { return state; },
     get reduced() { return reduced(); },

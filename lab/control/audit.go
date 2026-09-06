@@ -202,7 +202,7 @@ func (c *Controller) Audit(ctx context.Context) AuditReport {
 		c.with(func(s *State) { s.ACL.Lock = false })
 		r := c.evilJoin(ctx, true)
 		if r.OK {
-			c.EnsureTags(ctx)
+			c.EnsureNodes(ctx)
 			time.Sleep(1500 * time.Millisecond)
 		}
 		return r.OK
@@ -243,7 +243,7 @@ func (c *Controller) Audit(ctx context.Context) AuditReport {
 	c.with(func(s *State) { s.ACL.Lock = lockWasOn })
 	joined := c.evilJoin(ctx, true)
 	if joined.OK {
-		c.EnsureTags(ctx)
+		c.EnsureNodes(ctx)
 		time.Sleep(1500 * time.Millisecond)
 	}
 	stolenWorked, rung, rule, m := probe("evil-box", "lab-vps", "22")
@@ -425,15 +425,17 @@ func expiryVerdict(ns []hsNode, now time.Time) (bool, string, bool) {
 		exp := n.Expiry.Time()
 		if exp.IsZero() {
 			// Up to Headscale 0.26 this was every machine, every time, and
-			// nothing could be done about it. From 0.29 it should not happen
-			// at all, so it is no longer this lab's answer to give: it means
-			// `node.expiry` is missing from config/headscale/config.yaml, the
-			// image was rolled back, or the key the machine registered with
-			// carried tags — tagged pre-auth keys are exempt from the default.
-			return false, n.GivenName + " has no expiry at all, which Headscale 0.29's " +
-				"`node.expiry` is meant to record at registration. Check that the setting " +
-				"is still in config/headscale/config.yaml, that the image has not been " +
-				"rolled back, and that the pre-auth key was created without tags", false
+			// nothing could be done about it. It is still not `node.expiry`
+			// that fixes it: that setting is only honoured for a single-use
+			// pre-auth key, and this lab shares one `--reusable` key across
+			// all three machines, so it never reaches them. EnsureNodes
+			// stamps the expiry on after registration instead, which means a
+			// node with none here is a node EnsureNodes has not reached yet
+			// or could not write to.
+			return false, n.GivenName + " has no expiry at all. `node.expiry` in " +
+				"config/headscale/config.yaml does not cover this lab's reusable pre-auth " +
+				"key, so EnsureNodes stamps the expiry on after each machine registers — " +
+				"check the control server's log for a failing `headscale nodes expire`", false
 		}
 		if exp.Before(now) {
 			return false, n.GivenName + " expired at " + exp.Format(time.RFC3339) +
@@ -443,9 +445,9 @@ func expiryVerdict(ns []hsNode, now time.Time) (bool, string, bool) {
 	if seen == 0 {
 		return false, "none of your three machines are registered", false
 	}
-	return true, "every machine you own carries a real expiry in the future — Headscale's " +
-		"`node.expiry` set it at registration and offers no per-node way to turn it off, " +
-		"so this one holds whatever the configuration says", true
+	return true, "every machine you own carries a real expiry in the future — the control " +
+		"server stamps one on at registration and Headscale offers no per-node way to turn " +
+		"it off, so this one holds whatever the configuration says", true
 }
 
 // isAre lets a sentence that counts something be written once rather than
