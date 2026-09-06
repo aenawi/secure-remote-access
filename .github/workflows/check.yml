@@ -61,10 +61,16 @@ jobs:
       # `make check` skips the UI half rather than failing when Node is
       # missing. That is the correct behaviour locally and a silent hole in
       # CI, so assert the skip did not happen.
+      #
+      # Match the em dash. The Makefile's two skip lines are "skipped — no
+      # node…" and "skipped — node N is older than…", while `node --test`
+      # prints a TAP summary line reading "# skipped 0" on a completely
+      # healthy run — which a bare grep for "skipped" cannot tell apart, and
+      # did not: the first version of this step failed a green build.
       - name: The UI half really ran
         run: |
           make -C lab ui | tee /tmp/ui.log
-          if grep -q 'skipped' /tmp/ui.log; then
+          if grep -q 'skipped —' /tmp/ui.log; then
             echo "::error::make ui skipped itself in CI — Node did not take."
             exit 1
           fi
