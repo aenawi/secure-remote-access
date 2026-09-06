@@ -44,7 +44,7 @@ Do not change that `ports:` line. If you do, the server will tell you why it is
 not starting.
 
 Everything here is provided **as is**, with no warranty of any kind, under the
-[MIT licence](../LICENSE). The full terms and the reasoning behind them are in
+[GPL-3.0-or-later licence](../LICENSE). The full terms and the reasoning behind them are in
 [the disclaimer](../index.html#disclaimer). Practise here; do not paste the
 generated script at a machine you rely on without reading it first.
 

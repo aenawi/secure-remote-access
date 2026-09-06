@@ -1,0 +1,122 @@
+name: "Disagreement — this advice or this model is wrong"
+description: A chapter says something you believe is false, unsafe, or out of date — or the lab and the sandbox disagree.
+title: "[disagree] "
+labels: ["disagreement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is the most welcome issue type in the repository, so thank you.
+
+        You do not need to be polite about it and you do not need to be certain.
+        A well-specified "I think this is wrong and here is why" is worth more
+        than a hedged one. If you can make the failure happen in
+        [`lab/`](https://github.com/aenawi/secure-remote-access/blob/main/lab/README.md), even better — but it is not required.
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of disagreement is this?
+      options:
+        - The guide's advice is wrong, unsafe, or out of date
+        - The lab and the sandbox disagree with each other
+        - The sandbox models something the real stack does differently
+        - The lab does something its README does not describe
+    validations:
+      required: true
+
+  - type: input
+    id: where
+    attributes:
+      label: Where
+      description: Chapter number, or file and line. More than one is fine.
+      placeholder: "chapter 08, the UFW/Docker section — or lab/control/audit.go:142"
+    validations:
+      required: true
+
+  - type: textarea
+    id: claim
+    attributes:
+      label: What it currently says
+      description: Quote it. A paraphrase is where half of these arguments go wrong.
+    validations:
+      required: true
+
+  - type: textarea
+    id: counter
+    attributes:
+      label: What you believe is actually true
+      description: |
+        And why. Your reasoning is useful even where it is only reasoning —
+        say which part is measured and which part is inference.
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: What you ran, and what it printed
+      description: |
+        Command output beats description. `sshd -T`, `ufw status verbose`,
+        `tailscale status`, `tcpdump`, a `make audit` score — whatever applies.
+      render: shell
+
+  - type: textarea
+    id: versions
+    attributes:
+      label: Versions and date
+      description: |
+        This matters more here than in most repositories. A divergence is a fact
+        with a date on it rather than a property of the world — every finding in
+        the lab README says what it was last measured against, and yours should
+        too.
+      placeholder: |
+        OS:          Ubuntu 24.04.2 LTS
+        OpenSSH:     10.0p1
+        tailscale:   1.102.3
+        Headscale:   0.29.3
+        Measured on: 2026-09-06
+      value: |
+        OS:
+        OpenSSH:
+        tailscale:
+        Headscale:
+        Measured on:
+    validations:
+      required: true
+
+  - type: dropdown
+    id: config
+    attributes:
+      label: Which lab configuration, if this involves the lab
+      options:
+        - "Not lab-related"
+        - "day-one"
+        - "typical"
+        - "weak"
+        - "hardened"
+        - "the boot state"
+        - "a custom configuration (describe above)"
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: If a reader followed the current advice, what happens?
+      options:
+        - "Nothing bad — it is just inaccurate or out of date"
+        - "It does not work, and they waste time"
+        - "They get locked out of a machine"
+        - "They are left exposed and would not know it"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: private
+    attributes:
+      label: Before you post
+      options:
+        - label: |
+            This is not an exposure or lockout risk that should be reported
+            privately first. (If it is, please close this tab and use
+            [SECURITY.md](https://github.com/aenawi/secure-remote-access/blob/main/SECURITY.md) instead — the private advisory form.)
+          required: true

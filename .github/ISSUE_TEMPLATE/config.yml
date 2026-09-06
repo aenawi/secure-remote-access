@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a vulnerability, privately
+    url: https://github.com/aenawi/secure-remote-access/security/advisories/new
+    about: Advice that exposes or locks out a reader, or a flaw in the lab. Please do not open a public issue for these — see SECURITY.md.
+  - name: Ask a question, or propose something bigger
+    url: https://github.com/aenawi/secure-remote-access/discussions
+    about: A new chapter, a different threat model, an argument that does not fit an issue box. Enable Discussions in repo settings if this link 404s.
+  - name: How to contribute
+    url: https://github.com/aenawi/secure-remote-access/blob/main/CONTRIBUTING.md
+    about: What is worth sending, how to run the lab, and the invariants a PR should not quietly break.

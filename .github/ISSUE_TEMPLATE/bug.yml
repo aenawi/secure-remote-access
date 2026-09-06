@@ -1,0 +1,85 @@
+name: "Something is broken"
+description: The lab will not start, a page misbehaves, a command in the guide errors, a link is dead.
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For plain breakage. If you think the *advice* is wrong rather than
+        broken, the **Disagreement** template fits better. If following it left
+        someone exposed or locked out, please use
+        [SECURITY.md](https://github.com/aenawi/secure-remote-access/blob/main/SECURITY.md) privately instead.
+
+        The lab README has a
+        [**If something will not start**](https://github.com/aenawi/secure-remote-access/blob/main/lab/README.md#if-something-will-not-start)
+        section that covers the common ones — worth a look first, though do open
+        an issue if it did not help, because that means the section is missing a
+        case.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where
+      options:
+        - "The guide — a chapter page"
+        - "The chapter 14 sandbox"
+        - "The lab — docker compose / make"
+        - "The lab UI in the browser"
+        - "make check / the tests"
+        - "Somewhere else"
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: What you did
+      description: Exact commands, or the clicks in order.
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected, and what happened instead
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: Output
+      description: |
+        Terminal output, browser console, or `make logs`. Paste it rather than
+        describing it.
+      render: shell
+
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      placeholder: |
+        Host OS:   macOS 26.1 (Apple silicon)
+        Docker:    27.3.1
+        Browser:   Firefox 141
+        Go:        1.23.4 (only needed for make check)
+      value: |
+        Host OS:
+        Docker:
+        Browser:
+        Go:
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: tried
+    attributes:
+      label: Have you tried
+      options:
+        - label: "`make reset` then `make up` (lab issues only — it deletes lab state, nothing of yours)"
+        - label: "A hard reload, or a private window (page issues only — the guide stores checklist ticks in localStorage)"
