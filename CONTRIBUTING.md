@@ -125,6 +125,25 @@ That is the only routine way anything reaches `main`. It is a deliberate act, no
 a consequence of merging — the point of the split is that shipping is a decision
 somebody makes on purpose.
 
+**Squash every branch into `develop`. Never squash `develop` into `main`.**
+
+That is not a style preference and it is the one mistake in this model that gets
+worse the longer it goes unnoticed. Squashing writes a *new* commit with no link
+to the ones it replaced. Inside `develop` that is exactly what you want: one
+readable commit per idea. But squashing a release makes `main` a branch that
+merely resembles `develop` rather than one that contains it — so the next release
+re-offers every change again, conflicting against the copy already sitting there,
+and every release after that is worse.
+
+```bash
+gh pr merge <n> --merge      # releases, and hotfixes back into develop
+gh pr merge <n> --squash     # everything else
+```
+
+A release keeps the individual commits. That is the second reason for the merge:
+`main`'s history is then the list of what shipped and when, which is the question
+you will actually ask it later.
+
 ### Hotfixes — the exception, and why it exists
 
 **If published advice is dangerous, it does not wait for a release.**
