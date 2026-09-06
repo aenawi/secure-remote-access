@@ -1,0 +1,70 @@
+# The gate that branch protection actually points at.
+#
+# `make check` has always existed and has always been the thing to run before
+# pushing — but it ran in a hook on one laptop, which a fork does not have and
+# `--no-verify` skips. A protected branch requiring a check that only ever ran
+# locally protects nothing. So the same target runs here, on every pull request
+# into develop and main, and its name is what the ruleset requires.
+#
+# It deliberately does not build the lab. `make check` is the one target that
+# works with the containers down — licences, go vet, go test, gofmt, and the UI
+# JavaScript — and it finishes in about a second, which is the property worth
+# protecting. A gate that takes ten minutes is a gate people learn to route
+# around.
+
+name: check
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      # go.mod names the version, so this file does not have to hold a second
+      # copy of it that can drift.
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: lab/control/go.mod
+          cache-dependency-path: lab/control/go.sum
+
+      # Node is not a prerequisite of the lab and is not becoming one — the
+      # `ui` target skips itself with a note when Node is absent, which is
+      # right on a laptop and wrong here. CI is the one place it should never
+      # skip, so it is installed explicitly.
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: make check
+        run: make -C lab check
+
+      # `make check` skips the UI half rather than failing when Node is
+      # missing. That is the correct behaviour locally and a silent hole in
+      # CI, so assert the skip did not happen.
+      - name: The UI half really ran
+        run: |
+          make -C lab ui | tee /tmp/ui.log
+          if grep -q 'skipped' /tmp/ui.log; then
+            echo "::error::make ui skipped itself in CI — Node did not take."
+            exit 1
+          fi

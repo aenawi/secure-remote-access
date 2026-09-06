@@ -189,6 +189,33 @@ written by someone who already knows, for someone who already knows.
   a vulnerability, and goes privately first
 - [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) — attack the claim, never the person
 
+### Branch from `develop`, not `main`
+
+`develop` is the default branch, so a fresh clone already puts you there.
+
+```text
+  your branch  ──►  develop  ──►  main  ──►  the published guide
+                       ▲            │
+                       └────────────┘
+                     a release, back-merged
+```
+
+**`main` is the published guide and nothing else.** It is what
+[the site](https://aenawi.github.io/secure-remote-access/) serves, so a commit
+reaching it is a release — somebody may run that command tonight, against a
+machine they cannot walk over to. **`develop` is where the work happens**, and
+everything merges there first. Periodically `develop` goes to `main` as one pull
+request, which is the only routine way anything ships.
+
+The one exception is a **hotfix**: published advice that locks a reader out or
+leaves them exposed goes straight to `main`, because a release train is a delay
+with a cost attached. It is then back-merged to `develop` so the next release
+does not revert it. Hotfixes are for harm, not for hurry — a typo is not one.
+
+Both branches are protected: no direct pushes, everything through a pull request,
+and `make check` runs on GitHub before anything merges.
+[CONTRIBUTING.md](CONTRIBUTING.md#which-branch-to-start-from) has the commands.
+
 ## Disclaimer
 
 Published under [CC BY-SA 4.0](LICENSE-docs) and [GPL-3.0-or-later](LICENSE) —
