@@ -6,18 +6,18 @@ Most security disagreements are two people trading confident opinions and
 neither of them moving. This repository has a way out of that, and it is the
 reason to bother contributing here rather than leaving a comment somewhere.
 
-[`lab/`](lab/README.md) is the guide's topology as real containers — four
+[`lab/`](lab/README.md) is the guide's topology as real containers: four
 machines on four isolated segments, each behind its own NAT router, running real
 `tailscaled` on real TUN devices. Chapter 14 is the same topology as a model.
 When the two disagree, one of them is wrong about something real, and
-[**Where this lab and the sandbox disagree**](lab/README.md#where-this-lab-and-the-sandbox-disagree)
+[Where this lab and the sandbox disagree](lab/README.md#where-this-lab-and-the-sandbox-disagree)
 is where that gets written down.
 
 There are five findings in that list. Twice the model was wrong and the model
 changed. Once the containers were wrong and the containers changed. Once
 Headscale shipped a feature and the gap flipped direction.
 
-**A sixth entry in that list is the most valuable thing you can send.** It is
+A sixth entry in that list is the most valuable thing you can send. It is
 also the most fun, and it is the only kind of contribution where being right
 costs me a chapter rewrite and you get the credit in the file.
 
@@ -42,7 +42,7 @@ The model says one thing, the containers say another. Open an issue with
 Findings get a date and a version, not a verdict. Every entry in that section
 names what it was last measured against, because Headscale is pinned
 (`headscale/headscale:0.29.3`) and the tailscale client is not. A divergence is
-a fact with a date on it rather than a property of the world — finding 1 is in
+a fact with a date on it rather than a property of the world. Finding 1 is in
 that file precisely because it was once written without one.
 
 ### 2 · The advice is wrong
@@ -52,8 +52,8 @@ A `sshd_config` key whose first-value-wins behaviour bites in a way the chapter
 misses. A macOS release that moved the SACL. A claim that was true in August
 2026 and is not true now.
 
-Open an issue with **Disagreement**. Bring your OS and version numbers — "it
-doesn't work" is unactionable, "OpenSSH 10.2 on Ubuntu 24.04, here is `sshd -T`"
+Open an issue with **Disagreement**. Bring your OS and version numbers. "It
+doesn't work" is unactionable; "OpenSSH 10.2 on Ubuntu 24.04, here is `sshd -T`"
 is a fix.
 
 You do not need a lab repro for this. It helps, and if the claim is one the lab
@@ -62,12 +62,12 @@ cannot silently regress.
 
 ### 3 · You got lost
 
-This one surprises people, so it is worth saying plainly: **a beginner reporting
-confusion is a real bug report, and I want it.**
+This one surprises people, so it is worth saying plainly: a beginner reporting
+confusion is a real bug report, and I want it.
 
 The guide is written for someone who can build software and has never had to
 defend it. If you are that reader and a paragraph lost you, the paragraph is
-broken — not you. Tell me where you stopped and what you thought the sentence
+broken, not you. Tell me where you stopped and what you thought the sentence
 meant. Open an issue with **I got lost**.
 
 There is no such thing as too obvious a question here. The failure mode this
@@ -81,7 +81,7 @@ test, a new sandbox scenario. Send the PR.
 
 ## Which branch to start from
 
-**Branch from `develop`. Never from `main`.**
+Branch from `develop`. Never from `main`.
 
 `develop` is the default branch, so a fresh `git clone` already puts you on it
 and the pull request box already points at it. If you took a copy before that
@@ -95,19 +95,19 @@ git checkout -b your-branch
 
 ### What each branch is
 
-**`main` is the published guide, and nothing else.** It is what
+`main` is the published guide, and nothing else. It is what
 [aenawi.github.io/secure-remote-access](https://aenawi.github.io/secure-remote-access/)
 serves. A commit reaching it is a release: somebody's phone now shows that
 sentence, and somebody may run the command in it tonight against a machine they
 cannot walk over to. Nothing lands there because it compiles. It lands there
 because it is ready to be followed.
 
-**`develop` is where the work happens.** Everything merges here first — a fix, a
+`develop` is where the work happens. Everything merges here first: a fix, a
 new chapter, a lab scenario, a typo. It is expected to be good and not expected
 to be released. Nothing on `develop` is visible to a reader, which is exactly
 what makes it the right place to be wrong in public for a while.
 
-**Your branch comes off `develop` and goes back into `develop`.** One idea per
+Your branch comes off `develop` and goes back into `develop`. One idea per
 branch. Name it for what it does: `fix/ufw-docker-ordering`,
 `chapter/15-backups`, `lab/expiry-divergence`.
 
@@ -122,16 +122,16 @@ branch. Name it for what it does: `fix/ufw-docker-ordering`,
 
 Periodically `develop` goes to `main` as one pull request titled for the release.
 That is the only routine way anything reaches `main`. It is a deliberate act, not
-a consequence of merging — the point of the split is that shipping is a decision
+a consequence of merging. The point of the split is that shipping is a decision
 somebody makes on purpose.
 
-**Squash every branch into `develop`. Never squash `develop` into `main`.**
+Squash every branch into `develop`. Never squash `develop` into `main`.
 
 That is not a style preference and it is the one mistake in this model that gets
 worse the longer it goes unnoticed. Squashing writes a *new* commit with no link
 to the ones it replaced. Inside `develop` that is exactly what you want: one
 readable commit per idea. But squashing a release makes `main` a branch that
-merely resembles `develop` rather than one that contains it — so the next release
+merely resembles `develop` rather than one that contains it, so the next release
 re-offers every change again, conflicting against the copy already sitting there,
 and every release after that is worse.
 
@@ -144,14 +144,14 @@ A release keeps the individual commits. That is the second reason for the merge:
 `main`'s history is then the list of what shipped and when, which is the question
 you will actually ask it later.
 
-### Hotfixes — the exception, and why it exists
+### Hotfixes: the exception, and why it exists
 
-**If published advice is dangerous, it does not wait for a release.**
+If published advice is dangerous, it does not wait for a release.
 
 This guide tells people to change firewall rules, disable password login and
 remove the only route into a machine they may be a long way from. If a chapter
 on `main` is wrong in a way that locks somebody out or leaves them exposed, the
-release train is not a process — it is a delay with a cost attached.
+release train is not a process; it is a delay with a cost attached.
 
 So there is one lane straight to `main`:
 
@@ -162,7 +162,7 @@ git checkout -b hotfix/what-it-fixes
 # fix it, open a PR into main
 ```
 
-Once it merges, **back-merge `main` into `develop` immediately**, or the next
+Once it merges, back-merge `main` into `develop` immediately, or the next
 release will quietly revert the fix:
 
 ```bash
@@ -175,7 +175,7 @@ git push origin develop
 Hotfixes are for harm, not for hurry. A typo is not a hotfix. "It has been wrong
 for a week and I want it fixed" is not a hotfix. The question is only whether a
 reader following the current published text gets hurt before the next release.
-If you are unsure, it is not one — open it against `develop` and say in the PR
+If you are unsure, it is not one. Open it against `develop` and say in the PR
 that you think it might warrant a hotfix, and it can be retargeted.
 
 ## Running the checks
@@ -187,10 +187,10 @@ make hooks       # install the pre-push hook that runs make check for you
 ```
 
 The same `make check` runs on GitHub for every pull request into `develop` and
-`main` — [`.github/workflows/check.yml`](.github/workflows/check.yml) — and both
-branches require it to pass before anything merges. The hook is the fast copy on
-your laptop; CI is the one that counts, because a fork does not have your hook
-and `--no-verify` skips it.
+`main` (see [`.github/workflows/check.yml`](.github/workflows/check.yml)), and
+both branches require it to pass before anything merges. The hook is the fast
+copy on your laptop; CI is the one that counts, because a fork does not have
+your hook and `--no-verify` skips it.
 
 `make check` wants Go rather than Docker and finishes in about a second: `go vet`,
 `go test`, `gofmt -l` and a parse-check over `assets/*.js` and the lab UI. It also
@@ -206,39 +206,39 @@ Run `make hooks` once and you will stop thinking about this.
 ## Things the repository holds, that a PR should not quietly break
 
 These are invariants rather than preferences. If your change needs one of them
-gone, that is a conversation worth having in an issue first — but it is a
+gone, that is a conversation worth having in an issue first, but it is a
 conversation, not a footnote in a diff.
 
-**The guide works from `file://`.** No build step, no server, no dependencies,
+The guide works from `file://`. No build step, no server, no dependencies,
 double-click `index.html` and it works offline. This is why `nav.js` is a plain
-global instead of a fetch — `fetch()` is blocked on the `file:` scheme.
+global instead of a fetch: `fetch()` is blocked on the `file:` scheme.
 
-**Everything degrades without JavaScript.** `anim.js` and `sandbox.js` are opt-in
+Everything degrades without JavaScript. `anim.js` and `sandbox.js` are opt-in
 per page and add a class when they take over; `style.css` hides scenario layers
 except those tagged `data-poster` until then. Any new simulation needs a
-`data-poster` frame chosen deliberately — it is the one coherent picture a reader
-sees with scripting off.
+`data-poster` frame chosen deliberately, because it is the one coherent picture
+a reader sees with scripting off.
 
-**A simulation is declared in markup.** `data-sim`, `data-at`, `data-scn`,
+A simulation is declared in markup. `data-sim`, `data-at`, `data-scn`,
 `data-flow`. No per-diagram JavaScript.
 
-**`nav.js` is the single source of truth for navigation.** Add an entry there and
+`nav.js` is the single source of truth for navigation. Add an entry there and
 the sidebar, filter, chapter cards and prev/next links all pick it up.
 
-**The engine returns the rung, never a bare pass/fail.** Both halves walk the
+The engine returns the rung, never a bare pass/fail. Both halves walk the
 chapter 12 ladder in order and report which rung decided the outcome. That is the
 thing worth preserving above all if you extend either.
 
-**The four board rules.** Nothing drawn that was not measured. A failed attack is
+The four board rules. Nothing drawn that was not measured. A failed attack is
 not a green tick. `danger` outranks `ok`. Time is not faked. Four Go test files
 guard these; they are the kind of invariant that erodes without anyone deciding
 to erode it.
 
-**Mechanism before command.** A reader who runs a line they do not understand
+Mechanism before command. A reader who runs a line they do not understand
 cannot debug it later, and the whole guide is aimed at the moment when they have
 to.
 
-**SPDX headers on every source file.** `lab/checks/licensed.sh` fails without
+SPDX headers on every source file. `lab/checks/licensed.sh` fails without
 one, and `make check` runs it.
 
 ## Style
@@ -247,7 +247,7 @@ British spelling, Oxford commas optional, prose over bullets where the idea has
 a shape. Sentences may be long if they earn it.
 
 Say what was measured and when. "Tailscale does X" is weaker than "tailscale
-1.102.3 did X on 2026-08-14, here is the output" — and the second one stays true
+1.102.3 did X on 2026-08-14, here is the output". The second one stays true
 when it stops being true, because it says which build it was about.
 
 Where a step can lock someone out of a machine they cannot walk over to, say so
@@ -258,8 +258,8 @@ Where a step can lock someone out of a machine they cannot walk over to, say so
 The repository is two licences, and your contribution takes whichever covers the
 file you touched:
 
-- **Guide** — `index.html`, `chapters/`, `README.md` — [CC BY-SA 4.0](LICENSE-docs)
-- **Code** — `assets/`, `lab/` — [GPL-3.0-or-later](LICENSE)
+- Guide (`index.html`, `chapters/`, `README.md`): [CC BY-SA 4.0](LICENSE-docs)
+- Code (`assets/`, `lab/`): [GPL-3.0-or-later](LICENSE)
 
 Opening a PR means you are fine with that, and that you have the right to send
 what you sent. No CLA, no copyright assignment, nothing to sign. You keep your
@@ -267,7 +267,7 @@ copyright; the licence is what travels.
 
 ## What I will say no to
 
-Not to be discouraging — to save you the afternoon.
+Not to be discouraging, but to save you the afternoon.
 
 - A build step, a bundler, a framework, or a runtime dependency for the guide.
 - A JavaScript library added to a chapter page.
@@ -277,5 +277,5 @@ Not to be discouraging — to save you the afternoon.
 
 ## Reporting a vulnerability
 
-Not here — see [SECURITY.md](SECURITY.md). That covers both a flaw in the lab's
+Not here. See [SECURITY.md](SECURITY.md). That covers both a flaw in the lab's
 code and, more likely, dangerous advice in a chapter.

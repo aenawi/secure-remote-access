@@ -2,27 +2,27 @@
 Thank you. Small PRs land fast; large ones land after a conversation, so if this
 is large, an issue first will save you rework.
 
-BEFORE ANYTHING ELSE — check the branch box at the top of this page.
+BEFORE ANYTHING ELSE: check the branch box at the top of this page.
 
 It should read:  base: develop  ←  compare: your-branch
 
 `develop` is the default, so it usually is already. If it says `main`, click
-"Edit" next to the title and change the base — unless this is a release or a
+"Edit" next to the title and change the base, unless this is a release or a
 hotfix, both of which are explained below and in CONTRIBUTING.md.
 -->
 
 ## Target
 
-- [ ] This is going into **`develop`** — the normal case for a fix, a chapter, a
+- [ ] This is going into `develop`: the normal case for a fix, a chapter, a
       lab change, a typo
-- [ ] This is a **release**: `develop` → `main`, shipping to the published guide
-- [ ] This is a **hotfix**: straight into `main`, because published advice is
+- [ ] This is a release: `develop` → `main`, shipping to the published guide
+- [ ] This is a hotfix: straight into `main`, because published advice is
       currently locking readers out or leaving them exposed
 
 <!--
 Hotfixes are for harm, not for hurry. A typo is not one. If you tick hotfix,
 say in one line below what happens to a reader who follows the current
-published text — and remember main must be back-merged into develop afterwards
+published text, and remember main must be back-merged into develop afterwards
 or the next release silently reverts your fix.
 -->
 
@@ -34,9 +34,9 @@ Closes #
 
 ## Kind
 
-- [ ] Prose — clarity, typo, dead link
+- [ ] Prose: clarity, typo, dead link
 - [ ] The advice was wrong, unsafe, or out of date
-- [ ] Lab or sandbox — code, checks, a new scenario
+- [ ] Lab or sandbox: code, checks, a new scenario
 - [ ] A divergence between the lab and the sandbox, closed or newly documented
 - [ ] Tests
 - [ ] Something else
@@ -45,7 +45,7 @@ Closes #
 
 <!-- Delete this whole section if it does not apply. -->
 
-**What it was measured against** — a claim here carries a date and a version, or
+What it was measured against. A claim here carries a date and a version, or
 it is an opinion:
 
 ```
@@ -54,7 +54,7 @@ OpenSSH / tailscale / Headscale, as applicable:
 Measured on:
 ```
 
-**What you ran, and what it printed:**
+What you ran, and what it printed:
 
 ```
 
@@ -72,7 +72,7 @@ Measured on:
 
 ## If this touches the guide's pages
 
-- [ ] It still works from `file://` — no build step, no fetch, no new dependency
+- [ ] It still works from `file://`: no build step, no fetch, no new dependency
 - [ ] It still reads with JavaScript off
 - [ ] Any new simulation has a `data-poster` frame chosen deliberately
 - [ ] New or moved chapters are registered in `assets/nav.js`
