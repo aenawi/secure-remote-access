@@ -15,10 +15,15 @@ import (
 // ---------------------------------------------------------------------------
 // The attacks
 //
-// Same nine buttons as the sandbox page, in the same order, with the same
+// Same ten buttons as the sandbox page, in the same order, with the same
 // labels. The difference is that these run. Every one of them ends by saying
 // which defence answered it and at which rung — because "it failed" is not a
 // finding, and "it failed at rung 3" is.
+//
+// The tenth is the odd one, and it is odd in a way worth stating here rather
+// than only at the function: it does not attack the network. Nothing the
+// reader built is touched, and the interesting output is the list of rungs
+// that were never asked rather than the one that answered.
 //
 // All of them require evil-box, and evil-box only exists if you started the lab
 // with --profile attack. Nothing here reaches past the lab's own bridges.
@@ -48,6 +53,8 @@ var AttackList = []AttackDef{
 		Sub: "Offering to be everybody's default route"},
 	{ID: "docker-bypass", Label: "Publish a Docker port",
 		Sub: "UFW says deny. The port answers anyway."},
+	{ID: "tailcat-tunnel", Label: "Open a tailcat tunnel from the inside",
+		Sub: "Nothing you configured is consulted, because none of it is asked"},
 	{ID: "lock-out", Label: "Run the build order wrong", Danger: true,
 		Sub: "Close both doors, in the wrong sequence, and be outside"},
 }
@@ -62,17 +69,18 @@ var AttackList = []AttackDef{
 // dispatched now has one home, ActionIDs serves it to the browser, and the
 // gap-reporting walks this instead.
 var Actions = map[string]func(*Controller, context.Context) Result{
-	"scan-public":   (*Controller).atkScanPublic,
-	"scan-tailnet":  (*Controller).atkScanTailnet,
-	"sniff":         (*Controller).atkSniff,
-	"replay":        (*Controller).atkReplay,
-	"stolen-key":    (*Controller).atkStolenKey,
-	"expired-key":   (*Controller).atkExpiredKey,
-	"rotate-key":    (*Controller).atkRotateKey,
-	"outage":        (*Controller).demoOutage,
-	"rogue-exit":    (*Controller).atkRogueExit,
-	"docker-bypass": (*Controller).atkDockerBypass,
-	"lock-out":      (*Controller).atkLockOut,
+	"scan-public":    (*Controller).atkScanPublic,
+	"scan-tailnet":   (*Controller).atkScanTailnet,
+	"sniff":          (*Controller).atkSniff,
+	"replay":         (*Controller).atkReplay,
+	"stolen-key":     (*Controller).atkStolenKey,
+	"expired-key":    (*Controller).atkExpiredKey,
+	"rotate-key":     (*Controller).atkRotateKey,
+	"outage":         (*Controller).demoOutage,
+	"rogue-exit":     (*Controller).atkRogueExit,
+	"docker-bypass":  (*Controller).atkDockerBypass,
+	"tailcat-tunnel": (*Controller).atkTailcatTunnel,
+	"lock-out":       (*Controller).atkLockOut,
 }
 
 // ActionIDs is every id RunAttack will dispatch, sorted so the browser gets a
@@ -1014,6 +1022,320 @@ echo "--- mosh, last lines ---"; tr -d '\r' < /tmp/mosh.out 2>/dev/null | grep -
 	return res
 }
 
+// atkTailcatTunnel is the only attack here that does not attack the network.
+//
+// Everything the reader built stays exactly as they left it. The tailnet is
+// untouched, the policy is untouched, ufw is untouched, and every one of them
+// is still correct — the point is that not one of them is consulted, because
+// somebody on the inside ran a binary that does not ask. So the interesting
+// output is the list of rungs that never ran rather than the one that stopped
+// it, and the run measures that list rather than asserting it:
+//
+//	rung 3   the tailnet has no say. Measured as the tunnel's own sockets: the
+//	         serving machine holds one outbound connection, to the relay, and
+//	         none to the coordination server. There is no grant to consult
+//	         because there is nothing here for a grant to be about.
+//	rung 4   the host firewall has no say. Measured on the serving machine with
+//	         tcpdump, watching its own interface for an inbound :22 while
+//	         evil-box knocks. Nothing arrives, because nothing is arriving: the
+//	         session came back down a connection the machine dialled out.
+//
+// The second one is the measurement worth having. "The firewall was bypassed"
+// would be wrong, and this lab can show it is wrong: the firewall is still
+// there, still default-deny, still right, and was never in the path.
+func (c *Controller) atkTailcatTunnel(ctx context.Context) Result {
+	if r := c.needEvil(ctx); r != nil {
+		return *r
+	}
+	st := c.Snapshot().Tailcat
+
+	// The sandbox's version of this button turns the switches on for you and
+	// says so. So does this one: the attack is what happens next, and a button
+	// that refused to run until you had set three switches yourself would only
+	// be teaching you the panel.
+	var setup []string
+	if !st.On {
+		r := c.tailcatServe(ctx, st.Host, st.Service, st.Allow)
+		if !r.OK {
+			return r
+		}
+		setup = append(setup, r.Cmds...)
+		st = c.Snapshot().Tailcat
+	}
+	if !st.Shared {
+		r := c.tailcatShare(ctx, true)
+		if !r.OK {
+			return r
+		}
+		setup = append(setup, r.Cmds...)
+		st = c.Snapshot().Tailcat
+	}
+
+	host := st.Host
+	addrR, _ := c.lab.Sh(ctx, host, "cat "+tailcatAddrFile+" 2>/dev/null || true")
+	addr := strings.TrimSpace(addrR.Stdout)
+	if addr == "" {
+		return Result{Rung: 1, From: "evil-box", To: host, Rule: "no address",
+			Why: "the tunnel on " + host + " printed no address to hand anybody"}
+	}
+
+	res := Result{From: "evil-box", To: host, Port: "22", Path: "tailcat"}
+
+	// ---- what the machine looks like while this is happening -------------
+	// Read before the knock, so the readout describes the standing state
+	// rather than something the attack disturbed.
+	sock, _ := c.lab.Sh(ctx, host, `ss -tnp 2>/dev/null | grep tailcat | head -3`)
+	ifaces, _ := c.lab.Sh(ctx, host,
+		`ip -o link show 2>/dev/null | awk -F': ' '{print $2}' | grep -c tailcat || true`)
+	ifaceCount, _ := strconv.Atoi(strings.TrimSpace(lastLine(ifaces.Stdout)))
+
+	// ---- rung 4, watched rather than argued about ------------------------
+	// tcpdump on the serving machine's own interface, for an inbound SYN to
+	// :22, across the whole of the knock. An empty capture here is the
+	// finding, and it is the same method the probe uses for rungs 3 and 4 —
+	// asked at the far end, because there is no way to ask it from the near
+	// one.
+	capFile := "/tmp/tailcat-inbound.txt"
+	_, _ = c.lab.Sh(ctx, host, fmt.Sprintf(
+		`rm -f %s; (timeout 90 tcpdump -l -n -i eth0 'tcp dst port 22 and tcp[tcpflags] & tcp-syn != 0' > %s 2>/dev/null &) ; sleep 1`,
+		capFile, capFile))
+
+	// ---- which way did it go? --------------------------------------------
+	// DERP first, then the punch, exactly as chapter 01 describes — and this
+	// is the half the sandbox cannot answer, because a model has no NAT to
+	// disappoint it.
+	ping, _ := c.lab.Sh(ctx, "evil-box",
+		"timeout 35 tailcat ping --until-direct --timeout=20s "+addr+" 2>&1 | tail -3")
+
+	// ---- rung 5, in two halves -------------------------------------------
+	// Something answering is not the same as a way in, and tailcat is the one
+	// place in this lab where the two come apart cleanly: the address gets you
+	// to a door on whichever service is being served, and only `no-auth-ssh`
+	// has taken the lock off it.
+	banner, _ := c.lab.Sh(ctx, "evil-box",
+		"timeout 25 tailcat "+addr+" 22 </dev/null 2>&1 | head -1")
+	shellOut, _ := c.lab.Sh(ctx, "evil-box",
+		"timeout 40 tailcat ssh root@"+addr+" 'id -un; hostname' 2>&1 | tail -3")
+
+	run := tailcatRun{
+		service: st.Service,
+		allow:   st.Allow,
+		banner:  strings.Contains(banner.Stdout, "SSH-"),
+		shell:   strings.Contains(shellOut.Stdout, host),
+		direct:  !onlyDERP(ping.Stdout),
+		ifaces:  ifaceCount,
+	}
+
+	// ---- the control experiment, when there is one to run -----------------
+	// --allow is the only switch on that panel that puts an identity back into
+	// the path, and "evil-box was refused" does not on its own show that: a
+	// tunnel that had simply broken would look identical. So when the pin is
+	// on, the machine whose key is pinned is asked to connect too. Same shape
+	// as the capture's control marker, and for the same reason.
+	pinned := ""
+	if st.Allow {
+		pinned = tailcatPinned(host)
+		if c.lab.Running(ctx, pinned) {
+			pr, _ := c.lab.Sh(ctx, pinned,
+				"timeout 40 tailcat ssh root@"+addr+" hostname 2>&1 | tail -2")
+			run.pinnedRan = true
+			run.pinnedIn = strings.Contains(pr.Stdout, host)
+		}
+	}
+
+	time.Sleep(time.Second)
+	capture, _ := c.lab.Sh(ctx, host, "cat "+capFile+" 2>/dev/null; rm -f "+capFile)
+	run.inbound = countLines(capture.Stdout)
+
+	// ---- the same probe, the ordinary way --------------------------------
+	// The contrast is the argument. On a machine behind a NAT this is the
+	// "there is no address to aim at" answer the containers taught the model,
+	// it is still true, and that is exactly why the line above it matters.
+	ordinary := c.Probe(ctx, "evil-box", host, "22")
+	run.ordinaryRung, run.ordinaryOK = ordinary.Rung, ordinary.OK
+
+	res.Rung = run.rung()
+	res.Rule = run.rule()
+	res.OK, res.Danger, res.Why = run.verdict(host, pinned)
+	res.Evidence = run.evidence()
+	res.Detail = map[string]string{
+		"host": host, "service": st.Service, "addr": shortTailcatAddr(addr),
+		"tailcatPath": map[bool]string{true: "direct", false: "relay"}[run.direct],
+	}
+	res.Cmds = append(setup,
+		"tailcat ping --until-direct "+shortTailcatAddr(addr)+"   # on evil-box",
+		"tailcat ssh root@"+shortTailcatAddr(addr)+"   # on evil-box",
+		"tcpdump -n -i eth0 'tcp dst port 22'   # on "+host+", throughout")
+	res.Raw = strings.TrimSpace(
+		"tailcat ping:\n" + strings.TrimSpace(ping.Out()) +
+			"\n\ntailcat ssh:\n" + strings.TrimSpace(shellOut.Out()) +
+			"\n\n" + host + ", while it was happening — ss -tnp | grep tailcat:\n" +
+			strings.TrimSpace(sock.Stdout) +
+			"\n\n" + host + " saw " + packetsSeen(run.inbound) + " arrive inbound on eth0:22 in " +
+			"the whole run.\ninterfaces on " + host + ` whose name contains "tailcat": ` +
+			strconv.Itoa(run.ifaces) +
+			"\n\nthe same probe, the ordinary way: rung " + strconv.Itoa(ordinary.Rung) +
+			" — " + ordinary.Why)
+	return res
+}
+
+// onlyDERP is true when the last pong the ping reported came back through the
+// relay. `tailcat ping --until-direct` exits non-zero if no direct path ever
+// works, and it prints its relayed pongs on the way there either way, so the
+// answer is the last line that ponged rather than the exit status — the same
+// reading `tailnetPath` makes of `tailscale ping`, and wrong in the same way
+// if you take the last line instead.
+func onlyDERP(pingOut string) bool {
+	last := lastLineContaining(pingOut, "pong in")
+	return last == "" || strings.Contains(last, "via DERP")
+}
+
+func countLines(s string) int {
+	n := 0
+	for _, l := range strings.Split(s, "\n") {
+		if strings.TrimSpace(l) != "" {
+			n++
+		}
+	}
+	return n
+}
+
+// tailcatRun is everything the tunnel attack measured. The rung, the rule and
+// the verdict are pure functions of it.
+//
+// Pure for the same reason `knock` and `rotation` are: the rung this run
+// reports is its whole claim, the claim is what the board draws, and a claim
+// decided inside a function that needs four containers to reach it is a claim
+// nothing can check in under a minute.
+type tailcatRun struct {
+	service string // ssh | no-auth-ssh | all
+	allow   bool
+
+	banner bool // something answered on :22 through the tunnel
+	shell  bool // a command actually ran on the far machine
+	direct bool // the punch completed, so this was not relay-only
+
+	pinnedRan bool // the --allow control experiment was run
+	pinnedIn  bool // …and the machine whose key is pinned still got in
+
+	inbound      int  // packets the far machine saw arrive inbound on its own :22
+	ifaces       int  // interfaces on the far machine named after tailcat
+	ordinaryRung int  // how far the same probe got without the tunnel
+	ordinaryOK   bool // …and whether it got all the way
+}
+
+// rung follows the sandbox's ladder exactly, because the ladder is the shared
+// vocabulary and a lab that renumbered it would be answering a different
+// question. A pin that ignores the handshake is rung 2 — no path, the server
+// never answered — and not a rung-5 refusal, which is what a key policy
+// turning somebody away at the door looks like.
+func (r tailcatRun) rung() int {
+	if !r.banner && !r.shell {
+		return 2
+	}
+	return 5
+}
+
+func (r tailcatRun) rule() string {
+	switch {
+	case r.rung() == 2:
+		return "tailcat --allow pins the server to one client public key, and evil-box's is " +
+			"not the pinned one"
+	case r.shell:
+		return "no rule was consulted — there was no rule to consult"
+	default:
+		return "nothing in the network stopped this — the key policy did"
+	}
+}
+
+// evidence is what the board is allowed to draw from, and every number in it
+// was measured rather than reasoned about. The two that matter are zeroes: no
+// packet arrived inbound, and there is no interface that could have filtered
+// one.
+func (r tailcatRun) evidence() map[string]int {
+	e := map[string]int{
+		"banner":       boolToInt(r.banner),
+		"shell":        boolToInt(r.shell),
+		"direct":       boolToInt(r.direct),
+		"inbound":      r.inbound,
+		"ifaces":       r.ifaces,
+		"ordinaryRung": r.ordinaryRung,
+		// The rung on its own does not say whether the ordinary way worked:
+		// rung 5 is both "something answered" and "something refused it", and
+		// against a machine whose public :22 is still open those are the two
+		// readings that matter most.
+		"ordinaryOK": boolToInt(r.ordinaryOK),
+		// Named as a count so a drawing does not have to read the prose to
+		// find out how many rungs went unasked.
+		"skipped": 2,
+	}
+	if r.pinnedRan {
+		e["pinnedIn"] = boolToInt(r.pinnedIn)
+	}
+	return e
+}
+
+// verdict has four endings and they are four different lessons, which is why
+// none of them is phrased as a score.
+func (r tailcatRun) verdict(host, pinned string) (ok, danger bool, why string) {
+	skipped := "The tailnet policy was never consulted — there is no control plane here to " +
+		"hold one. The host firewall was never consulted either: " + host + " saw " +
+		packetsSeen(r.inbound) + " arrive inbound on :22 in the whole run, because the session " +
+		"came back down a connection " + host + " dialled out. Both are still there, still " +
+		"correct, and neither was ever in the path."
+
+	switch {
+	case r.rung() == 2:
+		why = "Refused at rung 2 of 5, and refused by tailcat rather than by anything you " +
+			"configured. --allow pins the server to one client public key, so holding the " +
+			"address stopped being enough and a leaked string is worth nothing."
+		if r.pinnedRan && !r.pinnedIn {
+			return false, false, why + " " + pinned + " did not get in either, though, so " +
+				"this run does not show a pin working — it shows a tunnel refusing " +
+				"everybody, which proves nothing about the pin."
+		}
+		if r.pinnedRan {
+			why += " " + pinned + " still got in with the pinned key, which is what makes " +
+				"this a pin rather than an outage."
+		}
+		return true, false, why
+
+	case r.shell:
+		// The contrast is the argument, so it has to be the contrast this run
+		// actually produced. Against a machine whose public :22 is still open
+		// evil-box gets in the ordinary way too, and "the tunnel is how it got
+		// in" would then be a claim about a different lab.
+		contrast := " Without the tunnel the same probe stopped at rung " +
+			itoa(r.ordinaryRung) + " of 5."
+		if r.ordinaryOK {
+			contrast = " Read the contrast carefully on this machine, though: without the " +
+				"tunnel evil-box reached " + host + " anyway, at rung " + itoa(r.ordinaryRung) +
+				", because its :22 is still open to the whole internet. Close that, or move " +
+				"the tunnel to a machine behind a NAT, and the ordinary way stops at rung 2 " +
+				"while this one does not stop at all."
+		}
+		return false, true, "evil-box has a shell on " + host + ", and not one thing you " +
+			"configured was asked about it. " + skipped + contrast
+
+	case r.service == "all":
+		// The port answered and the service behind it said no. That is a
+		// different sentence from tailcat holding the line and it is worth
+		// keeping the two apart: `serve all` exposed the machine's own sshd,
+		// and what refused evil-box was chapter 02's key policy on a daemon
+		// with no idea any of this happened.
+		return false, true, "`serve all` put every port on " + host + " behind the address, " +
+			"and evil-box reached the machine's own sshd through it — which then asked for " +
+			"a key it does not have. " + skipped + " Count what is holding it: one lock, on " +
+			"one service, and nothing at all on whatever else this machine happens to open."
+
+	default:
+		return false, true, "It got past every network defence you have and was stopped by " +
+			"an SSH key it does not hold. That is chapter 02 doing the work on its own, at " +
+			"rung 5. " + skipped + " It held — but count what is holding it: one lock, not " +
+			"the layers you spent ten chapters building."
+	}
+}
+
 // ---------------------------------------------------------------------------
 
 // The four ports the public scan asks about: sshd, a web server somebody put
@@ -1125,4 +1447,21 @@ func plural(n int) string {
 		return ""
 	}
 	return "s"
+}
+
+// packetsSeen is the count tcpdump came back with, in words, and it exists
+// because the zero is the interesting one. `plural` gives a suffix, which
+// reads correctly in "found 2 open ports" and produces "saw s arrive" here —
+// and the sentence this appears in is the one that turns "the firewall was
+// never asked" from a claim into a reading, so it is the last sentence in the
+// file that should look broken.
+func packetsSeen(n int) string {
+	switch n {
+	case 0:
+		return "no packets"
+	case 1:
+		return "1 packet"
+	default:
+		return itoa(n) + " packets"
+	}
 }

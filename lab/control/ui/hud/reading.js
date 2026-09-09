@@ -140,3 +140,70 @@ export function sniffReading(res) {
       : "the wire, and what a capture on it can and cannot read")
   };
 }
+
+/* ---------- 10 · tailcat-tunnel ----------------------------------
+   The only action on this board whose subject is what did *not* happen,
+   which makes it the one most easily drawn as a lie. Three rules:
+
+   `skipped` is the point. Rungs 3 and 4 are below the rung reached and
+   neither was consulted, so neither may be painted as a gate that
+   approved this. There is a third ladder state for exactly this and
+   nothing else uses it.
+
+   `inbound` is measured, so it is allowed to be drawn — and it is the one
+   number that turns "the firewall was never asked" from a claim into a
+   reading. tcpdump watched the serving machine's own interface for the
+   whole run. A non-zero count means something did arrive inbound and the
+   claim above is wrong for this run, so the frame has to say so rather
+   than draw the tidy picture anyway. That is the same rule the capture's
+   control marker obeys.
+
+   `direct` is the half a model cannot answer. A tunnel that only ever
+   relayed is a true and less alarming picture than one that punched
+   through two NATs, and drawing the punch when it did not happen would
+   be inventing the interesting half. */
+export function tailcatReading(res) {
+  /* atkTailcatTunnel reports rung 2 or rung 5 the moment it actually runs;
+     the "evil-box is not in this stack" path and a tunnel that would not
+     start both report rung 1 and measured nothing at all. */
+  const ran = !neverRan(res);
+  const inbound = ev(res, "inbound");
+  const shell = ev(res, "shell") > 0;
+  const refused = rung(res) === 2;
+
+  /* A run that measured an inbound packet has not shown what this shot is
+     about, whatever else it showed. Saying so costs the picture and keeps
+     the claim. */
+  const contradicted = inbound > 0;
+
+  return {
+    ran,
+    shell,
+    refused,
+    inbound,
+    contradicted,
+    direct: ev(res, "direct") > 0,
+    ifaces: ev(res, "ifaces"),
+    ordinaryRung: ev(res, "ordinaryRung"),
+    /* Only when the run actually happened. An action that returned at rung 1
+       because evil-box is not in the stack skipped nothing — it never
+       started, and marking two rungs "never asked" about it would be the
+       scan reporting ports it never probed. */
+    skipped: neverRan(res) ? [] : [3, 4],
+    skipLabel: contradicted
+      ? inbound + " arrived inbound — this run does not show rung 4 being skipped"
+      : "never asked",
+    nums: neverRan(res) ? [] : [
+      inbound + " inbound on :22",
+      ev(res, "ifaces") + " tailcat interfaces",
+      ev(res, "direct") > 0 ? "direct" : "relayed",
+      "the ordinary way: rung " + ev(res, "ordinaryRung") +
+        (ev(res, "ordinaryOK") > 0 ? " · in" : " · stopped")
+    ],
+    head:
+      neverRan(res) ? "INCONCLUSIVE · no tunnel ran — is evil-box running? `make attack`" :
+      refused ? "HELD · --allow pinned the server to one client key" :
+      shell ? "THROUGH · a shell, and nothing you configured was asked" :
+      "HELD · an SSH key, at rung 5, with rungs 3 and 4 never asked"
+  };
+}

@@ -765,3 +765,28 @@ pre.out.live { max-height: 38vh; overflow-y: auto; }
   background: var(--danger-soft);
 }
 .hud-rung.breached .t, .hud-rung.breached .n { color: var(--danger); font-weight: 600; }
+
+/* A rung nothing asked. Deliberately quieter than every other state rather
+   than louder: it is the absence of a decision, and dressing it up as a
+   finding would make it compete with the rung that actually answered. */
+.hud-rung.skipped {
+  border-top-style: dotted;
+  border-top-color: var(--border-strong);
+  background: transparent;
+}
+.hud-rung.skipped .t, .hud-rung.skipped .n { color: var(--text-faint); font-style: italic; }
+
+/* The tunnel the audit does not score, above the list rather than inside it.
+   Quiet enough that it cannot be mistaken for a check and loud enough that a
+   reader about to trust an 11 / 11 reads it first. */
+.hatch {
+  font-size: 12px; line-height: 1.6; color: var(--text);
+  margin: 10px 0 4px; padding: 10px 12px; border-radius: 8px;
+  border: 1px solid var(--border); border-left: 3px solid var(--text-faint);
+  background: var(--bg-sunken);
+}
+.hatch b { font-weight: 660; }
+.hatch.is-warn { background: var(--warn-soft);   border-left-color: var(--warn); }
+.hatch.is-warn b { color: var(--warn); }
+.hatch.is-bad  { background: var(--danger-soft); border-left-color: var(--danger); }
+.hatch.is-bad b { color: var(--danger); }

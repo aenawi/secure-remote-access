@@ -2215,8 +2215,12 @@
 
   /* Deliberately a banner and not a twelfth check. The eleven are a rubric
      shared one-for-one with the containers in lab/, and only a real host can
-     honestly be inspected for a tunnel process — so until that lands (issue
-     #46) this names the gap rather than moving a number it has not earned.
+     honestly be inspected for a tunnel process — which the lab half now does,
+     four switches' worth, on every observation. That did not make a twelfth
+     check right: a check only one of the two halves can answer would stop the
+     scores being comparable, which is the one thing the pair exists for. So
+     both halves name the gap instead, and if a twelfth is ever added it goes
+     into both in the same change.
 
      Note what driving it actually showed: the score is not uniformly blind.
      A tunnel on lab-vps drops it to 7/11 and one on lab-ubuntu to 10/11,

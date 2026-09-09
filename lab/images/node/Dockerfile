@@ -24,6 +24,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       jq procps less \
  && rm -rf /var/lib/apt/lists/*
 
+# ---- tailcat ------------------------------------------------------------
+# Chapter 01's escape hatch, installed the way the chapter says to install it:
+# one static binary, no daemon, no root, nothing registered with anything. It
+# is deliberately not started here. A tunnel that was already running when you
+# turned the lab on would be the one hostile thing in this stack that nobody
+# pressed.
+#
+# Pinned, because an unpinned escape hatch is a moving target and this one has
+# a chapter written about its flags. The release is a .deb, so the binary lands
+# under a package manager rather than in an unowned /usr/local.
+ARG TAILCAT_VERSION=0.6.0
+RUN arch="$(dpkg --print-architecture)" \
+ && curl -fsSL -o /tmp/tailcat.deb \
+      "https://github.com/tailscale/tailcat/releases/download/v${TAILCAT_VERSION}/tailcat_${TAILCAT_VERSION}_linux_${arch}.deb" \
+ && dpkg -i /tmp/tailcat.deb \
+ && rm -f /tmp/tailcat.deb \
+ && tailcat version
+
 # ---- sshd ---------------------------------------------------------------
 # Key-only, root login by key, which is where chapter 08 leaves a box before
 # the configurations start moving things. Every node shares one keypair so any
