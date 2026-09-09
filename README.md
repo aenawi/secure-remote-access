@@ -91,11 +91,11 @@ and a browser is the whole setup; Docker is the only prerequisite. Every switch
 on the page is a command that runs inside a container, every probe watches the
 far end while it knocks and reports the rung that decided it, and the
 eleven-check audit is the same eleven the sandbox scores, so a real stack and
-the model can be compared directly. Where they disagree, the README says so and
-explains why; that is the most useful thing the pair produces. Twice it has been
-the model that was wrong, and twice the model is what changed; once it was the
-lab, and the lab is what changed. An attacker container is included and never
-starts unless you ask for it.
+the model can be compared directly. Where they disagree,
+[lab/README.md](lab/README.md#where-this-lab-and-the-sandbox-disagree) records
+the gap and explains why, with what was measured, when, and which half changed;
+that is the most useful thing the pair produces. An attacker container is
+included and never starts unless you ask for it.
 
 Smaller things: checklist ticks are saved in `localStorage`, per chapter, and
 the full deployment checklist in chapter 11 has a progress bar and a reset
@@ -176,9 +176,8 @@ Chapter 14 is a model of this topology and [`lab/`](lab/README.md) is the same
 topology as real containers. When they disagree, one of them is wrong about
 something real, and
 [Where this lab and the sandbox disagree](lab/README.md#where-this-lab-and-the-sandbox-disagree)
-is the file that records it. There are five findings there. Twice the model was
-wrong and the model changed; once the containers were wrong and the containers
-changed. A sixth entry is the most valuable thing anyone can send.
+is the file that records them, each with what was measured, when, and which
+half changed. A new entry there is the most valuable thing anyone can send.
 
 So if you think a chapter is wrong, you do not have to convince me. Build the
 case where it fails. And if you are new to this and a paragraph lost you, that
