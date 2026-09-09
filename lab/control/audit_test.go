@@ -126,7 +126,7 @@ var scored = []outcome{
 		// public :22 still open. Two of the three failures are the same
 		// failure seen from two directions — a stranger reaches sshd, and so
 		// does the holder of a key the tailnet refused. The second of those is
-		// finding 5 in the README, and it is the reason this row says 8 and
+		// finding 4 in the README, and it is the reason this row says 8 and
 		// not 9.
 		name: "the boot state",
 		passed: []int{

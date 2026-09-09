@@ -84,27 +84,13 @@ is the cipher refusing, in your browser. Everything you do there also emits the
 real `nft` / `tc` / `ufw` / `tailscale` command, so the page doubles as a script
 generator for the chapter 13 VMs.
 
-Then there is a lab that runs. [`lab/`](lab/README.md) is the same topology as
-real containers: four machines on four isolated segments, each behind its own
-NAT router, running real `tailscaled` on real TUN devices. `docker compose up`
-and a browser is the whole setup; Docker is the only prerequisite. Every switch
-on the page is a command that runs inside a container, every probe watches the
-far end while it knocks and reports the rung that decided it, and the
-eleven-check audit is the same eleven the sandbox scores, so a real stack and
-the model can be compared directly. Where they disagree, the README says so and
-explains why; that is the most useful thing the pair produces. Twice it has been
-the model that was wrong, and twice the model is what changed; once it was the
-lab, and the lab is what changed. An attacker container is included and never
-starts unless you ask for it.
-
 Smaller things: checklist ticks are saved in `localStorage`, per chapter, and
 the full deployment checklist in chapter 11 has a progress bar and a reset
-button. Dark and light themes follow your system by default, with a toggle
-(bottom right) that overrides and remembers. Every command block has a copy
-button. The SVG is inline throughout, themed with the page rather than shipped
-as images. It is responsive enough to be genuinely readable on the phone the
-guide is about, and printable, with the navigation chrome hidden in print
-stylesheets.
+button. Dark and light themes follow your system by default, with a toggle that
+overrides and remembers. Command blocks copy to the clipboard on a click. The
+SVG is inline throughout, themed with the page rather than shipped as images. It
+is responsive enough to be genuinely readable on the phone the guide is about,
+and printable, with the navigation chrome hidden in print stylesheets.
 
 ## Structure
 
@@ -132,121 +118,62 @@ secure-remote-access/
 opt-in, self-contained and needs nothing but Docker; the guide reads exactly the
 same without it.
 
-The guide's four scripts have no build step and no tests, which suits four
-files that degrade to a readable static page when they do not run. They are
-parse-checked, though. `make -C lab check` runs `node --check` over
-`assets/*.js` along with the lab's own UI, so a stray comma is caught before it
-ships rather than in somebody's console. It skips itself when Node is not
-installed; see [lab/README.md](lab/README.md#the-javascript-half).
-
-`nav.js` is the single source of truth for navigation. Add an entry there and the
-sidebar, filter, chapter cards and prev/next links all pick it up. Each chapter
-page sets `data-page` on `<body>` to match its `id` in `nav.js`, and `data-depth="1"`
-so asset paths resolve.
-
-`anim.js` is opt-in per page: only chapters containing a `<figure class="diagram sim">`
-load it. A simulation is declared entirely in markup, with no per-diagram
-JavaScript: `data-sim` on the figure, `data-at` to say which step an element
-belongs to (`"2"`, `"2+"`, `"0-3"`), `data-scn` to bind it to a scenario button, and
-`data-flow` to send dots along a path.
-
-The no-JavaScript fallback is pure CSS rather than script: `anim.js` adds `sim-on`
-to the figure when it takes over, and [`style.css`](assets/style.css) hides every
-scenario-specific layer *except* those tagged `data-poster` until it does. So
-`data-poster` marks the one coherent frame a reader sees with scripting off, and is
-worth setting deliberately on any new simulation.
-
-Navigation is defined as a plain global rather than fetched, because `fetch()` is
-blocked on the `file:` scheme, and that is what lets the guide work by
-double-clicking `index.html`.
-
-`sandbox.js` follows the same opt-in rule as `anim.js`: only a page containing
-`[data-sandbox]` loads it. It builds its control panels from a declarative spec and
-mutates the topology SVG through `data-el` and `data-route` hooks, so with scripting
-off the page keeps a readable static figure and a poster explaining what it does.
-Its engine walks the chapter 12 ladder in order and always returns the rung that
-decided the outcome, never a bare pass/fail. That is the thing worth preserving if
-you extend it. State round-trips through the URL hash, so a configuration is a link.
+Those files hold to a handful of rules that are easier to break than to notice
+broken — why `nav.js` is a plain global rather than a fetch, how a simulation is
+declared in markup, what the sandbox engine has to return, which frame a reader
+sees with scripting off. They are written down once, in
+[Things the repository holds, that a PR should not quietly break](CONTRIBUTING.md#things-the-repository-holds-that-a-pr-should-not-quietly-break),
+next to [the checks](CONTRIBUTING.md#running-the-checks) that guard the ones a
+machine can guard.
 
 ## Contributing
 
 The short version: **do not argue with me, beat me in the lab.**
 
-Chapter 14 is a model of this topology and [`lab/`](lab/README.md) is the same
-topology as real containers. When they disagree, one of them is wrong about
-something real, and
+Chapter 14 simulates this network in your browser and [`lab/`](lab/README.md)
+builds it for real in containers, which is what makes a claim here falsifiable
+rather than merely confident: run the same test against both halves, and a
+disagreement between them is a fact about the world instead of an opinion about
+it. Finding one is the most useful thing you can contribute.
+[CONTRIBUTING.md](CONTRIBUTING.md) says how to go looking, and
 [Where this lab and the sandbox disagree](lab/README.md#where-this-lab-and-the-sandbox-disagree)
-is the file that records it. There are five findings there. Twice the model was
-wrong and the model changed; once the containers were wrong and the containers
-changed. A sixth entry is the most valuable thing anyone can send.
+records every one found so far, with what was measured and which half moved.
 
-So if you think a chapter is wrong, you do not have to convince me. Build the
-case where it fails. And if you are new to this and a paragraph lost you, that
-is a bug report too, and a welcome one: the guide's biggest risk is being
-written by someone who already knows, for someone who already knows.
+You do not need a lab repro to be useful, though. A dead link, a command that
+has moved on, a paragraph that lost you — especially a paragraph that lost you —
+are each worth an issue.
 
-- [CONTRIBUTING.md](CONTRIBUTING.md): what is worth sending, how to run the
-  checks, and the invariants a change should not quietly break
+Branch from `develop`, never from `main`. `develop` is the default branch, so a
+fresh clone already puts you there. `main` is the published guide and nothing
+else — a commit reaching it is a release, and somebody may run that command
+tonight against a machine they cannot walk over to.
+
+- [CONTRIBUTING.md](CONTRIBUTING.md): what is worth sending, which branch to
+  start from, how to run the checks, and the invariants a change should not
+  quietly break
 - [SECURITY.md](SECURITY.md): advice that would expose or lock out a reader is
   a vulnerability, and goes privately first
 - [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md): attack the claim, never the person
 
-### Branch from `develop`, not `main`
-
-`develop` is the default branch, so a fresh clone already puts you there.
-
-```text
-  your branch  ──►  develop  ──►  main  ──►  the published guide
-                       ▲            │
-                       └────────────┘
-                     a release, back-merged
-```
-
-`main` is the published guide and nothing else. It is what
-[the site](https://aenawi.github.io/secure-remote-access/) serves, so a commit
-reaching it is a release. Somebody may run that command tonight, against a
-machine they cannot walk over to. `develop` is where the work happens, and
-everything merges there first. Periodically `develop` goes to `main` as one pull
-request, which is the only routine way anything ships.
-
-The one exception is a hotfix: published advice that locks a reader out or
-leaves them exposed goes straight to `main`, because a release train is a delay
-with a cost attached. It is then back-merged to `develop` so the next release
-does not revert it. Hotfixes are for harm, not for hurry; a typo is not one.
-
-Both branches are protected: no direct pushes, everything through a pull request,
-and `make check` runs on GitHub before anything merges.
-[CONTRIBUTING.md](CONTRIBUTING.md#which-branch-to-start-from) has the commands.
-
 ## Disclaimer
 
-Published under [CC BY-SA 4.0](LICENSE-docs) and [GPL-3.0-or-later](LICENSE);
-see [License](#license) below for which covers what. Both mean no warranty of
-any kind. Nobody who wrote, reviewed or contributed to this is responsible for
-what happens on your machines.
+The commands in this guide change firewall rules, disable password login,
+rewrite `sshd_config`, and deliberately remove the only route into a machine you
+may be a long way from. In the wrong order, on a box you cannot walk over to,
+several of them will lock you out. The guide says so at every point where that
+is a real risk; those warnings are not decoration.
 
-That is worth reading as more than boilerplate, because of what the commands
-here do. They change firewall rules, disable password login, rewrite
-`sshd_config`, and deliberately remove the only route into a machine you may be
-a long way from. In the wrong order, on a box you cannot walk over to, several
-of them will lock you out. The guide says so at every point where that is a
-real risk; those warnings are not decoration.
+There is **no warranty of any kind**. The decision to run any of this is yours,
+and so is the outcome. Nobody who wrote, reviewed or contributed to this is
+responsible for what happens on your machines.
 
-Before running any of it against something you care about:
-
-- Your environment is not this one. Versions drift and providers differ, so
-  understand what a line does before you run it.
-- Practise somewhere disposable. Chapter 14 is a simulation and costs
-  nothing; chapter 13 builds throwaway VMs; [`lab/`](lab/README.md) builds
-  throwaway containers in one command. A green result in any of them is not a
-  promise about your production box.
-- Keep a second way in, whether another SSH session, a provider console or
-  physical access, proven working *before* you change anything.
-- The decision is yours, and so is the outcome. If something breaks, that is
-  not a fault of this repository, its owner, or any contributor.
-
-None of which is a reason to skip the work. It is a reason to do it in the order
-given, on something you can afford to break first.
+The guide states that in full, at the point where a reader is standing in front
+of it: [Disclaimer](https://aenawi.github.io/secure-remote-access/#disclaimer),
+which is the Disclaimer section of `index.html` if you are reading offline. It is worth the two minutes before you run anything against something
+you care about — the short of it is that your environment is not this one, that
+chapters 13 and 14 and `lab/` exist so you can practise somewhere disposable,
+and that you should have a second way into the machine, proven working, before
+you change anything.
 
 ## A note on accuracy
 
@@ -280,7 +207,9 @@ too.
 
 That is the whole point of the split. Neither license asks you for money or
 permission. Both ask that improvements stay reachable by the people who would
-learn from them, which is the only reason this exists.
+learn from them, which is the only reason this exists. Both also come with no
+warranty, which is the disclaimer above stated in the language a lawyer would
+use.
 
 `SPDX-License-Identifier` headers on each source file say which applies, so the
 answer travels with the file rather than living only here. `lab/checks/licensed.sh`

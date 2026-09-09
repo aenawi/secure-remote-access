@@ -6,20 +6,23 @@ Most security disagreements are two people trading confident opinions and
 neither of them moving. This repository has a way out of that, and it is the
 reason to bother contributing here rather than leaving a comment somewhere.
 
-[`lab/`](lab/README.md) is the guide's topology as real containers: four
+The guide ships two versions of the same network.
+[Chapter 14](chapters/14-sandbox.html) simulates it in your browser; that one is
+**the sandbox**. [`lab/`](lab/README.md) builds it for real, in containers: four
 machines on four isolated segments, each behind its own NAT router, running real
-`tailscaled` on real TUN devices. Chapter 14 is the same topology as a model.
-When the two disagree, one of them is wrong about something real, and
-[Where this lab and the sandbox disagree](lab/README.md#where-this-lab-and-the-sandbox-disagree)
-is where that gets written down.
+`tailscaled` on real TUN devices; that one is **the lab**. Run the same test
+against both and they should give you the same answer.
 
-There are five findings in that list. Twice the model was wrong and the model
-changed. Once the containers were wrong and the containers changed. Once
-Headscale shipped a feature and the gap flipped direction.
+Sometimes they do not, and when that happens one of the two is wrong about how
+the real world behaves. Every disagreement found so far is written up in
+[Where this lab and the sandbox disagree](lab/README.md#where-this-lab-and-the-sandbox-disagree),
+with what we measured, when, and which half we changed. Sometimes we corrected
+the sandbox. Sometimes we corrected the lab. Once Headscale shipped the feature
+the gap was made of and closed it for us.
 
-A sixth entry in that list is the most valuable thing you can send. It is
+Finding a new disagreement is the most valuable thing you can contribute. It is
 also the most fun, and it is the only kind of contribution where being right
-costs me a chapter rewrite and you get the credit in the file.
+costs me a chapter rewrite and earns you a credit in the file.
 
 So: if you think a chapter is wrong, you do not have to convince me. Build the
 case where it fails.
@@ -35,7 +38,7 @@ make attack      # add the attacker container — it never starts on its own
 
 ### 1 · A divergence
 
-The model says one thing, the containers say another. Open an issue with
+The sandbox says one thing, the lab says another. Open an issue with
 **Disagreement** on it. Say which configuration (`day-one`, `typical`, `weak`,
 `hardened`, or the boot state), what you ran, what each half reported.
 
@@ -198,6 +201,12 @@ asserts the five scores in the comparison table against a checked-in fixture, so
 number in the README and the number `audit.go` computes cannot drift apart
 without a failing test naming both.
 
+Two shell checks run before the Go does, and both guard a claim rather than a
+behaviour. `checks/licensed.sh` fails if a source file under `assets/` or `lab/`
+has no SPDX header. `checks/anchors.sh` fails if a link between two documents
+here points at a heading that is not there — which is what keeps a pointer from
+quietly becoming worse than the duplicate it replaced.
+
 `gofmt` fails on any output at all. A file listed is a file that is not
 formatted.
 
@@ -240,6 +249,15 @@ to.
 
 SPDX headers on every source file. `lab/checks/licensed.sh` fails without
 one, and `make check` runs it.
+
+Each fact has one home, and the other documents link to it. `README.md`
+orients — what this is, who it is for, how to open it, what is in it. The
+invariants above live here. The disclaimer lives in `index.html`, where a
+reader is standing when it matters, and every other mention points there. The
+temptation is always to restate the thing for the convenience of a reader who
+has not clicked; resist it, because the copy is the one that goes stale, and a
+stale disclaimer is the worst of them to own two of.
+`lab/checks/anchors.sh` guards the links this asks you to write.
 
 ## Style
 

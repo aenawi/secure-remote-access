@@ -12,15 +12,16 @@ open http://localhost:8099
 Docker is the only prerequisite. No Go, no Python, no npm, no account, no
 internet connection after the images are built.
 
-This is the **feel-it** half of a pair. The **understand-it** half is
-[chapter 14's sandbox](../chapters/14-sandbox.html), which runs the same
-topology as a model in your browser. Same panel names, same button labels, same
-output format: if you can drive one you can drive the other blind. The
-difference is that the sandbox can only show you what somebody modelled, and
-this one has no model, so it can surprise you. It has already surprised us
-twice, and both surprises are written down further below, along with what
-changed in the sandbox afterwards, because a model that is told it is wrong and
-left alone was not worth building.
+The guide ships two versions of this network.
+[Chapter 14](../chapters/14-sandbox.html) simulates it in your browser; that one
+is **the sandbox**. This directory builds it for real, in containers; that one
+is **the lab**. Same panel names, same button labels, same output format, so if
+you can drive one you can drive the other blind.
+
+What differs is what each can tell you. The sandbox can only show you what
+somebody modelled. The lab has no model, so it can surprise you. It has
+surprised us more than once, and every surprise is written up below, with what
+we measured and which of the two we then corrected.
 
 ---
 
@@ -175,9 +176,9 @@ to a live region, and the canvas itself is `aria-hidden`. With
 flying to it and the words are identical. If WebGL is unavailable the page
 falls back to the flat drawing and says so once.
 
-**The flat drawing** is the original, and it stays: the same picture as chapter
-14 with the model taken out of it. Every address on it was read back from a
-container, and the shape of the line is whatever `tailscale ping` last
+**The flat drawing** is the original, and it stays: the same picture chapter 14
+draws, with the simulation taken out of it. Every address on it was read back
+from a container, and the shape of the line is whatever `tailscale ping` last
 reported:
 
 - straight across the middle: direct, the punch completed;
@@ -216,7 +217,7 @@ model:
 1. Is anything alive? Containers, links, tailnet sessions.
 2. Is there a path, and is it direct or relayed? Answered by `tailscale ping`,
    which keeps trying until it gets a direct path or runs out of attempts, so
-   what you see is the path the pair settles on.
+   what you see is the path the two machines settle on.
 3. Did the tailnet allow it? The probe starts a `tcpdump` on the destination
    before it knocks. If nothing arrives, the tailnet refused it, and the
    far machine has no log line to show you, which is exactly how a rung-3
@@ -330,19 +331,21 @@ detail.
 
 ## Where this lab and the sandbox disagree
 
-This is the most valuable part of the directory. A gap between the model and the
-containers means the model is wrong about something real, and finding those was
-the whole reason for building both halves.
+This is the most valuable part of the directory. When the sandbox and the lab
+give different answers, one of the two is wrong about how the real world
+behaves, and finding those was the whole reason for building both.
 
-Three of the five below have since been closed. Twice the sandbox was
-changed to match what the containers do; once, the other way about, the
-containers were changed to match the sandbox. A fourth, finding 1, was closed
-by neither of us: Headscale shipped the feature the gap was made of, and closing
-it opened a new gap pointing the other way, which is why that one is still here
-and still open. Which direction a gap points is not decided in advance, and that
-is the argument for keeping both halves. Closed ones are kept here rather than
-deleted, because the finding is the artefact this pair produces; the fix is just
-the consequence.
+Four disagreements are recorded below, and three of them are closed. Twice the
+sandbox was wrong and we corrected the sandbox. Once both were wrong in the same
+way, arrived at from opposite ends, and we corrected both. Finding 1 we closed
+neither way: Headscale shipped the feature the gap was made of, and closing it
+opened a new gap pointing the other direction, which is why that one is still
+here and still open.
+
+Which way a disagreement points is not decided in advance. Neither half is the
+reference the other gets checked against, and that is the reason to keep both.
+Closed ones stay in this file rather than being deleted: what was measured, and
+when, is worth more later than the fix that followed it.
 
 Everything in this section is an observation about one build of one stack.
 The coordination server is pinned (`headscale/headscale:0.29.3` in
@@ -372,16 +375,16 @@ cannot drift apart without a failing test naming both.
 Every gap in that table is still the same single divergence, key expiry, but
 it has changed sides. It used to cost this lab a point on the two configurations
 that asked for expiry *on*; it now hands this lab a point on the three that ask
-for it *off*. Apart from that one check, the two halves fail the same checks in
-all five configurations. Two more findings show up when you drive the lab rather
-than score it. All five are below.
+for it *off*. Apart from that one check, the sandbox and the lab fail the same
+checks in all five configurations. One more gap shows up when you drive the lab
+rather than score it. All four are below.
 
 ### 1 · Key expiry, which used to cost this lab a point and now gives it one
 
 Open, and it changed sides. The check is **"A lost device stops being a
 member on its own"**, and it has been the only real divergence in the table for
-as long as the table has existed. What it says about the two halves is now the
-opposite of what it used to.
+as long as the table has existed. What it says about the sandbox and the lab is
+now the opposite of what it used to.
 
 What it was, up to Headscale 0.26.1. Headscale recorded a node expiry only
 when the registration asked for one, and a pre-auth-key registration did not,
@@ -458,7 +461,7 @@ reason in finding 1. The extra pass was **"…nor your laptop"**, checked with t
 tailnet switched off entirely.
 
 The sandbox gave every machine a public address and let a public path find one,
-so an attacker on the open internet reached `lab-ubuntu:22`. In the containers it
+so an attacker on the open internet reached `lab-ubuntu:22`. In the lab it
 does not, and cannot: `lab-ubuntu` lives on `10.0.13.0/24` behind `nat-ubuntu`,
 which masquerades outbound and forwards nothing inbound. There is no address for
 a stranger to aim at. The probe says so at rung 2 rather than inventing a path.
@@ -494,7 +497,73 @@ it. Measured against tailscale 1.102.3, and this is a client-side reading:
 which port `netcheck` probes is the client's business, and a future one could
 change it.
 
-### 4 · A twenty-second blackout does not kill an SSH session
+### 4 · A key the tailnet refuses is still a machine on the internet
+
+Closed, and we changed both. Each had the same bug, arrived at from the
+opposite end.
+
+The sandbox used to stop an unsigned or expired node key at rung 1, which meant
+tailnet lock refused traffic it has no say over: an ordinary TCP connection to
+a public address, nothing to do with the tailnet at all. Lock and expiry now
+decide *membership* there: a refused node is simply not on the tailnet, so it
+falls through to the ordinary network and reaches whatever is publicly
+reachable.
+
+This lab had the same bug, arrived at from the other end. Its **Tailnet lock**
+switch is "does a key exist for a machine you did not authorise", so with it on
+`evil-box` cannot join at all, and `audit.go` used to report the check refused
+at rung 1 without probing, rather than asking what `evil-box` reaches *without*
+a tailnet session. `Probe` had modelled it correctly all along; the audit simply
+never called it on that path. So tailnet lock was taking credit for a public
+`:22` that UFW had left wide open.
+
+Both are fixed, and the lab settles it. With lock on, `:22` open and
+`sshd` on `0.0.0.0`, **Join with a stolen node key** now reports:
+
+```
+evil-box → 203.0.113.11:22        rung 5/5     path: public
+Connection to 203.0.113.11 22 port [tcp/ssh] succeeded!
+
+lab-vps saw it arrive:
+08:21:49.001182 IP 203.0.113.66.49588 > 203.0.113.11.22: Flags [S], …
+```
+
+That is `tcpdump` on `lab-vps` watching the SYN land while `evil-box` knocks:
+the key was refused and the packet arrived anyway. Close public `:22` and the
+same attack stops at rung 4. **Let a key expire** behaves identically:
+`lab-roam` drops out of the tailnet on its own and still reaches `sshd` at rung
+5, until the public rule is gone.
+
+Re-scoring after the fix cost this lab's boot state a point. The extra failure
+is **"A stolen node key is refused"**, which is now honest. The four named
+configurations did not move, `hardened` included, because `hardened` had already
+closed public `:22`. The sandbox moved the same way, 9/11 to 8/11. (The boot
+state read 7/11 for a while afterwards and reads 8/11 today; the point it got
+back is finding 1's, and has nothing to do with this one.)
+
+The lesson underneath is worth more than the score. Tailnet lock decides who is
+a *member*. Closing public `:22` decides who can reach the *machine*. Neither
+substitutes for the other, and for months both the sandbox and the lab implied
+that tailnet lock did the firewall's job.
+
+Re-measured against Headscale 0.29.3, and it holds: the boot state still
+fails **"A stolen node key is refused"** for the same reason, which is why that
+row reads 8 and not 9.
+
+---
+
+## Folklore the lab settled
+
+The sandbox and the lab agree about this one completely, and always have, so it
+is not a disagreement. It is here because running the lab killed a belief that
+almost everybody holds, including the person who built both of them.
+
+It sits outside the list above on purpose. That list is for places where the
+sandbox and the lab give different answers, and counting this one among them is
+what made every summary of the list come out wrong: four disagreements and one
+demonstration were being added up as though they were five of the same thing.
+
+### A twenty-second blackout does not kill an SSH session
 
 This one is folklore worth killing. Press **ssh and mosh, through a 20-second
 outage** and read the first half of the result: both sessions survive the
@@ -534,58 +603,6 @@ This one is TCP's behaviour and mosh's, not any coordination server's, so it is
 the finding least likely to move under you. Measured against tailscale
 1.102.3.
 
-### 5 · A key the tailnet refuses is still a machine on the internet
-
-Closed, and this half is the one that changed.
-
-The sandbox used to stop an unsigned or expired node key at rung 1, which meant
-tailnet lock refused traffic it has no say over: an ordinary TCP connection to
-a public address, nothing to do with the tailnet at all. Lock and expiry now
-decide *membership* there: a refused node is simply not on the tailnet, so it
-falls through to the ordinary network and reaches whatever is publicly
-reachable.
-
-This lab had the same bug, arrived at from the other end. Its **Tailnet lock**
-switch is "does a key exist for a machine you did not authorise", so with it on
-`evil-box` cannot join at all, and `audit.go` used to report the check refused
-at rung 1 without probing, rather than asking what `evil-box` reaches *without*
-a tailnet session. `Probe` had modelled it correctly all along; the audit simply
-never called it on that path. So tailnet lock was taking credit for a public
-`:22` that UFW had left wide open.
-
-Both are fixed, and the containers settle it. With lock on, `:22` open and
-`sshd` on `0.0.0.0`, **Join with a stolen node key** now reports:
-
-```
-evil-box → 203.0.113.11:22        rung 5/5     path: public
-Connection to 203.0.113.11 22 port [tcp/ssh] succeeded!
-
-lab-vps saw it arrive:
-08:21:49.001182 IP 203.0.113.66.49588 > 203.0.113.11.22: Flags [S], …
-```
-
-That is `tcpdump` on `lab-vps` watching the SYN land while `evil-box` knocks:
-the key was refused and the packet arrived anyway. Close public `:22` and the
-same attack stops at rung 4. **Let a key expire** behaves identically:
-`lab-roam` drops out of the tailnet on its own and still reaches `sshd` at rung
-5, until the public rule is gone.
-
-Re-scoring after the fix cost this lab's boot state a point. The extra failure
-is **"A stolen node key is refused"**, which is now honest. The four named
-configurations did not move, `hardened` included, because `hardened` had already
-closed public `:22`. The sandbox moved the same way, 9/11 to 8/11. (The boot
-state read 7/11 for a while afterwards and reads 8/11 today; the point it got
-back is finding 1's, and has nothing to do with this one.)
-
-The lesson underneath is worth more than the score. Tailnet lock decides who is
-a *member*. Closing public `:22` decides who can reach the *machine*. Neither
-substitutes for the other, and both halves of this pair spent months implying
-the first did the second's job.
-
-Re-measured against Headscale 0.29.3, and it holds: the boot state still
-fails **"A stolen node key is refused"** for the same reason, which is why that
-row reads 8 and not 9.
-
 ---
 
 ## Headscale, not Tailscale
@@ -612,7 +629,7 @@ everything. Two places where they do not:
   different mechanism. The lab says so in the result text rather than hiding it.
   What it does not do is end the story: a machine with no tailnet session is an
   ordinary machine on the internet, and what it reaches next is the host
-  firewall's question. See 5 above.
+  firewall's question. See finding 4 above.
 - DERP lives inside the coordination server. The ticket this was built from
   asked for a separate `derper` container. A separate one needs its own trusted
   TLS certificate, which means shipping a CA for no gain: the relay path a
@@ -722,7 +739,7 @@ None of them start a container. The rung is a pure function of what one command
 printed at one end and another printed at the other, and the score is a pure
 function of eleven booleans, so the fixtures were captured once, checked in,
 and the decisions they drive are now asserted in about a second rather than in
-about a minute. That matters more than a coverage number: finding 5 below was
+about a minute. That matters more than a coverage number: finding 4 above was
 a rung-classification bug in exactly that pure function, it survived for
 months, and it was caught by running containers.
 

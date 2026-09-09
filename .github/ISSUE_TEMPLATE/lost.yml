@@ -48,16 +48,16 @@ body:
     attributes:
       label: Roughly where are you coming from?
       description: |
-        Only so the fix is pitched at the right person. Every option here is a
-        welcome one.
+        Optional, and only so the fix is pitched at the right person. A
+        paragraph that loses a first-timer is usually missing background; one
+        that loses a professional is usually genuinely ambiguous. Those are
+        different repairs. Skip it if none of these fit.
       options:
         - "I build software; security is not my area"
         - "I ship mostly with an AI coding assistant and want to not get burned"
         - "I am learning security deliberately"
         - "I do this for a living and the sentence is still ambiguous"
-        - "Rather not say"
-    validations:
-      required: true
+        - "I maintain something and am reading my own words cold"
 
   - type: dropdown
     id: stage

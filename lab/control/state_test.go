@@ -147,7 +147,7 @@ func TestReadSSHD(t *testing.T) {
 	// tailnet address and 0.0.0.0 is exposed on the public interface. Reading
 	// "a tailnet address appeared somewhere" as "bound to the tailnet" would
 	// pass the check on a machine that still answers a stranger on eth0 — the
-	// same shape of mistake as finding 5, one layer down.
+	// same shape of mistake as finding 4, one layer down.
 	var both VPSState
 	both.SSHDListen = "all"
 	both.readSSHD("listenaddress 100.71.4.3:22\nlistenaddress 0.0.0.0:22\n")
@@ -318,7 +318,7 @@ func TestPresetsMatchWhatIsScored(t *testing.T) {
 	d := defaultState()
 	if !d.ACL.Lock || !d.VPS.AllowPublic22 {
 		t.Fatal("the boot state scores 7 of 11 precisely because tailnet lock is on and " +
-			"public :22 is still open — that pair is finding 5, and the score moves if " +
+			"public :22 is still open — that pair is finding 4, and the score moves if " +
 			"either half of it does")
 	}
 }

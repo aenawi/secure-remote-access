@@ -27,7 +27,7 @@ help:
 	@printf '  make attack     add evil-box (never starts on its own)\n'
 	@printf '  make status     tailscale status from the laptop\n'
 	@printf '  make audit      run the eleven checks and print the score\n'
-	@printf '  make check      licences, go vet, go test, gofmt, and the UI JavaScript\n'
+	@printf '  make check      licences, links, go vet, go test, gofmt, and the UI JavaScript\n'
 	@printf '  make ui         parse-check ui/ and assets/, run the board rules\n'
 	@printf '  make hooks      install the pre-push hook that runs make check\n'
 	@printf '  make logs       follow every container\n'
@@ -102,6 +102,8 @@ print(r.get("verdict","")); print(); \
 check:
 	@printf 'licences\n'
 	@sh checks/licensed.sh
+	@printf 'links\n'
+	@sh checks/anchors.sh
 	@printf 'go vet\n'
 	@cd control && go vet ./...
 	@printf 'go test\n'
