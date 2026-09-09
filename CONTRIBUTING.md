@@ -6,20 +6,23 @@ Most security disagreements are two people trading confident opinions and
 neither of them moving. This repository has a way out of that, and it is the
 reason to bother contributing here rather than leaving a comment somewhere.
 
-[`lab/`](lab/README.md) is the guide's topology as real containers: four
+The guide ships two versions of the same network.
+[Chapter 14](chapters/14-sandbox.html) simulates it in your browser; that one is
+**the sandbox**. [`lab/`](lab/README.md) builds it for real, in containers: four
 machines on four isolated segments, each behind its own NAT router, running real
-`tailscaled` on real TUN devices. Chapter 14 is the same topology as a model.
-When the two disagree, one of them is wrong about something real, and
-[Where this lab and the sandbox disagree](lab/README.md#where-this-lab-and-the-sandbox-disagree)
-is where that gets written down.
+`tailscaled` on real TUN devices; that one is **the lab**. Run the same test
+against both and they should give you the same answer.
 
-Every gap found so far is in that list, each with what was measured, when, and
-which half changed. Some were the model's fault, some the containers', and one
-closed itself when Headscale shipped the feature the gap was made of.
+Sometimes they do not, and when that happens one of the two is wrong about how
+the real world behaves. Every disagreement found so far is written up in
+[Where this lab and the sandbox disagree](lab/README.md#where-this-lab-and-the-sandbox-disagree),
+with what we measured, when, and which half we changed. Sometimes we corrected
+the sandbox. Sometimes we corrected the lab. Once Headscale shipped the feature
+the gap was made of and closed it for us.
 
-A new entry in that list is the most valuable thing you can send. It is
+Finding a new disagreement is the most valuable thing you can contribute. It is
 also the most fun, and it is the only kind of contribution where being right
-costs me a chapter rewrite and you get the credit in the file.
+costs me a chapter rewrite and earns you a credit in the file.
 
 So: if you think a chapter is wrong, you do not have to convince me. Build the
 case where it fails.
@@ -35,7 +38,7 @@ make attack      # add the attacker container — it never starts on its own
 
 ### 1 · A divergence
 
-The model says one thing, the containers say another. Open an issue with
+The sandbox says one thing, the lab says another. Open an issue with
 **Disagreement** on it. Say which configuration (`day-one`, `typical`, `weak`,
 `hardened`, or the boot state), what you ran, what each half reported.
 
