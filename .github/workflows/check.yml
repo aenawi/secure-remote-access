@@ -7,10 +7,10 @@
 # into develop and main, and its name is what the ruleset requires.
 #
 # It deliberately does not build the lab. `make check` is the one target that
-# works with the containers down — licences, go vet, go test, gofmt, and the UI
-# JavaScript — and it finishes in about a second, which is the property worth
-# protecting. A gate that takes ten minutes is a gate people learn to route
-# around.
+# works with the containers down — licences, links, go vet, go test, gofmt and
+# the UI JavaScript — and it finishes in about a second, which is the property
+# worth protecting. A gate that takes ten minutes is a gate people learn to
+# route around.
 
 name: check
 
