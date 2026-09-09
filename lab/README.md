@@ -17,10 +17,10 @@ This is the **feel-it** half of a pair. The **understand-it** half is
 topology as a model in your browser. Same panel names, same button labels, same
 output format: if you can drive one you can drive the other blind. The
 difference is that the sandbox can only show you what somebody modelled, and
-this one has no model, so it can surprise you. It has already surprised us
-twice, and both surprises are written down further below, along with what
-changed in the sandbox afterwards, because a model that is told it is wrong and
-left alone was not worth building.
+this one has no model, so it can surprise you. It has already surprised us, and
+every surprise is written down further below, along with what changed
+afterwards, because a model that is told it is wrong and left alone was not
+worth building.
 
 ---
 
@@ -331,15 +331,15 @@ detail.
 ## Where this lab and the sandbox disagree
 
 This is the most valuable part of the directory. A gap between the model and the
-containers means the model is wrong about something real, and finding those was
-the whole reason for building both halves.
+containers means one of them is wrong about something real, and finding those
+was the whole reason for building both halves.
 
-Three of the five below have since been closed. Twice the sandbox was
-changed to match what the containers do; once, the other way about, the
-containers were changed to match the sandbox. A fourth, finding 1, was closed
-by neither of us: Headscale shipped the feature the gap was made of, and closing
-it opened a new gap pointing the other way, which is why that one is still here
-and still open. Which direction a gap points is not decided in advance, and that
+Four gaps are recorded below, and three of them are closed. Twice the sandbox
+was wrong and we changed the sandbox. Once both halves were wrong in the same
+way, arrived at from opposite ends, and both changed. Finding 1 was closed by
+neither of us: Headscale shipped the feature the gap was made of, and closing it
+opened a new gap pointing the other way, which is why that one is still here and
+still open. Which direction a gap points is not decided in advance, and that
 is the argument for keeping both halves. Closed ones are kept here rather than
 deleted, because the finding is the artefact this pair produces; the fix is just
 the consequence.
@@ -373,8 +373,8 @@ Every gap in that table is still the same single divergence, key expiry, but
 it has changed sides. It used to cost this lab a point on the two configurations
 that asked for expiry *on*; it now hands this lab a point on the three that ask
 for it *off*. Apart from that one check, the two halves fail the same checks in
-all five configurations. Two more findings show up when you drive the lab rather
-than score it. All five are below.
+all five configurations. One more gap shows up when you drive the lab rather
+than score it. All four are below.
 
 ### 1 · Key expiry, which used to cost this lab a point and now gives it one
 
@@ -494,49 +494,10 @@ it. Measured against tailscale 1.102.3, and this is a client-side reading:
 which port `netcheck` probes is the client's business, and a future one could
 change it.
 
-### 4 · A twenty-second blackout does not kill an SSH session
+### 4 · A key the tailnet refuses is still a machine on the internet
 
-This one is folklore worth killing. Press **ssh and mosh, through a 20-second
-outage** and read the first half of the result: both sessions survive the
-blackout. TCP does not give up on a stalled connection anywhere near that fast,
-so a tunnel, a lift or a dead spot is not what ends your session.
-
-What ends it is the address changing underneath the connection, which is
-what actually happens when a phone moves between networks. So the demonstration
-has a second act: `lab-roam` gets a new address, and SSH stops dead while Mosh
-carries on, because Mosh is not holding a connection to lose.
-
-On **the board** those are two acts you watch rather than two halves of a
-paragraph. The ssh tunnel snaps at the machine end and its traffic scatters,
-still sealed, still going nowhere, while the mosh tunnel goes translucent,
-holds, and re-solidifies against the new address. All four tick counts reach
-the drawing as numbers, on `Result.Evidence`; the two addresses reach it on
-`Result.Detail`, because a drawing that has to regex `Raw` to find out what
-`lab-roam` moved to is one rewording away from lying.
-
-A typical run:
-
-```
-eth0 down at 10:18:02
-eth0 up   at 10:18:22
-after the blackout:  ssh reached tick 45, mosh reached tick 45
-
-roamed to 10.0.27.77
-after the roam:      ssh reached tick 45, mosh reached tick 70
-```
-
-It runs against `lab-vps`'s **public** address on purpose. Over the tailnet both
-sessions survive both acts, because the tailnet address does not change when the
-network under it does, which is the tailnet earning its keep, and a good reason
-to read chapters 01 and 03 together.
-
-This one is TCP's behaviour and mosh's, not any coordination server's, so it is
-the finding least likely to move under you. Measured against tailscale
-1.102.3.
-
-### 5 · A key the tailnet refuses is still a machine on the internet
-
-Closed, and this half is the one that changed.
+Closed, and both halves changed. Each had the same bug, arrived at from the
+opposite end.
 
 The sandbox used to stop an unsigned or expired node key at rung 1, which meant
 tailnet lock refused traffic it has no say over: an ordinary TCP connection to
@@ -585,6 +546,60 @@ the first did the second's job.
 Re-measured against Headscale 0.29.3, and it holds: the boot state still
 fails **"A stolen node key is refused"** for the same reason, which is why that
 row reads 8 and not 9.
+
+---
+
+## Folklore the lab settled
+
+This one is not a gap between the two halves. The sandbox and the containers
+agree about it completely, and always have. It is here because running the lab
+killed a belief that almost everybody holds, including the person who built both
+halves of this pair.
+
+It sits outside the list above on purpose. That list is for places where the two
+halves disagree, and counting this one among them is what made every summary of
+that list come out wrong: four gaps and one demonstration were being added up as
+though they were five of the same thing.
+
+### A twenty-second blackout does not kill an SSH session
+
+This one is folklore worth killing. Press **ssh and mosh, through a 20-second
+outage** and read the first half of the result: both sessions survive the
+blackout. TCP does not give up on a stalled connection anywhere near that fast,
+so a tunnel, a lift or a dead spot is not what ends your session.
+
+What ends it is the address changing underneath the connection, which is
+what actually happens when a phone moves between networks. So the demonstration
+has a second act: `lab-roam` gets a new address, and SSH stops dead while Mosh
+carries on, because Mosh is not holding a connection to lose.
+
+On **the board** those are two acts you watch rather than two halves of a
+paragraph. The ssh tunnel snaps at the machine end and its traffic scatters,
+still sealed, still going nowhere, while the mosh tunnel goes translucent,
+holds, and re-solidifies against the new address. All four tick counts reach
+the drawing as numbers, on `Result.Evidence`; the two addresses reach it on
+`Result.Detail`, because a drawing that has to regex `Raw` to find out what
+`lab-roam` moved to is one rewording away from lying.
+
+A typical run:
+
+```
+eth0 down at 10:18:02
+eth0 up   at 10:18:22
+after the blackout:  ssh reached tick 45, mosh reached tick 45
+
+roamed to 10.0.27.77
+after the roam:      ssh reached tick 45, mosh reached tick 70
+```
+
+It runs against `lab-vps`'s **public** address on purpose. Over the tailnet both
+sessions survive both acts, because the tailnet address does not change when the
+network under it does, which is the tailnet earning its keep, and a good reason
+to read chapters 01 and 03 together.
+
+This one is TCP's behaviour and mosh's, not any coordination server's, so it is
+the finding least likely to move under you. Measured against tailscale
+1.102.3.
 
 ---
 
@@ -722,7 +737,7 @@ None of them start a container. The rung is a pure function of what one command
 printed at one end and another printed at the other, and the score is a pure
 function of eleven booleans, so the fixtures were captured once, checked in,
 and the decisions they drive are now asserted in about a second rather than in
-about a minute. That matters more than a coverage number: finding 5 below was
+about a minute. That matters more than a coverage number: finding 4 above was
 a rung-classification bug in exactly that pure function, it survived for
 months, and it was caught by running containers.
 

@@ -13,11 +13,11 @@ When the two disagree, one of them is wrong about something real, and
 [Where this lab and the sandbox disagree](lab/README.md#where-this-lab-and-the-sandbox-disagree)
 is where that gets written down.
 
-There are five findings in that list. Twice the model was wrong and the model
-changed. Once the containers were wrong and the containers changed. Once
-Headscale shipped a feature and the gap flipped direction.
+Every gap found so far is in that list, each with what was measured, when, and
+which half changed. Some were the model's fault, some the containers', and one
+closed itself when Headscale shipped the feature the gap was made of.
 
-A sixth entry in that list is the most valuable thing you can send. It is
+A new entry in that list is the most valuable thing you can send. It is
 also the most fun, and it is the only kind of contribution where being right
 costs me a chapter rewrite and you get the credit in the file.
 
