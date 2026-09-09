@@ -201,6 +201,12 @@ asserts the five scores in the comparison table against a checked-in fixture, so
 number in the README and the number `audit.go` computes cannot drift apart
 without a failing test naming both.
 
+Two shell checks run before the Go does, and both guard a claim rather than a
+behaviour. `checks/licensed.sh` fails if a source file under `assets/` or `lab/`
+has no SPDX header. `checks/anchors.sh` fails if a link between two documents
+here points at a heading that is not there — which is what keeps a pointer from
+quietly becoming worse than the duplicate it replaced.
+
 `gofmt` fails on any output at all. A file listed is a file that is not
 formatted.
 
@@ -243,6 +249,15 @@ to.
 
 SPDX headers on every source file. `lab/checks/licensed.sh` fails without
 one, and `make check` runs it.
+
+Each fact has one home, and the other documents link to it. `README.md`
+orients — what this is, who it is for, how to open it, what is in it. The
+invariants above live here. The disclaimer lives in `index.html`, where a
+reader is standing when it matters, and every other mention points there. The
+temptation is always to restate the thing for the convenience of a reader who
+has not clicked; resist it, because the copy is the one that goes stale, and a
+stale disclaimer is the worst of them to own two of.
+`lab/checks/anchors.sh` guards the links this asks you to write.
 
 ## Style
 
