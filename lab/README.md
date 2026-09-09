@@ -9,8 +9,17 @@ cd lab && docker compose up -d
 open http://localhost:8099
 ```
 
-Docker is the only prerequisite. No Go, no Python, no npm, no account, no
-internet connection after the images are built.
+Docker is the only prerequisite. No Go, no Python, no npm, no account, and
+nothing in the lab needs the internet once the images are built: the
+coordination server, both relays and every certificate are the lab's own.
+
+"Needs" is the exact word, and it used to say "no internet connection", which
+is stronger than what is true. Two containers sit on bridges Docker gives a
+route out of, and `lab-vps` is one of them — measured, with a tunnel open,
+in [what still has a route out](#what-still-has-a-route-out). The
+one that matters is `evil-box`, and that one is measured too: it reaches the
+lab's bridges and nothing else. The section below is what it can and cannot
+touch.
 
 The guide ships two versions of this network.
 [Chapter 14](../chapters/14-sandbox.html) simulates it in your browser; that one
@@ -30,8 +39,66 @@ we measured and which of the two we then corrected.
 `evil-box` attacks containers you started, on hardware you own, on bridges
 that go nowhere. It is behind a compose profile and does not exist until you
 ask for it with `--profile attack`. Its network reaches the other lab
-containers and nothing else: not your LAN, not your router, not the machine
-you are reading this on.
+containers and nothing else: not your LAN, not your router, not the internet.
+
+That is measured rather than asserted, and it was measured again when tailcat
+put a second relay on the shared segment, because a relay is exactly the kind
+of thing that quietly becomes a way out. From `evil-box`, with the relay up and
+a tunnel open:
+
+```
+ping 1.1.1.1                    no route
+tcp  1.1.1.1:443                no route
+https tailcat.dev               no route
+your LAN 192.168.x.1            no route
+docker0 172.17.0.1              no route
+the lab's relay 203.0.113.3     reached
+```
+
+What keeps it in is the routers, not a firewall on the machine: `images/nat`
+ends its `FORWARD` chain with `-j DROP`, and the only thing it accepts is
+`lan → wan`. So a packet from `evil-box` to anywhere that is not the lab has
+nowhere to be forwarded. The relay changed none of that, and it runs with
+`net.ipv4.ip_forward: 0` so that it cannot become the exception.
+
+One thing it does reach, because every Docker bridge works this way: the
+host's own address on the bridge it is attached to. That is the gateway
+Docker created, it is how the container has a network at all, and there is
+nothing listening on it from the lab.
+
+### What still has a route out
+
+The attacker has no way out. Two other containers do, and this file used to
+say otherwise, so it is worth saying exactly which and why.
+
+`lab-vps` and the three routers sit directly on bridges Docker gave a default
+route, and Docker masquerades those subnets onto whatever network your machine
+is on. Measured, on a lab with the relay up:
+
+```
+lab-ubuntu   no internet     behind nat-ubuntu, whose FORWARD chain drops it
+lab-roam     no internet     behind nat-roam, the same
+evil-box     no internet     behind nat-evil, the same
+lab-vps      reaches the internet
+```
+
+`lab-vps` is the one machine in this lab with a public address of its own,
+which is the whole of its problem and the reason it is on the shared segment
+rather than behind a router. Being on that segment is what gives it the route.
+
+Nothing in the lab uses it. Every certificate is minted locally, both relays
+are local, the coordination server is local, and `tailcat` never fetches a DERP
+map because the relay is baked into the address — which is why the two machines
+with no internet at all run the tunnel perfectly well. So this is a claim this
+file had wrong rather than a capability anything depends on, and the honest
+version is the one at the top: nothing here *needs* the internet.
+
+If you want it closed rather than described, `internal: true` on the `wan`
+network is the change, and it is left undone on purpose: it is a real
+behaviour change to a segment that stands in for the public internet, and
+making the pretend internet unable to reach the real one is the kind of thing
+that should be somebody's decision rather than a side effect of a ticket about
+tunnels.
 
 The control server holds `/var/run/docker.sock`, which means anything that can
 talk to it can run commands as root on your machine. It therefore:
@@ -60,7 +127,8 @@ docker compose up -d
 | Service | Role | Notes |
 |---|---|---|
 | `control` | The Go control server and its embedded UI | mounts the Docker socket, binds `127.0.0.1:8099` only |
-| `headscale` | Coordination server **and** the lab's DERP relay | one process, two roles; see the Headscale section |
+| `headscale` | Coordination server **and** the tailnet's DERP relay | one process, two roles; see the Headscale section |
+| `derp` | tailcat's relay, and the one with nothing behind it | `derper`, on the shared segment, holding no policy and no identities |
 | `lab-vps` | The public box ([chapter 08](../chapters/08-vps.html)) | `tailscaled`, `sshd`, `ufw`, and the published-port trap |
 | `lab-vps-web` | The container behind the published port | reachable only through `lab-vps`, and only when you turn the trap on |
 | `lab-ubuntu` | The laptop ([chapter 09](../chapters/09-ubuntu.html)) | `tailscaled`, `sshd`, `mosh` |
@@ -75,6 +143,7 @@ lan-ubuntu 10.0.13.0/24 --[ nat-ubuntu 203.0.113.13 ]--\
 lan-roam   10.0.27.0/24 --[ nat-roam   203.0.113.27 ]---+-- wan 203.0.113.0/24
 lan-evil   10.0.66.0/24 --[ nat-evil   203.0.113.66 ]--/      |
                                                               |- headscale 203.0.113.2
+                                                              |- derp      203.0.113.3
                                                               |- lab-vps   203.0.113.11
 ```
 
@@ -129,7 +198,7 @@ whether it was readable while it went. Every gate on it renders the
 configuration continuously: turn `allow 22/tcp from anywhere` off and a slat
 swings shut while you watch, with nothing probed.
 
-Each of the nine attacks gets its own camera move and its own single claim on
+Each of the ten attacks gets its own camera move and its own single claim on
 it, driven by the fields on the `Result` the server returned. Run the same
 attack against `weak` and against `hardened` and the frame differs, because
 the numbers differ. Two of them light objects rather than prose: `scan-public`
@@ -194,7 +263,7 @@ until there is something true to draw.
 
 ### Panels
 
-Four, with the same names and the same switches as the sandbox, one tab
+Five, with the same names and the same switches as the sandbox, one tab
 each in the left column, labelled with the panel's id, so a panel added to
 `panels.go` becomes a tab without anything in the UI being told its name:
 
@@ -206,6 +275,13 @@ each in the left column, labelled with the panel's id, so a panel added to
   key expiry, Tailscale SSH.
 - **The host — lab-vps**: `ufw` defaults and rules, the published container
   port, `sshd`'s `ListenAddress`, `PasswordAuthentication`, `PermitRootLogin`.
+- **Tailcat — the escape hatch**: whether somebody ran `tailcat serve`, on
+  which machine, serving what, whether `--allow` pins a client key, and
+  whether the address reached `evil-box`. Nothing on it is part of the build.
+  It is the one panel the lab does not have to be told about: four of its five
+  switches are read back off a running process, so a tunnel somebody starts by
+  hand shows up here without anybody pressing anything. See
+  [The escape hatch](#the-escape-hatch).
 
 ### Probe
 
@@ -233,8 +309,9 @@ measurements, not arithmetic.
 
 ### Attacks
 
-Nine buttons, the same nine as the sandbox, and each one ends by naming the
-defence that answered it.
+Ten buttons, the same ten as the sandbox, and each one ends by naming the
+defence that answered it. The tenth is the odd one and says so: it names the
+defences that were never asked.
 
 | Attack | What it actually does | What it proves |
 |---|---|---|
@@ -246,6 +323,7 @@ defence that answered it.
 | Let a key expire | `headscale nodes expire` on `lab-roam` | the lost phone that removes itself |
 | Advertise a rogue exit node | `tailscale set --advertise-exit-node` on `evil-box` | an exit node is a route *offer*; approval is separate from membership |
 | Publish a Docker port | writes the chains dockerd writes, then curls from outside | UFW says deny; the port answers anyway |
+| Open a tailcat tunnel from the inside | runs `tailcat serve` on one of your machines and connects to it from `evil-box` | nothing you configured is consulted, because none of it is asked |
 | Run the build order wrong | deletes both the public and the tailnet `ufw` rules | the lock-out, on a machine you can afford to lose |
 
 Two more buttons sit underneath: **ssh and mosh, through a 20-second outage**
@@ -253,6 +331,10 @@ and **Rotate the key**. The first of those is the session layer rather than the
 network layer, and it is the one demonstration on the board that runs at
 lab-vps's **public** address on purpose, so both sessions are encrypted and
 neither is up in the tailnet plane, which is what the shot says while it runs.
+The sandbox carries that one as well now, under the same label and in the same
+place; what its half does instead of measuring is written up
+[with the finding](#the-sandbox-has-this-now-too-and-here-is-exactly-what-it-does-instead).
+**Rotate the key** is still only here.
 
 The second is maintenance, and it has two situations. If `lab-roam` is a member
 it opens an ssh session over the **tailnet** address, forces the re-auth
@@ -284,6 +366,97 @@ The marker sent in the clear is right there in the bytes; the identical marker
 sent through the tunnel is not, in 86 frames of genuine ciphertext. If the
 cleartext count were also zero the result would be meaningless, and the lab says
 so rather than claiming a win.
+
+### The escape hatch
+
+The tenth button is the only one that does not attack the network, and the
+only one whose interesting output is a list of things that did not happen.
+
+Somebody on the inside runs `tailcat serve`. Not an attacker breaking in — a
+contractor, a process, a well-meaning admin who wanted a quick way through. No
+account, no root, no daemon, nothing registered with anything: one static
+binary that prints an address, and whoever holds that address can connect.
+[Chapter 01](../chapters/01-tailscale.html) has the rest, including why the
+address is a bearer credential and why ephemeral is the right default.
+
+The perimeter is untouched and still passes every audit check. What the run
+measures is which rungs of the ladder were consulted, and the answer is that
+two of them were not, because nothing asked them:
+
+- **Rung 3 · the tailnet policy.** There is no control plane over tailcat, so
+  there is no grant to match and no default action to fall back to. The
+  readout shows the tunnel's own socket: one connection out, to the relay,
+  and none at all to the coordination server.
+- **Rung 4 · the host firewall.** The listener is reached over a connection
+  the serving machine *dialled out*. An inbound default-deny never sees it,
+  and `tcpdump` on that machine says so — it watches its own interface for an
+  inbound SYN to `:22` for the whole run and catches nothing. UFW is
+  untouched, still correct, and was never in the path.
+
+"The firewall was bypassed" would be the wrong sentence and the lab can show
+it is wrong, which is the difference between this half and the model.
+
+Two more things get measured because a model could not have told you either.
+Whether the two ends punched **direct** or stayed on the relay:
+
+```
+lab-ubuntu   pong in 650µs via 10.0.13.2:51899     direct, over the shared segment
+lab-vps      pong in 360µs via 203.0.113.11:53538   direct, over the public segment
+lab-roam     pong in 1.7ms via DERP(1)              relay only, after 20s of trying
+```
+
+Read the first one for what it is. `evil-box` has an interface on
+`lan-ubuntu` — the optional shared segment the **Machines** panel switches
+routing onto — so a direct path to `lab-ubuntu` is a hop across a wire they
+both sit on rather than a punch through two NATs. The second is a genuine
+punch to a public address. The third is the interesting one: `lab-roam` is
+behind `nat-roam`, which allocates a fresh source port per destination, so
+nothing punches, and the tunnel works anyway, over DERP, at the same rung.
+That run takes about half a minute because `tailcat ping --until-direct`
+spends twenty seconds failing to do the thing it is being asked to prove
+cannot be done here. And whether anything answered at all
+versus whether anybody got a **shell**, which come apart cleanly here: the
+address gets you to a door on every service, and only `no-auth-ssh` has taken
+the lock off it.
+
+`--allow` is the one switch on that panel that puts an identity back in the
+path, and "evil-box was refused" does not on its own show that — a tunnel that
+had simply broken would look identical. So the pin has a control experiment,
+the same shape as the capture's control marker: the machine whose key is
+pinned is asked to connect too. Both halves have to hold, or the run reports
+that it proved nothing.
+
+### The relay tailcat uses, and why it is not the other one
+
+Tailcat needs a DERP relay to find its peers, the public ones are on the
+internet, and this lab is meant to need none. So the stack has a second relay:
+a real `derper`, pinned and built from source, on the shared segment at
+`203.0.113.3`, answering to `derp.lab.internal` with a certificate the control
+server mints from the CA the machines already trust.
+
+`tailcat genkey --region=derp.lab.internal` bakes that hostname into the
+address, so neither end ever fetches a DERP map from anywhere — which is what
+keeps the lab offline and keeps a container in an attack profile from having a
+reason to talk to `tailcat.dev`.
+
+The coordination server already embeds a DERP relay and still does, and that
+one is the tailnet's. Tailcat cannot use it for a mechanical reason and should
+not for a better one:
+
+- **Mechanically**, an address built from a hostname carries a hostname and
+  nothing else, so its client dials `:443` and the standard `/derp` path.
+  Headscale's relay answers on `:8443`, beside the coordination API, and there
+  is no tailcat flag that reaches it without hosting a DERP map for both ends
+  to fetch.
+- **The better reason**: chapter 01's claim about tailcat is that it is the
+  data plane with the control plane taken out. Sending its packets through the
+  container holding the ACLs, the node keys and the expiry dates would undercut
+  that claim in the one place a reader would look to check it. `derper` has
+  nowhere to put a policy. That is the property under test.
+
+The command the lab runs is in the **script** tab like every other, and it is
+not quite the one chapter 01 prints — see
+[finding 8](#8--the-command-chapter-01-prints-is-not-the-command-that-runs).
 
 ---
 
@@ -317,6 +490,22 @@ The audit takes about a minute, because five of the eleven really do join and
 unjoin the attacker. It needs `evil-box`; without it the lab refuses to produce
 a score rather than reporting one with five holes in it.
 
+There is no twelfth, and the tunnel above is why there could have been one.
+A container can be inspected for an unmanaged tunnel process — this lab does
+exactly that, four switches' worth, on every observation — so *"no unmanaged
+tunnel process is listening"* is a check this half could honestly answer. The
+sandbox cannot: only a real host can be inspected for a process, and a model
+would be scoring its own memory of a switch.
+
+Eleven is a rubric shared one-for-one, and two halves scoring differently on a
+check only one of them can run would be worse than not having the check. So it
+is a banner above the list rather than a number in it, it moves no score, and
+it says so. If a twelfth is ever added it goes into both halves in the same
+change.
+
+The banner is also where the two halves stop agreeing about how blind the
+score is, which is [finding 5](#5--the-sandbox-score-moves-a-little-this-one-does-not-move-at-all).
+
 One check is marked: this lab answers it for you, whichever way it goes, and
 the readout says so rather than letting you take the credit or the blame. It
 still counts in the score, because a number that argues with what was measured
@@ -335,12 +524,18 @@ This is the most valuable part of the directory. When the sandbox and the lab
 give different answers, one of the two is wrong about how the real world
 behaves, and finding those was the whole reason for building both.
 
-Four disagreements are recorded below, and three of them are closed. Twice the
+Eight disagreements are recorded below, and three of them are closed. Twice the
 sandbox was wrong and we corrected the sandbox. Once both were wrong in the same
 way, arrived at from opposite ends, and we corrected both. Finding 1 we closed
 neither way: Headscale shipped the feature the gap was made of, and closing it
 opened a new gap pointing the other direction, which is why that one is still
 here and still open.
+
+Findings 5 to 8 are the newest, they all came from the same week's work — the
+escape hatch arriving in containers after a year of being only a model — and
+all four are deliberately open. Every one of them is the containers correcting
+the model, and the rule for that is written into the ticket they came from:
+write the disagreement down rather than filing the model into agreement.
 
 Which way a disagreement points is not decided in advance. Neither half is the
 reference the other gets checked against, and that is the reason to keep both.
@@ -376,8 +571,9 @@ Every gap in that table is still the same single divergence, key expiry, but
 it has changed sides. It used to cost this lab a point on the two configurations
 that asked for expiry *on*; it now hands this lab a point on the three that ask
 for it *off*. Apart from that one check, the sandbox and the lab fail the same
-checks in all five configurations. One more gap shows up when you drive the lab
-rather than score it. All four are below.
+checks in all five configurations. Five more gaps show up when you drive the
+lab rather than score it, and one of those — finding 5 — is about a score that
+does not move when the sandbox's does. All eight are below.
 
 ### 1 · Key expiry, which used to cost this lab a point and now gives it one
 
@@ -550,6 +746,142 @@ Re-measured against Headscale 0.29.3, and it holds: the boot state still
 fails **"A stolen node key is refused"** for the same reason, which is why that
 row reads 8 and not 9.
 
+### 5 · The sandbox score moves a little. This one does not move at all.
+
+Open, and it is the reason the tunnel is a banner in both halves rather than a
+number in either.
+
+The sandbox's own banner is careful about this, and it is right about itself: a
+tunnel on `lab-vps` drops its score to 7/11 and one on `lab-ubuntu` to 10/11,
+because some of the eleven happen to probe those machines, while the same
+tunnel on `lab-roam` leaves a clean 11/11. A score that moves only when the
+attacker's route happens to cross a check is a better lesson than blanket
+blindness, and the sandbox says so.
+
+None of that happens here. Load `hardened`, score it, then run
+`tailcat serve no-auth-ssh` on `lab-vps` and hand the address to `evil-box`.
+Measured:
+
+```
+11 / 11 checks held
+evil-box → tailcat ssh root@tc…      rung 5/5      a root shell
+lab-vps saw no packets arrive inbound on eth0:22 in the whole run
+the same probe, the ordinary way:    rung 4/5      ufw dropped it
+```
+
+Eleven out of eleven, with a stranger holding a root shell, and the score is
+not one point lower — whichever machine is serving.
+
+The reason is the difference between a model and a stack. The sandbox's
+`choosePath` answers for tailcat *before* the ordinary network gets a turn, so
+any probe aimed at the serving machine takes the tunnel and some checks notice.
+In this lab every one of the eleven aims `nc` at an address, and a tailcat
+address is not an address: it is a bearer credential parsed by one client, and
+no `nc` anywhere can reach a tailcat server. There is nothing for a check to
+stumble over.
+
+Neither half is corrected, because neither is wrong about itself. What it
+changes is the sentence the banner leads with, and the lab's is the more
+alarming one: not a number that drops, a number with nothing to say.
+
+Measured against tailcat 0.6.0.
+
+### 6 · `serve all` reaches the machine's own sshd, and it still wants a key
+
+Open. The sandbox reports `serve all` as a way in: its rung-5 check answers
+"tailcat serve all, proxying straight through to :22", the probe succeeds, and
+the verdict says *evil-box has a shell*.
+
+Here it reaches a door and stops at it. `serve all` really does put every port
+on the machine behind the address — `evil-box` gets an SSH banner back through
+the tunnel, from `lab-ubuntu`'s own `sshd`, which is exactly what "all" means.
+And that `sshd` then asks for a key `evil-box` does not have, because it is an
+ordinary daemon with no idea any of this happened.
+
+Both are defensible readings of a five-rung ladder and they are answering
+different questions. Rung 5 is "was anything listening", the sandbox answers
+that, and by that measure it is right. The lab can answer the next question
+too, so it does, and it keeps the two apart in the verdict rather than letting
+"the port answered" read as "somebody got in".
+
+Which matters more than it sounds, because the mitigation is not tailcat's:
+what refused `evil-box` was chapter 02's key policy, on one service. Every
+other port that machine happens to open is behind the address with whatever
+lock it already had, which for most things is none. The lab's wording says
+that; "evil-box has a shell" would have credited tailcat with a defence it had
+nothing to do with, and credited the reader with one they did not build.
+
+Not closed, in either direction. The sandbox is answering the rung it is asked
+about, and a model that had to know every daemon's authentication policy would
+be a model of a machine rather than of a ladder. Measured against tailcat
+0.6.0.
+
+### 7 · There is no `tailcat0`, and rung 4 is a stronger claim than the model makes
+
+Open, and this one makes the model's own lesson better rather than worse.
+
+The sandbox gives the tunnel an interface. `choosePath` returns
+`iface: "tailcat0"`, the packet log shows addresses on it, and rung 4 is
+skipped with the words *"nothing ever arrived on an interface UFW filters"* —
+which implies there is an interface, and that UFW simply does not filter it.
+
+There is no interface. Tailcat is userspace: no TUN device, no netlink, no
+route, nothing for `ip link` to list and nothing a firewall rule could name
+even in principle. Measured on `lab-ubuntu` with a tunnel up and carrying a
+session:
+
+```
+interfaces whose name contains "tailcat":  0
+
+ss -tnp | grep tailcat
+ESTAB 0 0  10.0.13.2:37788  203.0.113.3:443  users:(("tailcat",pid=1149,fd=9))
+```
+
+One outbound socket, which is the whole of what a tunnel looks like from the
+outside — and which is exactly the line the sandbox's own readout prints, so
+the two agree about the evidence and disagree about the model behind it.
+
+Left alone deliberately. `tailcat0` is a convenient fiction that makes the
+sandbox's packet log readable, the log is honest about the address being
+opaque, and correcting it would cost the drawing more than the accuracy is
+worth. The lab records the stronger version: rung 4 is not skipped because UFW
+declines to filter this interface. It is skipped because there is no interface,
+and nothing arrived. Measured against tailcat 0.6.0.
+
+### 8 · The command chapter 01 prints is not the command that runs
+
+Open, and it is the smallest finding here with the sharpest edge, because it is
+the one a reader will hit by typing.
+
+[Chapter 01](../chapters/01-tailscale.html) and the sandbox both print:
+
+```
+tailcat serve ssh --ssh-authorized-keys=~/.ssh/authorized_keys
+```
+
+tailcat 0.6.0 refuses it. Flags come before the service name, and a flag after
+one is read as a second service:
+
+```
+invalid port or service to serve: "--ssh-authorized-keys=…" is not a known
+named service (want one of: all, ssh, no-auth-ssh, files, exit-node)
+```
+
+What runs is the same words in the other order, and it is what the lab's
+**script** tab prints because it is what reached the machine:
+
+```
+tailcat serve --ssh-authorized-keys=/root/.ssh/authorized_keys ssh
+```
+
+Neither the chapter nor the sandbox is corrected here. Chapter 01 already ends
+that section by telling you tailcat is young, that its flags may move, and to
+check `tailcat serve --help` on your installed version rather than trusting the
+lines above — which is the right advice and is exactly the advice this finding
+is an instance of. Recording it is the point; a guide that silently tracked
+every flag reordering would be teaching you to trust it instead. Measured
+against tailcat 0.6.0.
+
 ---
 
 ## Folklore the lab settled
@@ -603,6 +935,50 @@ This one is TCP's behaviour and mosh's, not any coordination server's, so it is
 the finding least likely to move under you. Measured against tailscale
 1.102.3.
 
+#### The sandbox has this now too, and here is exactly what it does instead
+
+Until ticket #49 this demonstration existed only here, which made it the one
+place the lab could show something the model could not express at all: the model
+had a link that went up and down, loss, delay and a UDP port, and no session for
+any of it to happen to. Chapter 14 now carries the same button, with the same
+label, in the same place under the attack list, and a reader who can drive one
+can drive the other blind.
+
+What it does not carry is a measurement. The two halves are honest in different
+ways here, and the split is worth knowing before you quote either:
+
+- **The tick counts are computed there, read off two real sessions here.** The
+  sandbox runs the same schedule this does — ten seconds to settle, twenty with
+  no link, fifteen more, then the roam and twenty-five more — and turns it into
+  the same tick counts by arithmetic, because a tick is a second of session time
+  that survived the trip. The numbers agree with the run above. They agree
+  because they were built to, not because anything was observed.
+- **Twenty seconds is asserted there, waited here.** The lab's blackout costs
+  twenty real seconds and the board's fourth rule is that time is not faked. The
+  model's blackout costs nothing at all, and Linux's `tcp_retries2` is a
+  constant in a comment rather than a threshold the run could cross. There is no
+  lever to make the blackout longer, so the model cannot be made to disagree
+  with its own explanation.
+- **The failure this lab has and the model does not.** `demoOutage` has a branch
+  for Mosh printing nothing, which is what a `ufw` command failing to open
+  `60000:61000/udp` looks like from the outside, and it is chapter 03's
+  commonest real failure. Both halves open the range for the duration and take
+  it away again, so neither *ought* to reach it — but only one of them has a
+  `ufw` that can refuse. The model names the trap in prose; it cannot walk you
+  into it.
+
+None of that is a disagreement, and it is deliberately not filed as one. The
+two halves give the same answer to the same question, in the same order, with
+the same words on the button, and the list above is for the places where they do
+not. What the three points above are is the boundary of what the model was
+asked — the same distinction chapter 14 makes in its own *real, modelled,
+absent* table, which now names these tick counts under *modelled*.
+
+The other button underneath the attack list, **Rotate the key**, still has no
+sandbox equivalent. That is the asymmetry left over after that ticket, and it is
+a real one: continuity through a re-key is a thing you can only watch happen to
+something that is actually running.
+
 ---
 
 ## Headscale, not Tailscale
@@ -630,11 +1006,16 @@ everything. Two places where they do not:
   What it does not do is end the story: a machine with no tailnet session is an
   ordinary machine on the internet, and what it reaches next is the host
   firewall's question. See finding 4 above.
-- DERP lives inside the coordination server. The ticket this was built from
-  asked for a separate `derper` container. A separate one needs its own trusted
-  TLS certificate, which means shipping a CA for no gain: the relay path a
-  client takes is identical either way, and forcing traffic onto that path is
-  what the lab actually tests.
+- The tailnet's DERP lives inside the coordination server. A separate one
+  would need its own trusted TLS certificate, and for the tailnet that buys
+  nothing: the relay path a client takes is identical either way, and forcing
+  traffic onto that path is what the lab actually tests.
+
+  There is now a separate `derper` as well, and it is not a reversal of that.
+  It exists for tailcat, which cannot use the embedded one and should not, and
+  it costs the lab no new trust root because the CA it needed was already
+  there. [The relay tailcat uses](#the-relay-tailcat-uses-and-why-it-is-not-the-other-one)
+  has the reasoning.
 
 ### A Headscale wrinkle the control server used to work around
 
@@ -730,7 +1111,7 @@ deciding to erode it, and four test files guard them:
 
 | File | What it holds |
 |---|---|
-| `attacks_test.go` | the parsers, and the evidence round-trips the board draws from |
+| `attacks_test.go` | the parsers, the evidence round-trips the board draws from, and the tunnel's four endings |
 | `probe_test.go` | the five-rung ladder, against `tailscale ping`, `nc` and `tcpdump` output captured from a running lab |
 | `audit_test.go` | the eleven checks, the score, and the five numbers in the comparison table above |
 | `state_test.go` | what `ufw`, `sshd -T` and `headscale` say about the machine, which decides three of the eleven |
@@ -764,7 +1145,7 @@ So `make check` ends with two cheap answers to that, in `checks/`:
 | File | What it holds |
 |---|---|
 | `syntax.mjs` | `node --check` over the eight files the browser loads, each in the goal it is loaded in: script for `app.js` and the guide's `assets/`, module for `hud/` |
-| `reading.test.mjs` | the board rules themselves: `danger` outranks `ok`, a scan that never ran reports no counts, an empty capture draws an empty tray |
+| `reading.test.mjs` | the board rules themselves: `danger` outranks `ok`, a scan that never ran reports no counts, an empty capture draws an empty tray, two rungs are skipped rather than passed |
 | `setpieces.test.mjs` | that `hud/` still links, and that `missing()` names an action with no shot; the check ticket 33 did not have |
 
 That second one is the point of the exercise. The four honesty rules at the top
@@ -836,10 +1217,11 @@ lab/
 │   └── setpieces.test.mjs that hud/ links, and that no action lost its shot
 ├── config/headscale/      coordination server configuration, commented
 ├── images/
-│   ├── node/              a lab machine: tailscaled, sshd, ufw, mosh, tmux
+│   ├── node/              a lab machine: tailscaled, tailcat, sshd, ufw, mosh
 │   │   ├── entrypoint.sh  six steps, in chapter 08's order
 │   │   └── docker-trap.sh the published-port trap, and what is real in it
 │   ├── nat/               one home router per segment
+│   ├── derp/              tailcat's relay: derper, pinned, holding nothing
 │   └── evil/              the attacker, and the on-path switch
 └── control/
     ├── main.go            routing, the embedded UI, the loopback guard, the CA
@@ -883,7 +1265,13 @@ that carries everything.
 ## If something will not start
 
 - `/dev/net/tun` is missing. The machines need it to run real WireGuard.
-  Docker Desktop provides it; a hardened host may not.
+  Docker Desktop provides it; a hardened host may not. Tailcat does not need
+  it — it is userspace, which is half of why chapter 01 calls it the hatch you
+  can use on a box where you have neither root nor a daemon.
+- A tunnel will not start, and says no address was printed. It needs the lab's
+  relay: `docker compose logs derp`. The usual cause is a state volume from
+  before the relay existed — the control server replaces the CA and says so in
+  its log, and `make reset && make up` is the clean way through.
 - A machine never joins. Try `docker compose logs lab-ubuntu`. The usual cause
   is that the lab CA was not there when it booted; `make reset && make up`.
 - Every probe dies at rung 3. Check `docker exec headscale headscale policy get`,

@@ -47,7 +47,7 @@ test("hud/ links — every import names something that is exported", () => {
 
 test("every set-piece in the table is a function", { skip: needsBrowser }, () => {
   const ids = Object.keys(hud.SETPIECES);
-  assert.ok(ids.length >= 11, "nine attacks, plus outage and rotate-key");
+  assert.ok(ids.length >= 12, "ten attacks, plus outage and rotate-key");
   for (const id of ids) {
     assert.equal(typeof hud.SETPIECES[id], "function", id + " is not a function");
     assert.equal(hud.hasSetpiece(id), true);

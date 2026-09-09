@@ -470,3 +470,264 @@ func TestShortKey(t *testing.T) {
 		}
 	}
 }
+
+// ---------------------------------------------------------------------------
+// The tunnel
+//
+// atkTailcatTunnel's whole claim is a pair of rungs that were never asked, and
+// a claim about an absence is the easiest kind to make without measuring
+// anything. So the rung, the rule and the verdict are a pure function of six
+// numbers, and this is where they are held.
+// ---------------------------------------------------------------------------
+
+// `pgrep -af tailcat` on lab-ubuntu with a tunnel up, captured from a running
+// lab. The second line is the point of keeping it verbatim: a client is a
+// tailcat process too, and a panel that read one as a server would report a
+// tunnel on whichever machine somebody last connected *from*.
+const pgrepServing = `412 tailcat serve --key=lab --ssh-authorized-keys=/root/.ssh/authorized_keys ssh
+`
+
+const pgrepServingPinned = `412 tailcat serve --key=lab --ssh-authorized-keys=/root/.ssh/authorized_keys --allow=nodekey:8b7aa21a58fe14047ba22119ef8f31732f58efa751899bafffbda83bf5f5732c ssh
+`
+
+const pgrepClientOnly = `901 tailcat ssh root@tcpGFwWCDm4pBv-5cUnZ1v6CBXtC
+903 ssh -o ProxyCommand=tailcat proxy root@tcpGFwWCDm4pBv
+`
+
+func TestReadTailcatServe(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		out     string
+		running bool
+		service string
+		allow   bool
+	}{
+		{"a server, serving ssh", pgrepServing, true, "ssh", false},
+		{"a server with the pin on", pgrepServingPinned, true, "ssh", true},
+		{"serving every port", "7 tailcat serve --key=lab all\n", true, "all", false},
+		{"no auth at all", "7 tailcat serve --key=lab no-auth-ssh\n", true, "no-auth-ssh", false},
+		// A client is not a tunnel. Reading one as a server would put the panel's
+		// idea of "which machine is it on" on whichever machine last connected.
+		{"only a client", pgrepClientOnly, false, "", false},
+		{"nothing at all", "", false, "", false},
+		// A service the panel does not offer is not one it may report: the two
+		// halves of this pair share three, and a fourth appearing on one side
+		// is how a shared vocabulary stops being shared.
+		{"a service this lab does not offer", "7 tailcat serve exit-node\n", false, "", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			running, service, allow := readTailcatServe(tc.out)
+			if running != tc.running || service != tc.service || allow != tc.allow {
+				t.Errorf("readTailcatServe = (%v, %q, %v), want (%v, %q, %v)",
+					running, service, allow, tc.running, tc.service, tc.allow)
+			}
+		})
+	}
+}
+
+// The address is a bearer credential: whoever holds it connects, there is no
+// identity behind it and nothing to revoke. So a readout may show enough of one
+// to recognise it and never enough to use it.
+func TestShortTailcatAddrNeverPrintsAWholeCredential(t *testing.T) {
+	const full = "tcpGFwWCDm4pBv-5cUnZ1v6CBXtCGSTc73wUvCo2PIf-_i67LVN2FrWCB1Ig3AEFDR9VX_zFEPyPrDtD"
+	got := shortTailcatAddr(full)
+	if strings.Contains(full, got) {
+		t.Errorf("shortTailcatAddr returned %q, which is a prefix of the whole address", got)
+	}
+	if len(got) >= len(full) {
+		t.Errorf("shortTailcatAddr did not shorten anything: %q", got)
+	}
+	if !strings.HasPrefix(got, "tcpGFwWCDm4pBv-5") {
+		t.Errorf("shortTailcatAddr(%q) = %q, which is not recognisable as the same address",
+			full, got)
+	}
+	// Short enough not to need it, and truncating it would only produce a
+	// string that looks like an address and is not one.
+	if s := shortTailcatAddr("tcshort"); s != "tcshort" {
+		t.Errorf("a short address came back as %q", s)
+	}
+}
+
+// The four endings, and they are four different lessons. The one that matters
+// most is the third: `serve all` reaching the machine's own sshd and being
+// refused by a key is not tailcat holding the line, and a verdict that said so
+// would credit the tunnel with a defence it had nothing to do with.
+func TestTailcatRunVerdict(t *testing.T) {
+	base := tailcatRun{service: "ssh", ordinaryRung: 2}
+
+	// The contrast is the argument, and against a machine whose public :22 is
+	// still open there is no contrast to draw. Saying "the same probe stopped
+	// at rung 5" about a probe that got all the way in would be the one number
+	// in this verdict that describes a different lab.
+	t.Run("the contrast is the one this run produced", func(t *testing.T) {
+		r := base
+		r.banner, r.shell = true, true
+		r.ordinaryRung, r.ordinaryOK = 5, true
+		_, _, why := r.verdict("lab-vps", "")
+		if strings.Contains(why, "stopped at rung 5") {
+			t.Errorf("a probe that reached sshd was reported as stopped:\n%s", why)
+		}
+		if !strings.Contains(why, "reached lab-vps anyway") {
+			t.Errorf("the verdict does not say the ordinary way worked too:\n%s", why)
+		}
+	})
+
+	t.Run("a shell is a red frame and names both skipped rungs", func(t *testing.T) {
+		r := base
+		r.banner, r.shell, r.service = true, true, "no-auth-ssh"
+		ok, danger, why := r.verdict("lab-ubuntu", "")
+		if ok || !danger {
+			t.Errorf("a shell on the far machine reported ok=%v danger=%v", ok, danger)
+		}
+		if r.rung() != 5 {
+			t.Errorf("rung = %d, want 5", r.rung())
+		}
+		for _, want := range []string{"never consulted", "dialled out", "rung 2 of 5"} {
+			if !strings.Contains(why, want) {
+				t.Errorf("the verdict does not mention %q:\n%s", want, why)
+			}
+		}
+	})
+
+	t.Run("a key refusing it is not a green tick", func(t *testing.T) {
+		r := base
+		r.banner = true
+		ok, danger, why := r.verdict("lab-ubuntu", "")
+		// It held, and it held at rung 5, on one lock. `ok` here would say the
+		// configuration answered this, and the configuration was never asked.
+		if ok || !danger {
+			t.Errorf("ok=%v danger=%v — one SSH key is not the layered defence holding", ok, danger)
+		}
+		if !strings.Contains(why, "one lock") {
+			t.Errorf("the verdict does not count what is holding it:\n%s", why)
+		}
+	})
+
+	t.Run("serve all is the machine's own sshd, not tailcat holding", func(t *testing.T) {
+		r := base
+		r.banner, r.service = true, "all"
+		_, danger, why := r.verdict("lab-vps", "")
+		if !danger {
+			t.Error("every port behind one leaked string is not a warning")
+		}
+		if !strings.Contains(why, "own sshd") {
+			t.Errorf("the verdict does not say what refused it:\n%s", why)
+		}
+	})
+
+	t.Run("the pin holds, and the control experiment is what shows it", func(t *testing.T) {
+		r := base
+		r.allow, r.pinnedRan, r.pinnedIn = true, true, true
+		if r.rung() != 2 {
+			t.Errorf("a handshake the server ignored is rung %d, want 2", r.rung())
+		}
+		ok, danger, why := r.verdict("lab-ubuntu", "lab-roam")
+		if !ok || danger {
+			t.Errorf("ok=%v danger=%v — the pin refused the attacker and let the holder in", ok, danger)
+		}
+		if !strings.Contains(why, "lab-roam still got in") {
+			t.Errorf("the verdict does not report the control arm:\n%s", why)
+		}
+	})
+
+	t.Run("a tunnel that refused everybody proves nothing about the pin", func(t *testing.T) {
+		// Same rung, same refusal, and a completely different finding: without
+		// the control arm this is indistinguishable from a broken tunnel, and
+		// reporting it as a defence would be the sniff attack claiming a win
+		// on a capture whose control marker never appeared.
+		r := base
+		r.allow, r.pinnedRan, r.pinnedIn = true, true, false
+		ok, _, why := r.verdict("lab-ubuntu", "lab-roam")
+		if ok {
+			t.Error("a tunnel nobody could reach was reported as a pin working")
+		}
+		if !strings.Contains(why, "proves nothing") {
+			t.Errorf("the verdict does not say the run was inconclusive:\n%s", why)
+		}
+	})
+}
+
+// Evidence is what the board draws from, so every number the shot needs has to
+// survive the round trip through JSON under the name reading.js asks for.
+func TestTailcatEvidenceRoundTrip(t *testing.T) {
+	r := tailcatRun{service: "ssh", banner: true, direct: true,
+		inbound: 0, ifaces: 0, ordinaryRung: 2}
+	b, err := json.Marshal(Result{Rung: r.rung(), Evidence: r.evidence()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var back Result
+	if err := json.Unmarshal(b, &back); err != nil {
+		t.Fatal(err)
+	}
+	for k, want := range map[string]int{
+		"banner": 1, "shell": 0, "direct": 1, "inbound": 0, "ifaces": 0,
+		"ordinaryRung": 2, "ordinaryOK": 0, "skipped": 2,
+	} {
+		if got := back.Evidence[k]; got != want {
+			t.Errorf("evidence[%q] = %d, want %d", k, got, want)
+		}
+	}
+	// Absent rather than zero: the control experiment either ran or it did
+	// not, and a 0 would read as "the pinned machine was refused".
+	if _, ok := back.Evidence["pinnedIn"]; ok {
+		t.Error("pinnedIn is present on a run where --allow was off")
+	}
+}
+
+// The last pong is the answer, and the summary underneath it is not — the same
+// reading tailnetPath makes of `tailscale ping`, and wrong the same way if you
+// take the last line instead.
+func TestOnlyDERP(t *testing.T) {
+	const punched = `pong in 1.08ms via DERP(1)
+pong in 440µs via 198.51.100.10:40921
+`
+	const relayOnly = `pong in 3.1ms via DERP(1)
+pong in 2.9ms via DERP(1)
+direct connection not established
+`
+	if onlyDERP(punched) {
+		t.Error("a run that ended on a direct pong was read as relay-only")
+	}
+	if !onlyDERP(relayOnly) {
+		t.Error("a run that never left the relay was read as direct")
+	}
+	if !onlyDERP("") {
+		t.Error("no pong at all is not a direct path")
+	}
+}
+
+// The banner is not a check and must never start behaving like one. It says
+// something for every tunnel and nothing at all for no tunnel, and the two
+// shapes chapter 01 calls out — no-auth-ssh and all — are the ones that read
+// as bad rather than as a warning.
+func TestHatchBanner(t *testing.T) {
+	if text, tone := hatchBanner(TailcatState{}); text != "" || tone != "" {
+		t.Errorf("a lab with no tunnel printed a banner: %q / %q", text, tone)
+	}
+	for _, tc := range []struct {
+		st   TailcatState
+		tone string
+		want string
+	}{
+		{TailcatState{On: true, Host: "lab-ubuntu", Service: "ssh"}, "warn", "One SSH key"},
+		{TailcatState{On: true, Host: "lab-vps", Service: "all"}, "bad", "every port"},
+		{TailcatState{On: true, Host: "lab-vps", Service: "no-auth-ssh", Shared: true},
+			"bad", "evil-box is holding it"},
+		// The pin is the mitigated shape and still a way in nothing scores.
+		{TailcatState{On: true, Host: "lab-roam", Service: "ssh", Allow: true}, "warn", "--allow"},
+	} {
+		text, tone := hatchBanner(tc.st)
+		if tone != tc.tone {
+			t.Errorf("%+v: tone = %q, want %q", tc.st, tone, tc.tone)
+		}
+		if !strings.Contains(text, tc.want) {
+			t.Errorf("%+v: the banner does not mention %q:\n%s", tc.st, tc.want, text)
+		}
+		// The claim that separates this half from the sandbox's, and the
+		// reason it is a banner rather than a twelfth check.
+		if !strings.Contains(text, "The score does not move") {
+			t.Errorf("%+v: the banner does not say the score is blind:\n%s", tc.st, text)
+		}
+	}
+}

@@ -260,6 +260,48 @@ func (c *Controller) Set(ctx context.Context, path string, value any) Result {
 
 	case path == "vps.permitRoot":
 		return c.sshdOption(ctx, "PermitRootLogin", map[bool]string{true: "yes", false: "prohibit-password"}[boolOf()])
+
+	// ---- the escape hatch -----------------------------------------------
+	// Four of these five restart the server rather than adjusting it, because
+	// tailcat reads its service, its pin and its key once at startup. The
+	// fifth moves a string onto another machine and touches no process at all.
+	case path == "tailcat.on":
+		if boolOf() {
+			st := c.Snapshot().Tailcat
+			return c.tailcatServe(ctx, st.Host, st.Service, st.Allow)
+		}
+		return c.tailcatStop(ctx)
+
+	case path == "tailcat.host":
+		host := strOf()
+		if _, ok := machineByID(host); !ok {
+			res.OK = false
+			res.Why = "no machine called " + host
+			return res
+		}
+		c.with(func(s *State) { s.Tailcat.Host = host })
+		return c.tailcatRestart(ctx)
+
+	case path == "tailcat.service":
+		svc := strOf()
+		known := false
+		for _, v := range tailcatServices {
+			known = known || v == svc
+		}
+		if !known {
+			res.OK = false
+			res.Why = "tailcat has no service called " + svc
+			return res
+		}
+		c.with(func(s *State) { s.Tailcat.Service = svc })
+		return c.tailcatRestart(ctx)
+
+	case path == "tailcat.allow":
+		c.with(func(s *State) { s.Tailcat.Allow = boolOf() })
+		return c.tailcatRestart(ctx)
+
+	case path == "tailcat.shared":
+		return c.tailcatShare(ctx, boolOf())
 	}
 
 	res.OK = false
@@ -688,6 +730,325 @@ func (c *Controller) sshdOption(ctx context.Context, key, value string) Result {
 }
 
 // ---------------------------------------------------------------------------
+// Tailcat — the escape hatch
+//
+// Nothing in this section touches the tailnet, the policy or a firewall, and
+// that is the point rather than a limitation. `tailcat serve` is one binary
+// run by one person on a machine they already had a shell on: no root, no
+// daemon, nothing registered anywhere, and nothing for the ladder above to
+// consult. The buttons here run exactly that.
+//
+// The relay is the lab's own, on `wan`, with a certificate from the lab CA the
+// machines already trust. That is not decoration either. Tailcat needs a DERP
+// relay to find its peers, the public ones are on the internet, and this lab
+// promises there is no internet after the images are built — so pointing it at
+// tailcat.dev would have broken the one property that makes it safe to hand an
+// attacker. `--region=<hostname>` bakes the relay into the address, so neither
+// end ever fetches a DERP map from anywhere.
+// ---------------------------------------------------------------------------
+
+// tailcatKeyName is the server key the lab mints, and it is thrown away when
+// the tunnel stops. Chapter 01 is firm that ephemeral is the right default —
+// the key lives in memory and the address dies with the process — and a saved
+// key would quietly make every address this lab prints valid forever, which is
+// the exact footgun the chapter's callout is about. A named key is needed only
+// because --region has to be baked in at genkey time, so it is minted fresh on
+// every start and deleted on every stop.
+const tailcatKeyName = "lab"
+
+// tailcatServeCmd is the command line the lab actually runs, and it is here as
+// one function so the Result can report the same string that reached the
+// machine.
+//
+// Note the order. Chapter 01 and the sandbox both write
+// `tailcat serve ssh --ssh-authorized-keys=...`, and tailcat 0.6.0 refuses it:
+// flags come before the service name, and a flag after it is read as a second
+// service. lab/README.md records that as a disagreement rather than quietly
+// printing one command and running another.
+func tailcatServeCmd(service, allowKey string) []string {
+	argv := []string{"tailcat", "serve", "--key=" + tailcatKeyName}
+	if service == "ssh" {
+		// The shape the chapter recommends: tailcat's own SSH server, checking
+		// the machine's real authorized_keys. The second lock chapter 02
+		// installed is the one still standing on this path.
+		argv = append(argv, "--ssh-authorized-keys=/root/.ssh/authorized_keys")
+	}
+	if allowKey != "" {
+		argv = append(argv, "--allow="+allowKey)
+	}
+	return append(argv, service)
+}
+
+// tailcatPattern is how a tunnel is found on a machine, and the brackets are
+// not decoration. `pkill -f 'tailcat serve'` matches the shell running the
+// pkill, because that shell's own command line contains the words it is
+// searching for — so it kills its parent, the rest of the compound command
+// never runs, and the tunnel it was aimed at can survive. `[t]ailcat` is the
+// same pattern to the regex and a different string on the command line, which
+// is the oldest trick in this file and the only one that keeps the search from
+// finding itself.
+const tailcatPattern = "'[t]ailcat serve'"
+
+// tailcatStopAll stops any tunnel anywhere and throws its key away, and
+// returns the machines where one is still running afterwards. One at a time is
+// the sandbox's model and it is the right one here: two tunnels would make
+// "which machine is it on" a list rather than an answer, and the lesson does
+// not get better for being doubled.
+//
+// It returns that list rather than assuming the kill worked, because it once
+// did not: the caller reports the tunnel gone, and a readout that says a
+// tunnel is gone while the process is still serving is the worst sentence
+// anything in this lab could print.
+func (c *Controller) tailcatStopAll(ctx context.Context) []string {
+	var still []string
+	for _, id := range tailcatHosts() {
+		if !c.lab.Running(ctx, id) {
+			continue
+		}
+		r, err := c.lab.Sh(ctx, id, "pkill -f "+tailcatPattern+" >/dev/null 2>&1; "+
+			"tailcat genkey --key="+tailcatKeyName+" --delete >/dev/null 2>&1; "+
+			"rm -f "+tailcatAddrFile+" "+tailcatLogFile+"; sleep 1; "+
+			"pgrep -f "+tailcatPattern+" >/dev/null 2>&1 && echo still || true")
+		if err == nil && strings.TrimSpace(r.Stdout) == "still" {
+			still = append(still, id)
+		}
+	}
+	return still
+}
+
+// tailcatClientKey mints a client identity on one machine and returns its
+// public key, which is what --allow pins. It is regenerated on every start
+// rather than reused: the pin and the key have to be the same key, and a
+// cached one that no longer matches the file would refuse the very machine the
+// switch exists to keep letting in.
+func (c *Controller) tailcatClientKey(ctx context.Context, id string) (string, error) {
+	r, err := c.lab.Sh(ctx, id, "tailcat genkey --client --key=client-default --force 2>/dev/null")
+	if err != nil {
+		return "", err
+	}
+	k := strings.TrimSpace(r.Stdout)
+	if !strings.HasPrefix(k, "nodekey:") {
+		return "", fmt.Errorf("no client key came back from %s: %s", id, r.Out())
+	}
+	return k, nil
+}
+
+// tailcatPinned is whose key --allow pins: one machine you own that is not the
+// one serving. That is the whole of what the switch models — the address stops
+// being the credential and a specific client key becomes one — and picking a
+// machine rather than a name makes the pin testable from both sides, because
+// the pinned machine can be asked to connect and so can evil-box.
+func tailcatPinned(host string) string {
+	for _, id := range tailcatHosts() {
+		if id != host {
+			return id
+		}
+	}
+	return ""
+}
+
+// tailcatServe starts the tunnel and waits for the address it prints.
+func (c *Controller) tailcatServe(ctx context.Context, host, service string, allow bool) Result {
+	res := Result{Rung: 1, From: host, Rule: "tailcat serve on " + host}
+
+	if !c.lab.Running(ctx, host) {
+		res.Why = host + " is not running, so nobody is on it to run anything"
+		return res
+	}
+	_ = c.tailcatStopAll(ctx)
+
+	allowKey, pinned := "", ""
+	if allow {
+		pinned = tailcatPinned(host)
+		k, err := c.tailcatClientKey(ctx, pinned)
+		if err != nil {
+			res.Why = "could not mint a client key on " + pinned + ": " + err.Error()
+			return res
+		}
+		allowKey = k
+	}
+
+	// A fresh server key on every start, carrying the lab's own relay. The
+	// address that comes out is therefore new every time and dead the moment
+	// the process is, which is what the chapter means by ephemeral.
+	gen, err := c.lab.Sh(ctx, host, "tailcat genkey --key="+tailcatKeyName+
+		" --force --region="+derpHostname+" 2>&1")
+	if err != nil || gen.Code != 0 {
+		res.Why = "tailcat genkey failed on " + host + ": " + gen.Out()
+		return res
+	}
+
+	argv := tailcatServeCmd(service, allowKey)
+	res.Cmds = []string{
+		"tailcat genkey --key=" + tailcatKeyName + " --force --region=" + derpHostname +
+			"   # on " + host,
+		strings.Join(argv, " ") + "   # on " + host,
+	}
+	if allow {
+		res.Cmds = append([]string{
+			"tailcat genkey --client --key=client-default   # on " + pinned +
+				", whose key the pin names"}, res.Cmds...)
+	}
+
+	// setsid, so the server outlives the exec that started it. Everything it
+	// says goes to a log, because the address is on stdout and a failure to
+	// start is on stderr and both are worth reading.
+	_, _ = c.lab.Sh(ctx, host, "rm -f "+tailcatLogFile+" "+tailcatAddrFile+"; "+
+		"setsid nohup "+strings.Join(argv, " ")+" </dev/null >"+tailcatLogFile+" 2>&1 & true")
+
+	// The address is printed once the relay has answered, so this is a wait on
+	// the network rather than on a process. Fifteen seconds is generous for a
+	// relay one hop away and short enough to report as a failure.
+	addr := ""
+	WaitFor(ctx, 15*time.Second, time.Second, func() bool {
+		r, err := c.lab.Sh(ctx, host,
+			"grep -oE 'tc[A-Za-z0-9_-]{40,}' "+tailcatLogFile+" 2>/dev/null | tail -1")
+		if err != nil {
+			return false
+		}
+		addr = strings.TrimSpace(r.Stdout)
+		return addr != ""
+	})
+	if addr == "" {
+		log, _ := c.lab.Sh(ctx, host, "cat "+tailcatLogFile+" 2>/dev/null || true")
+		res.Raw = strings.TrimSpace(log.Out())
+		res.Why = "tailcat printed no address on " + host + " within fifteen seconds. " +
+			"It needs the lab's relay at " + derpHostname + "; check that the derp " +
+			"container is running and that the machine trusts the lab CA."
+		return res
+	}
+	_, _ = c.lab.Sh(ctx, host, "printf '%s' "+addr+" > "+tailcatAddrFile)
+
+	c.with(func(s *State) {
+		s.Tailcat.On, s.Tailcat.Host, s.Tailcat.Service = true, host, service
+		s.Tailcat.Allow, s.Tailcat.Addr = allow, shortTailcatAddr(addr)
+	})
+	c.saveDesired()
+
+	// A new address is a new credential, and the old one on evil-box is now a
+	// dead string. Re-handing it is what keeps "the address got out" meaning
+	// the same thing after the service or the machine changes.
+	if c.Snapshot().Tailcat.Shared {
+		if r := c.tailcatShare(ctx, true); !r.OK {
+			res.Raw = strings.TrimSpace(res.Raw + "\n" + r.Why)
+		}
+	}
+
+	res.OK = true
+	res.Rung = 2
+	res.Danger = true
+	res.Detail = map[string]string{"addr": shortTailcatAddr(addr), "host": host, "service": service}
+	res.Why = "A tunnel is up on " + host + ", serving " + service + ", reachable by anyone " +
+		"holding " + shortTailcatAddr(addr) + ". Nothing was added to the tailnet, no " +
+		"firewall rule changed, and no policy was consulted — there is no control plane " +
+		"here to hold one."
+	if allow {
+		res.Why += " --allow pins it to " + pinned + "'s client key, so the address on its " +
+			"own is no longer enough."
+	}
+	return res
+}
+
+// tailcatStop takes the tunnel down. Nothing is left behind on purpose: the
+// key is deleted with it, so the address that was printed cannot be revived by
+// starting the server again, which is precisely the difference between an
+// ephemeral key and a saved one.
+func (c *Controller) tailcatStop(ctx context.Context) Result {
+	still := c.tailcatStopAll(ctx)
+	res := Result{Rung: 1, Rule: "tailcat stopped",
+		Cmds: []string{"pkill -f " + tailcatPattern,
+			"tailcat genkey --key=" + tailcatKeyName + " --delete"}}
+	if len(still) > 0 {
+		c.observeTailcat(ctx)
+		res.Danger = true
+		res.Why = "A tailcat server is still running on " + strings.Join(still, ", ") +
+			". The switch is off and the tunnel is not, which means the address that was " +
+			"printed is still live — check it by hand with `pgrep -af tailcat`."
+		return res
+	}
+	c.with(func(s *State) {
+		s.Tailcat.On, s.Tailcat.Allow, s.Tailcat.Addr = false, false, ""
+	})
+	c.saveDesired()
+	res.OK = true
+	res.Why = "The tunnel is gone and its key with it, so the address that was printed is " +
+		"dead rather than dormant. An address held by somebody else is now worth " +
+		"nothing — which is the one good property of an ephemeral key, and the " +
+		"reason chapter 01 tells you to leave it that way."
+	return res
+}
+
+// tailcatShare moves the address onto evil-box, or takes it off again. There is
+// no network step here and there is not meant to be one: a tailcat address
+// leaks the way a password leaks, in a chat window or a screenshot or somebody
+// else's shell history, and the switch models the leak rather than a break-in.
+func (c *Controller) tailcatShare(ctx context.Context, on bool) Result {
+	res := Result{Rung: 1, To: "evil-box", Rule: "the address, in somebody else's hands"}
+	if !c.lab.Running(ctx, "evil-box") {
+		if r := c.needEvil(ctx); r != nil {
+			return *r
+		}
+	}
+	if !on {
+		_, _ = c.lab.Sh(ctx, "evil-box", "rm -f "+tailcatSharedFile)
+		c.with(func(s *State) { s.Tailcat.Shared = false })
+		c.saveDesired()
+		res.OK = true
+		res.Cmds = []string{"rm " + tailcatSharedFile + "   # on evil-box"}
+		res.Why = "Taken off evil-box. Worth knowing what that is and is not: deleting your " +
+			"copy of a string somebody already read is housekeeping, not revocation. " +
+			"Only stopping the server ends the address."
+		return res
+	}
+
+	st := c.Snapshot().Tailcat
+	if !st.On {
+		res.Why = "there is no tunnel running, so there is no address to hand anybody"
+		return res
+	}
+	r, err := c.lab.Sh(ctx, st.Host, "cat "+tailcatAddrFile+" 2>/dev/null || true")
+	addr := strings.TrimSpace(r.Stdout)
+	if err != nil || addr == "" {
+		res.Why = "the tunnel on " + st.Host + " has not printed an address yet"
+		return res
+	}
+	if _, err := c.lab.Sh(ctx, "evil-box",
+		"printf '%s' "+addr+" > "+tailcatSharedFile); err != nil {
+		res.Why = err.Error()
+		return res
+	}
+	c.with(func(s *State) { s.Tailcat.Shared = true })
+	c.saveDesired()
+	res.OK = true
+	res.Danger = true
+	res.Cmds = []string{"# " + shortTailcatAddr(addr) + " is now on evil-box, and cannot be recalled"}
+	res.Why = "evil-box holds the address. That is the whole of what it needs: there is no " +
+		"account to have, no key to be issued and nothing to be approved, so from here on " +
+		"the only thing between it and " + st.Host + " is whatever tailcat itself checks."
+	return res
+}
+
+// tailcatRestart is what every switch under "Somebody ran tailcat serve" does:
+// the server takes its service, its key pin and its machine at startup and has
+// no way to be told about a change, so changing one means starting a new
+// server, with a new address. Saying so is better than hiding it, because it is
+// also true of the real thing.
+func (c *Controller) tailcatRestart(ctx context.Context) Result {
+	st := c.Snapshot().Tailcat
+	if !st.On {
+		c.saveDesired()
+		return Result{OK: true, Rung: 1, Rule: "nothing is running",
+			Why: "Noted. Nothing starts until the switch above it is on."}
+	}
+	res := c.tailcatServe(ctx, st.Host, st.Service, st.Allow)
+	if res.OK {
+		res.Why = "Restarted, because tailcat reads all of this at startup and has no way to " +
+			"be told later. The address changed with it, and the old one is dead. " + res.Why
+	}
+	return res
+}
+
+// ---------------------------------------------------------------------------
 // The probe — the five-rung ladder, walked against real kernels
 //
 // The sandbox works the rung out from its model. This works it out from
@@ -1046,6 +1407,23 @@ func (c *Controller) ApplyPreset(ctx context.Context, id string) Result {
 	c.with(func(s *State) { s.ACL.Lock = p.ACL.Lock })
 	_ = c.setLock(ctx, p.ACL.Lock)
 
+	// A named configuration is a configuration, not a configuration plus
+	// whatever somebody left running on the side. None of the four says
+	// anything about tailcat — it is not in the build order and chapter 11
+	// keeps it out on purpose — so loading one takes the tunnel down rather
+	// than scoring a stack with an extra way in nobody asked for.
+	_ = c.tailcatStopAll(ctx)
+	c.with(func(s *State) {
+		s.Tailcat = TailcatState{Host: defaultState().Tailcat.Host,
+			Service: defaultState().Tailcat.Service}
+	})
+	if c.lab.Running(ctx, "evil-box") {
+		_, _ = c.lab.Sh(ctx, "evil-box", "rm -f "+tailcatSharedFile)
+	}
+	res.Cmds = append(res.Cmds, "pkill -f "+tailcatPattern+"   # a configuration is not a "+
+		"configuration plus a tunnel somebody left up")
+	c.saveDesired()
+
 	c.Observe(ctx)
 	return res
 }
@@ -1066,7 +1444,12 @@ func (c *Controller) Reset(ctx context.Context) Result {
 	if c.lab.Running(ctx, "evil-box") {
 		_, _ = c.lab.Exec(ctx, "evil-box", "tailscale", "logout")
 		_, _ = c.lab.Exec(ctx, "evil-box", "lab-onpath", "off")
+		_, _ = c.lab.Sh(ctx, "evil-box", "rm -f "+tailcatSharedFile)
 	}
+	// The escape hatch closes here too. It is the one thing in the lab that
+	// leaves a process running on a machine you own, and a reset that left it
+	// up would be the reset that matters least and misleads most.
+	_ = c.tailcatStopAll(ctx)
 	if c.lab.Running(ctx, "lab-ubuntu") {
 		_, _ = c.lab.Exec(ctx, "lab-ubuntu", "ip", "route", "replace", "default", "via", c.gatewayFor("lab-ubuntu"))
 	}
@@ -1086,7 +1469,7 @@ func (c *Controller) Reset(ctx context.Context) Result {
 	res.Cmds = append(res.Cmds, "tailscale up --login-server=…   # on any machine that was taken off")
 
 	d := defaultState()
-	c.with(func(s *State) { s.ACL = d.ACL })
+	c.with(func(s *State) { s.ACL = d.ACL; s.Tailcat = d.Tailcat })
 	_ = c.applyPolicy(ctx)
 	for _, step := range []struct {
 		path string

@@ -12,8 +12,8 @@ package main
 // pair, and a shared vocabulary that lives in two hand-written HTML files stops
 // being shared within a week.
 //
-// Machines / The network / Tailnet policy / The host — same four panels, same
-// four titles, same switches, in the same order as chapter 14.
+// Machines / The network / Tailnet policy / The host / Tailcat — same five
+// panels, same five titles, same switches, in the same order as chapter 14.
 // ---------------------------------------------------------------------------
 
 type Row struct {
@@ -101,6 +101,30 @@ var Panels = []Panel{
 				Opts: []Option{{V: "all", L: "0.0.0.0"}, {V: "tailnet", L: "the tailnet address only"}}},
 			{T: "toggle", Path: "vps.passwordAuth", Label: "PasswordAuthentication yes", Danger: true},
 			{T: "toggle", Path: "vps.permitRoot", Label: "PermitRootLogin yes", Danger: true},
+		},
+	},
+	{
+		// The fifth panel, and the only one whose switches are not part of the
+		// build. Everything above configures the thing you operate; this
+		// configures the thing somebody runs when what you operate is in their
+		// way, and it sits last because that is where it sits in chapter 14.
+		ID: "tailcat", Title: "Tailcat — the escape hatch",
+		Note: "Chapter 01's data plane with no control plane over it. Nothing here is part " +
+			"of the build; this is what somebody runs when the build is in their way.",
+		Rows: []Row{
+			{T: "toggle", Path: "tailcat.on", Label: "Somebody ran tailcat serve", Danger: true,
+				Sub: "no account, no root, no daemon — one binary and an address"},
+			{T: "seg", Path: "tailcat.host", Label: "…on which machine", Dep: "tailcat.on",
+				Opts: []Option{{V: "lab-ubuntu", L: "lab-ubuntu"}, {V: "lab-roam", L: "lab-roam"},
+					{V: "lab-vps", L: "lab-vps"}}},
+			{T: "seg", Path: "tailcat.service", Label: "…serving what", Dep: "tailcat.on",
+				Opts: []Option{{V: "ssh", L: "ssh"}, {V: "no-auth-ssh", L: "no-auth"},
+					{V: "all", L: "all"}}},
+			{T: "hr"},
+			{T: "toggle", Path: "tailcat.allow", Label: "--allow pins one client key",
+				Sub: "the address on its own stops being enough", Dep: "tailcat.on"},
+			{T: "toggle", Path: "tailcat.shared", Label: "The address reached evil-box", Danger: true,
+				Sub: "a paste in a chat, a shell history, a screenshot", Dep: "tailcat.on"},
 		},
 	},
 }

@@ -41,8 +41,14 @@ x-node: &node
   restart: unless-stopped
   extra_hosts:
     - "headscale:203.0.113.2"
+    # There is no DNS in this lab and tailcat addresses carry a hostname, not
+    # an address. Both ends have to resolve the relay to the same name the
+    # certificate was minted for or the TLS handshake fails, which is the
+    # correct failure and a baffling one to debug.
+    - "derp.lab.internal:203.0.113.3"
   environment:
     LAB_LOGIN_SERVER: "https://headscale:8443"
+    LAB_DERP_HOSTNAME: "derp.lab.internal"
     LAB_STATE_DIR: "/lab/state"
   volumes:
     - labstate:/lab/state
@@ -95,6 +101,43 @@ services:
       wan:
         ipv4_address: 203.0.113.2
 
+  # ---- the relay with nothing behind it — chapter 01 ----------------------
+  # Headscale's embedded DERP serves the tailnet and still does. This second
+  # relay serves tailcat, which cannot use that one: a tailcat address built
+  # from a hostname dials :443, and headscale's relay answers on :8443 next to
+  # the coordination API.
+  #
+  # The mechanical reason is the smaller one. This relay holds no policy, no
+  # node keys and no expiry dates, because derper has nowhere to put them, and
+  # that is the property under test: tailcat's packets must not pass through
+  # the container holding the control plane, or the one claim chapter 01 makes
+  # about tailcat would be untestable in the one place a reader checks it.
+  #
+  # It is on `wan` and nothing else. images/derp/Dockerfile has the rest.
+  derp:
+    build:
+      context: ./images/derp
+    container_name: derp
+    hostname: derp.lab.internal
+    restart: unless-stopped
+    depends_on:
+      control:
+        condition: service_healthy
+    environment:
+      LAB_STATE_DIR: "/lab/state"
+      LAB_DERP_HOSTNAME: "derp.lab.internal"
+    # A relay is not a router, and this is the one container in the lab that
+    # sits on the shared segment without a reason to forward anything. Turning
+    # it off costs nothing and makes the answer to "did adding this open a way
+    # off the host" a setting somebody can read rather than an argument.
+    sysctls:
+      net.ipv4.ip_forward: 0
+    volumes:
+      - labstate:/lab/state:ro
+    networks:
+      wan:
+        ipv4_address: 203.0.113.3
+
   # ---- the public box — chapter 08 ---------------------------------------
   lab-vps:
     <<: *node
@@ -105,6 +148,7 @@ services:
       LAB_HOSTNAME: "lab-vps"
       LAB_LOGIN_SERVER: "https://headscale:8443"
       LAB_STATE_DIR: "/lab/state"
+      LAB_DERP_HOSTNAME: "derp.lab.internal"
     # A machine keeps its identity across a restart. Without this the node key
     # is regenerated every time the container is recreated and the coordination
     # server ends up holding a graveyard of stale registrations.
@@ -154,6 +198,7 @@ services:
       LAB_GATEWAY: "10.0.13.254"
       LAB_LOGIN_SERVER: "https://headscale:8443"
       LAB_STATE_DIR: "/lab/state"
+      LAB_DERP_HOSTNAME: "derp.lab.internal"
     volumes:
       - labstate:/lab/state
       - ts-ubuntu:/var/lib/tailscale
@@ -191,6 +236,7 @@ services:
       LAB_GATEWAY: "10.0.27.254"
       LAB_LOGIN_SERVER: "https://headscale:8443"
       LAB_STATE_DIR: "/lab/state"
+      LAB_DERP_HOSTNAME: "derp.lab.internal"
     volumes:
       - labstate:/lab/state
       - ts-roam:/var/lib/tailscale
@@ -232,10 +278,12 @@ services:
     cap_add: ["NET_ADMIN", "NET_RAW"]
     extra_hosts:
       - "headscale:203.0.113.2"
+      - "derp.lab.internal:203.0.113.3"
     sysctls:
       net.ipv4.ip_forward: 1
     environment:
       LAB_GATEWAY: "10.0.66.254"
+      LAB_DERP_HOSTNAME: "derp.lab.internal"
       LAB_STATE_DIR: "/lab/state"
       LAB_ONPATH_SUBNET: "10.0.13.0/24"
     volumes:

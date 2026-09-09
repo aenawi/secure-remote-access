@@ -2,19 +2,19 @@
    Copyright (C) 2026 Hashem Aldhaheri */
 
 /* ============================================================
-   The nine attacks, and the two demonstrations that are not attacks,
+   The ten attacks, and the two demonstrations that are not attacks,
    as set-pieces.
 
-   Nine genuinely different mechanisms — an anti-replay window, a netmap
-   removal, a chain-ordering trap, a route offer that is not an approval —
-   used to arrive as nine paragraphs in one column, where they all read as
-   the same texture. Each of them has exactly one thing worth looking at.
-   This file points the camera at that thing.
+   Ten genuinely different mechanisms — an anti-replay window, a netmap
+   removal, a chain-ordering trap, a route offer that is not an approval,
+   a tunnel that asks nothing — used to arrive as paragraphs in one column,
+   where they all read as the same texture. Each of them has exactly one
+   thing worth looking at. This file points the camera at that thing.
 
    The other two are not attacks. `outage` is the session layer, the half of
    this guide the board otherwise had nothing of, and it is the only shot
    here with two acts. `rotate-key` is maintenance, which is the one subject
-   on this board judged by what it leaves undisturbed. Everything the nine
+   on this board judged by what it leaves undisturbed. Everything the ten
    obey, both of them obey.
 
    The grammar every set-piece here obeys, because a shot that breaks one
@@ -54,8 +54,8 @@
    ============================================================ */
 
 import { GEOM } from "./scene.js";
-import { ev, tone, ladderMark, neverRan, head, scanReading, sniffReading }
-  from "./reading.js";
+import { ev, tone, ladderMark, neverRan, head, scanReading, sniffReading,
+         tailcatReading } from "./reading.js";
 
 const { POS, GX, ANY, Y_PUB, Y_MACH, Y_NET, Y_DERP, TN_Y } = GEOM;
 
@@ -113,7 +113,7 @@ function bead(board, path, color, speed, size) {
    judgements it makes — which rung, and which tone — are reading.js's,
    because they are the two the rest of this file is easiest to break. */
 function held(board, res, v) {
-  board.setLadder(res.rung || 1, v.ladder || ladderMark(res));
+  board.setLadder(res.rung || 1, v.ladder || ladderMark(res), v.skipped);
   board.setVerdict({
     tone: tone(res),
     head: v.head,
@@ -1563,6 +1563,123 @@ function rotateKey(board, res) {
 }
 
 /* ============================================================
+   10 · tailcat-tunnel
+
+   Every other shot on this board points the camera at a defence
+   answering. This one points it at two that were never asked, which is a
+   harder picture: absence has no geometry.
+
+   So the lane is the argument. It leaves the serving machine going *up*,
+   to the relay, and comes back down to evil-box — and both of its ends
+   are on the left of the board, at rung 1, because that is where those
+   machines are and the tunnel never travels the ladder at all. Gates 3
+   and 4 stand to the right of it, lit for nobody, with their own word on
+   them. Nothing crosses them, nothing is drawn breaking them, and the
+   ladder strip carries the third state rather than painting them passed.
+
+   The height is the other half. Tailcat's traffic is WireGuard, so it
+   rides in the protected plane like the tailnet's does — the shell is
+   encryption and this is encryption. What it does not have is a control
+   plane above it, and the plane it rides in is drawn with nothing over
+   it: the membrane the tailnet's own lane passes through is not on this
+   path, because there is nothing here to be a member of.
+   ============================================================ */
+function tailcatTunnel(board, res) {
+  const C = board.C;
+  const r = tailcatReading(res);
+  const host = (res.detail && res.detail.host) || "lab-ubuntu";
+  const hz = (POS[host] || POS["lab-ubuntu"]).z;
+  const ez = POS["evil-box"].z;
+
+  /* Centred on the two machines the tunnel joins, and low enough that the
+     lane's climb to the relay reads as a climb. The ladder stays in frame on
+     purpose: it is the thing the lane is not using, and a shot that cropped it
+     out would be making the point by hiding the evidence for it. */
+  const mx = (POS[host].x + POS["evil-box"].x) / 2, mz = (hz + ez) / 2;
+  board.fly(V(board, mx - 3.4, TN_Y + 3.0, mz + 17.5), V(board, mx, Y_NET - 0.9, mz));
+
+  if (!r.ran) {
+    text(board, "no tunnel ran", GX.g1 + 0.6, Y_MACH + 1.8, (hz + ez) / 2,
+         { px: 30, size: 0.46, color: C.faint });
+    held(board, res, { head: r.head, nums: [], chip: "nothing ran", chipKind: "pub" });
+    return;
+  }
+
+  /* The one outbound connection the machine made, which is the whole of
+     what a tunnel looks like from the outside. It is drawn first and it is
+     drawn dashed, because it is a socket rather than a packet. */
+  const out = curve(board, [
+    V(board, POS[host].x + 0.6, Y_MACH + 0.4, hz),
+    V(board, GX.g2 - 0.4, Y_NET - 0.4, hz - 1.2),
+    V(board, GX.derp, Y_DERP - 0.4, -2.6)
+  ]);
+  ray(board, out.getPoints(40), C.accent, 0.5, true);
+  text(board, "ss -tnp: one connection out, to the relay",
+       GX.g2 - 1.2, Y_NET + 0.9, hz - 2.6, { px: 26, size: 0.33, color: C.accent });
+
+  /* Gates 3 and 4, standing where they always stand, saying what they did.
+     The label is the reading's, so a run that measured an inbound packet
+     says that instead — the claim and the picture cannot come apart. */
+  [{ x: GX.g3, z: 5.4 }, { x: GX.g4, z: 5.4 }].forEach((g) => {
+    text(board, r.skipLabel, g.x, Y_MACH + 2.4, g.z,
+         { px: 26, size: 0.34, color: r.contradicted ? C.danger : C.faint });
+  });
+
+  const steps = [{
+    t: 0.5,
+    fn: () => {
+      /* The tunnel itself, up over the relay and back down. It rides at
+         tailnet height because it is encrypted, and it passes nothing on
+         the way: no membrane, no gate, no slat. */
+      const lane = curve(board, [
+        V(board, POS[host].x + 0.8, Y_MACH + 0.5, hz),
+        V(board, GX.g2 - 0.2, TN_Y, hz - 1.0),
+        V(board, GX.derp, Y_DERP - 0.2, -2.6),
+        V(board, GX.g2 - 0.2, TN_Y, ez + 1.0),
+        V(board, POS["evil-box"].x + 0.8, Y_MACH + 0.5, ez)
+      ]);
+      const col = r.shell ? C.danger : r.refused ? C.ok : C.accent;
+      ray(board, lane.getPoints(70), col, 0.95);
+      if (!board.reduced) bead(board, lane, col, 0.4, 0.16);
+
+      /* Drawn only when it was measured. A relay-only run is a true and
+         quieter picture, and claiming the punch when it did not complete
+         would be inventing the alarming half. */
+      if (r.direct) {
+        const punch = curve(board, [
+          V(board, POS[host].x + 0.8, Y_MACH + 0.5, hz),
+          V(board, GX.g2 - 1.8, TN_Y - 1.4, (hz + ez) / 2),
+          V(board, POS["evil-box"].x + 0.8, Y_MACH + 0.5, ez)
+        ]);
+        ray(board, punch.getPoints(50), col, 0.7);
+        text(board, "and then straight across — the punch completed",
+             GX.g2 - 3.0, TN_Y - 2.0, (hz + ez) / 2,
+             { px: 26, size: 0.33, color: col });
+      }
+
+      /* The measured zero, next to the machine it was measured on. This is
+         the line that makes "the firewall was never asked" a reading. */
+      text(board, r.inbound + " inbound on " + host + " eth0:22, all run",
+           POS[host].x + 1.4, Y_MACH - 1.5, hz + 2.6,
+           { px: 28, size: 0.38, color: r.contradicted ? C.danger : C.ok });
+      text(board, r.ifaces + " interfaces named tailcat — there is nothing to filter on",
+           POS[host].x + 1.4, Y_MACH - 2.2, hz + 2.6,
+           { px: 26, size: 0.33, color: C.faint });
+    }
+  }];
+  board.timeline(steps);
+
+  held(board, res, {
+    head: r.head,
+    nums: r.nums,
+    skipped: r.skipped,
+    ladder: r.shell ? "breached" : "stopped",
+    chip: "tailcat · encrypted, and outside every rung",
+    chipKind: "net"
+  });
+}
+
+/* ============================================================
    the register
 
    Keyed off the ids in AttackList. A new attack in attacks.go shows up
@@ -1579,8 +1696,9 @@ export const SETPIECES = {
   "expired-key":   expiredKey,
   "rogue-exit":    rogueExit,
   "docker-bypass": dockerBypass,
+  "tailcat-tunnel": tailcatTunnel,
   "lock-out":      lockOut,
-  /* Neither of these is one of the nine and neither is an attack. `outage` is
+  /* Neither of these is one of the ten and neither is an attack. `outage` is
      here because the session layer is half of what this guide is about and the
      board had none of it; `rotate-key` is here because it was the last button
      that got a paragraph where its neighbours got a shot — and because nothing

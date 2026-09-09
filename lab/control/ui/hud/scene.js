@@ -757,12 +757,25 @@ export function createBoard(canvas, hud) {
 
      stopped and breached are both red, so they are also drawn with different
      border styles: colour is never the only channel. */
-  function setLadder(reached, outcome) {
+  /* `skipped` is the third state a rung can be in, and it exists because two
+     of them are wrong for it. A rung below the one reached is normally
+     "passed" — the gate was asked and it let the packet through — and that is
+     a claim about a defence doing its job correctly. The tailcat tunnel makes
+     it false: rungs 3 and 4 are below the rung reached and neither was ever
+     consulted, because nothing in the path had any reason to ask them. Painted
+     "passed" they would read as two defences that approved this, which is the
+     one sentence the whole demonstration exists to contradict; painted as the
+     rung reached they would read as two defences that failed. Neither
+     happened. So they are faint and say so. */
+  function setLadder(reached, outcome, skipped) {
+    const skips = skipped || [];
+    const isSkipped = (n) => skips.indexOf(n) !== -1;
     if (hud) {
       for (let i = 1; i <= 5; i++) {
         const seg = hud.rungs[i - 1];
         seg.className = "hud-rung";
         if (!reached) continue;
+        if (isSkipped(i)) { seg.classList.add("skipped"); continue; }
         if (i < reached) seg.classList.add("passed");
         if (i === reached) seg.classList.add(outcome || "stopped");
       }
@@ -770,11 +783,12 @@ export function createBoard(canvas, hud) {
     posts.forEach((p, i) => {
       const n = i + 1;
       const end = outcome === "delivered" ? C.ok : C.danger;
-      const col = !reached ? C.faint : n < reached ? C.accent : n === reached ? end : C.faint;
+      const col = !reached || isSkipped(n) ? C.faint
+        : n < reached ? C.accent : n === reached ? end : C.faint;
       p.l.material.color.copy(col);
-      p.l.material.opacity = !reached ? 0.26 : n <= reached ? 0.8 : 0.14;
+      p.l.material.opacity = !reached ? 0.26 : isSkipped(n) ? 0.14 : n <= reached ? 0.8 : 0.14;
       p.lb.material.color.copy(col);
-      p.lb.material.opacity = !reached ? 0.7 : n <= reached ? 1 : 0.3;
+      p.lb.material.opacity = !reached ? 0.7 : isSkipped(n) ? 0.34 : n <= reached ? 1 : 0.3;
     });
   }
 

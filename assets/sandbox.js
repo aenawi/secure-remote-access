@@ -65,8 +65,14 @@
     { id: "lab-ubuntu", label: "lab-ubuntu", role: "the laptop", chapter: "09",
       ts: "100.71.4.13", lan: "10.0.13.2", pub: "198.51.100.13",
       nat: "easy", natName: "nat-ubuntu", tag: "tag:laptop" },
+    /* lanRoamed is the address this machine moves to, and it is the only
+       address on this page that is a verb. Every other lever in the link grid
+       leaves an address alone; this is the one that does not, and it is the
+       one that decides what happens to a session. Same two numbers the
+       containers in lab/ use, so a reader driving both sees one story. */
     { id: "lab-roam", label: "lab-roam", role: "the phone's stand-in", chapter: "03",
-      ts: "100.71.4.27", lan: "10.0.27.2", pub: "198.51.100.27",
+      ts: "100.71.4.27", lan: "10.0.27.2", lanRoamed: "10.0.27.77",
+      pub: "198.51.100.27",
       nat: "hard", natName: "nat-roam", tag: "tag:roam" },
     { id: "evil-box", label: "evil-box", role: "a hostile machine", chapter: "10",
       ts: "100.71.4.99", lan: "10.0.66.2", lanShared: "10.0.13.66", pub: "192.0.2.66",
@@ -93,6 +99,17 @@
 
   var LOSS_STEPS = [0, 5, 20, 40];
   var DELAY_STEPS = [0, 40, 180];
+
+  /* Mosh's UDP range, the same one chapter 01's policy file grants and the
+     same one chapter 03 tells you to open. The policy half of Mosh has been
+     modelled here since the beginning; the session half had not, which is
+     what this range is now wired to. */
+  var MOSH_LO = 60000, MOSH_HI = 61000;
+
+  function isMoshPort(port) {
+    var n = parseInt(port, 10);
+    return n >= MOSH_LO && n <= MOSH_HI;
+  }
 
   /* ---- named configurations ----------------------------------------
      Four states worth comparing. "Typical" is the one that matters most:
@@ -195,7 +212,11 @@
       machines: {
         "lab-vps":    { online: true,  onTailnet: true,  signed: true,  keyExpired: false },
         "lab-ubuntu": { online: true,  onTailnet: true,  signed: true,  keyExpired: false },
-        "lab-roam":   { online: true,  onTailnet: true,  signed: true,  keyExpired: false },
+        /* roamed is the address changing underneath the machine — the phone
+           leaving the house, wifi to a tower. It is a property of the machine
+           and not of its link, because eth0 is up the whole way through. */
+        "lab-roam":   { online: true,  onTailnet: true,  signed: true,  keyExpired: false,
+                        roamed: false },
         "evil-box":   { online: false, onTailnet: false, signed: false, keyExpired: false }
       },
       links: {
@@ -231,6 +252,20 @@
         service: "ssh",
         allow: false,
         shared: false
+      },
+      /* The session layer. Everything above this line is the network — who can
+         reach whom, and what stops them. These two are what is running over
+         it, and they are here because half the guide is about the difference.
+         A session remembers the address it was established against, which is
+         the only fact chapter 03 turns on: TCP's identity includes that
+         address and Mosh's does not.
+
+         ticks is how far the far end's counting loop had got when this session
+         last heard from it — the same one-per-second loop the containers in
+         lab/ run, so the two halves print comparable numbers. */
+      sessions: {
+        ssh:  { up: false, addr: null, ticks: 0, dead: false, why: "" },
+        mosh: { up: false, addr: null, ticks: 0, dead: false, why: "" }
       },
       probe: { from: "lab-ubuntu", to: "lab-vps", port: "22" }
     };
@@ -404,9 +439,18 @@
     return BY_ID[id].hostile ? S.tailcat.shared : true;
   }
 
-  /* Rung 2. Which way do these two reach each other, if at all? */
-  function choosePath(from, to) {
+  /* Rung 2. Which way do these two reach each other, if at all?
+
+     opts.viaPublic insists on the ordinary network even when both ends are on
+     the tailnet. Nothing in the guide's own advice does that; the outage
+     demonstration does, on purpose, for the same reason the lab does. Over a
+     tailnet both sessions survive everything that demonstration performs,
+     because the tailnet address does not change when the network under it
+     does — which is true, is the tailnet earning its keep, and is not the
+     comparison chapter 03 is making. */
+  function choosePath(from, to, opts) {
     var lf = S.links[from], lt = S.links[to];
+    var viaPublic = !!(opts && opts.viaPublic);
 
     /* Tailcat answers before either of the paths below it, because it is
        neither of them and does not care what either would have said. The data
@@ -414,7 +458,8 @@
        punch when the NATs allow it — with no control plane above it to ask.
        That is the whole of the lesson and it happens here, in the path, before
        a single rung of the ladder has run. */
-    if (S.tailcat.on && to === S.tailcat.host && from !== to && holdsTailcat(from)) {
+    if (!viaPublic &&
+        S.tailcat.on && to === S.tailcat.host && from !== to && holdsTailcat(from)) {
       if (S.tailcat.allow && BY_ID[from].hostile) {
         return { kind: "none", iface: "tailcat0", base: 0,
                  note: "tailcat --allow pins the server to one client public key",
@@ -425,7 +470,7 @@
                note: "tailcat — the tailnet's data plane with no control plane over it" };
     }
 
-    if (onTailnet(from) && onTailnet(to)) {
+    if (!viaPublic && onTailnet(from) && onTailnet(to)) {
       if (lf.udpBlocked || lt.udpBlocked) {
         return { kind: "relay", iface: "tailscale0", base: 46,
                  note: 'UDP is blocked, so the session rides DERP over TCP 443' };
@@ -466,10 +511,15 @@
   }
 
   /* evil-box has two addresses — its own segment, and the one it takes when you
-     move it onto lab-ubuntu's wire. Which is true depends on the state. */
+     move it onto lab-ubuntu's wire. lab-roam has two as well, for a different
+     reason: it moved. Which is true depends on the state, and both of them are
+     read from here rather than from CATALOG so there is exactly one answer to
+     "what is this machine's address right now". */
   function lanAddr(id) {
     var m = BY_ID[id];
-    return S.segmentShared && m.lanShared ? m.lanShared : m.lan;
+    if (S.segmentShared && m.lanShared) return m.lanShared;
+    if (m.lanRoamed && S.machines[id].roamed) return m.lanRoamed;
+    return m.lan;
   }
 
   /* Rung 3. First matching grant wins, exactly as the real policy file does. */
@@ -492,7 +542,7 @@
 
   /* Rung 4. Order is the lesson here: Docker's chain is consulted before
      UFW's, which is why a published port answers through a deny-all. */
-  function firewallCheck(to, port, path) {
+  function firewallCheck(to, port, path, opts) {
     /* Nothing arrives inbound on a tailcat path. The serving machine dialled
        out to a relay and the session came back down that connection, so a
        default-deny incoming policy is still in force, still correct, and was
@@ -520,6 +570,16 @@
     }
     if (String(port) === "22" && v.allowPublic22) {
       return { allow: true, rule: "ufw rule: 22/tcp ALLOW IN from Anywhere" };
+    }
+    /* The rule people forget, and the reason a first Mosh setup logs in and
+       then eats every keystroke: :22 carries the login, and the session it
+       hands you rides on a UDP port nothing opened. It is not a switch on any
+       panel because it is not one in lab/ either — the demonstration adds it
+       for its own duration and takes it away again, and the script tab shows
+       both commands. */
+    if (isMoshPort(port) && opts && opts.moshRangeOpen) {
+      return { allow: true,
+               rule: "ufw rule: " + MOSH_LO + ":" + MOSH_HI + "/udp ALLOW IN from Anywhere" };
     }
     if (!v.ufwDefaultDeny) {
       return { allow: true, rule: "ufw default incoming policy is allow" };
@@ -550,6 +610,18 @@
           " does not have — the address got it to the door and no further" };
       }
       return { ok: true, what: "tailcat's own SSH server, checking authorized_keys" };
+    }
+    /* mosh-server is not a daemon waiting for you. The SSH login starts it, it
+       picks a free port in this range, prints the port and a one-time key back
+       down the already-encrypted channel, and detaches. So nothing answers
+       here until somebody has already logged in over :22 — which is why this
+       reads the session layer rather than a bind address. */
+    if (isMoshPort(port)) {
+      if (S.sessions.ssh.up || S.sessions.mosh.up) {
+        return { ok: true, what: "mosh-server, started by the SSH login" };
+      }
+      return { ok: false, why: "nothing is listening on :" + port + " — mosh-server is " +
+        "started by the SSH login and exits with it, and nobody has logged in" };
     }
     if (to !== "lab-vps") {
       if (port === "22") return { ok: true, what: "sshd" };
@@ -585,7 +657,7 @@
        failure has to be able to name the address the packet was aimed at, and
        quoting a tailnet address for a path that is not the tailnet was a lie
        this page used to tell. */
-    var path = choosePath(from, to);
+    var path = choosePath(from, to, o);
     t.path = path;
 
     /* --- rung 1 · liveness --------------------------------------- */
@@ -635,7 +707,7 @@
 
     /* --- rung 4 · host firewall ----------------------------------- */
     t.rung = 4;
-    var fw = firewallCheck(to, port, path);
+    var fw = firewallCheck(to, port, path, o);
     t.rule = fw.rule;
     t.danger = !!fw.danger;
     if (!fw.allow) {
@@ -691,6 +763,134 @@
     /* The public address is what an attacker aims at, and reporting it is how
        the failure reads as an answer. */
     return BY_ID[id].pub;
+  }
+
+  /* ============================================================
+     4b · The session layer
+
+     The rest of the engine answers "can a packet get from here to there".
+     This answers a different question, and it is the other half of the guide:
+     what happens to something already running when the network underneath it
+     moves. The two are not the same question, and the second one is the whole
+     of chapters 03 and 04.
+
+     One rule decides everything here, and it is worth reading twice:
+
+       A TCP connection is a four-tuple, so its identity includes the address
+       it was established against. Change that address and the connection
+       names something that no longer exists — the kernel has no way to say
+       "same conversation, new address". Mosh's identity is a session key
+       rather than a tuple: a datagram is genuine because it decrypts, and the
+       server simply updates its idea of where you are.
+
+     Note what that rule does not say. Nothing in it is about the link being
+     down. A stalled connection is not a broken one, and that is the half of
+     this that almost everybody has backwards — including the person who
+     built this page, until the containers in lab/ counted it.
+     ============================================================ */
+
+  /* The demonstration's schedule, in seconds, and it is lab/'s schedule to the
+     second so the two halves print comparable numbers: settle, then the
+     blackout, then long enough to prove both sessions came back, then the
+     roam and long enough to see who followed. The far end prints one tick a
+     second, so a tick count is just an elapsed time that survived the trip. */
+  var OUTAGE = { settle: 10, blackout: 20, afterBlackout: 15, afterRoam: 25 };
+
+  /* mosh-server picks a free port out of the range. Which one is arbitrary and
+     the guide never pins it; what matters is that it is not 22. */
+  var MOSH_PORT = 60001;
+
+  /* Establishing one is an ordinary connection, so it walks the ordinary
+     ladder and can fail at any rung of it. That is deliberate: a session
+     nobody could open is the commonest reason chapter 03 does not work, and
+     it deserves a rung number rather than a shrug. */
+  function openSession(kind, opts) {
+    var t = deliver(opts);
+    if (t.ok) {
+      S.sessions[kind] = {
+        up: true, addr: lanAddr("lab-roam"), ticks: 0, dead: false, why: ""
+      };
+    }
+    return t;
+  }
+
+  /* Time passes for every session still alive. A dead one keeps the tick it
+     had when it died, because that number is the evidence. */
+  function runSessions(seconds) {
+    ["ssh", "mosh"].forEach(function (k) {
+      var x = S.sessions[k];
+      if (x.up && !x.dead) x.ticks += seconds;
+    });
+  }
+
+  /* The blackout. Both sessions are stalled, not broken: the far end keeps
+     counting into a socket nothing is draining, and when the link returns TCP
+     retransmits the backlog while Mosh syncs straight to the latest screen.
+     Either way the client catches up, which is why both tick counts come out
+     the same and why the honest answer to "does a tunnel kill your session"
+     is no.
+
+     There is a number under that, and it is TCP_GIVES_UP_AFTER below. Note
+     what this function does not do: it does not compare the two and branch.
+     The blackout is a constant and so is the threshold, so a branch here would
+     be a test that can only ever go one way — dead code wearing the clothes of
+     a decision. The model has no lever to make a blackout longer; lab/ would
+     have to wait fifteen real minutes to find the other side of it. Both
+     halves say the number instead of pretending to have measured it. */
+  function blackout(down, andThen) {
+    runSessions(down + andThen);
+  }
+
+  /* Linux's tcp_retries2 defaults to 15, which works out at roughly this long
+     of retransmitting with backoff before the kernel gives up on a segment. */
+  var TCP_GIVES_UP_AFTER = 15 * 60;
+
+  /* The roam, and the one line in this file that decides the outcome. */
+  function addressChanged() {
+    var before = lanAddr("lab-roam");
+    S.machines["lab-roam"].roamed = true;
+    var after = lanAddr("lab-roam");
+    S.sessions.ssh.dead = S.sessions.ssh.up && S.sessions.ssh.addr !== after;
+    if (S.sessions.ssh.dead) {
+      S.sessions.ssh.why = "the four-tuple named " + before + ", and lab-roam does not " +
+        "have that address any more";
+    }
+    /* Mosh is not asked, because there is nothing to ask it. It never held a
+       connection, so there is no connection for this to invalidate. */
+    if (S.sessions.mosh.up) {
+      S.sessions.mosh.why = "authentication is per datagram, so a new source address " +
+        "is not an event";
+    }
+    return { before: before, after: after };
+  }
+
+  /* The state, said out loud, so the session layer is inspectable without
+     running the demonstration — the same way the tailnet and the firewall are.
+     Every other panel's state has a readout; this one needs one too or it is
+     not really in the model. */
+  function sessionLines() {
+    var out = ["lab-roam # ip -4 -o addr show eth0"];
+    out.push("  " + lanAddr("lab-roam") + "/24" +
+      (S.machines["lab-roam"].roamed
+        ? "     <- it moved. Was " + BY_ID["lab-roam"].lan + "."
+        : ""));
+    out.push("");
+    var ssh = S.sessions.ssh, mosh = S.sessions.mosh;
+    if (!ssh.up && !mosh.up) {
+      out.push("lab-roam # sessions");
+      out.push("  none — the network is modelled above; nothing is running over it yet.");
+      out.push("  Press \u201cssh and mosh, through a 20-second outage\u201d to start two.");
+      return out.join("\n");
+    }
+    out.push("lab-roam # sessions, and the address each was established against");
+    [["ssh", ssh], ["mosh", mosh]].forEach(function (pair) {
+      var k = pair[0], x = pair[1];
+      if (!x.up) { out.push("  " + pad(k, 6) + "not started"); return; }
+      out.push("  " + pad(k, 6) + pad(x.addr, 12) +
+        (x.dead ? "DEAD at tick " + x.ticks : "alive, tick " + x.ticks));
+      if (x.why) out.push("         " + x.why);
+    });
+    return out.join("\n");
   }
 
   /* ============================================================
@@ -931,7 +1131,8 @@
 
   function paintStatus() {
     if (!el.status) return;
-    el.status.textContent = tsStatus() + "\n\n" + netcheck() + "\n\n" + shapingLines();
+    el.status.textContent = tsStatus() + "\n\n" + netcheck() + "\n\n" + shapingLines() +
+      "\n\n" + sessionLines();
   }
 
   function paintRules() {
@@ -1120,6 +1321,10 @@
         if (l.loss) bits.push(l.loss + "% loss");
         if (l.delay) bits.push(l.delay + "ms");
         if (l.udpBlocked) bits.push("udp dropped");
+        /* eth0 is up and clean through a roam, so without this line the one
+           change that decides the session's fate is the one change the
+           drawing does not show. */
+        if (st.roamed) bits.push("roamed \u00b7 " + lanAddr(m.id));
         badge.textContent = bits.length ? bits.join(" · ") : m.role;
         badge.setAttribute("class", bits.length ? "svg-mono-warn sb-svg-cond" : "svg-sub");
       }
@@ -1538,6 +1743,10 @@
         runAttack(b.getAttribute("data-attack"));
         return;
       }
+      if (b.getAttribute("data-demo")) {
+        runDemo(b.getAttribute("data-demo"));
+        return;
+      }
       if (b.getAttribute("data-quick")) {
         var parts = b.getAttribute("data-quick").split(",");
         S.probe.from = parts[0]; S.probe.to = parts[1]; S.probe.port = parts[2];
@@ -1924,6 +2133,173 @@
   }
 
   /* ============================================================
+     9b · Demonstrations
+
+     Not attacks. Nothing here is hostile and nothing is defending, which is
+     why they sit under their own heading in both halves rather than in the
+     list above. lab/ keeps them in the same place, with the same label, so a
+     reader who can drive one can drive the other blind.
+     ============================================================ */
+
+  var demoRunning = false;
+
+  var DEMOS = {
+    /* The one thing this page could not express: two sessions, and what the
+       network doing something to them costs each one. It runs at lab-vps's
+       PUBLIC address on purpose, exactly as lab/ does — over the tailnet both
+       sessions survive both acts, because the tailnet address does not change
+       when the network under it does, and that is a different and much
+       happier lesson than the one chapter 03 is teaching. */
+    "outage": function () {
+      if (demoRunning) return;
+      var pub = BY_ID["lab-vps"].pub;
+
+      S.sessions = defaults().sessions;
+      S.machines["lab-roam"].roamed = false;
+
+      note("sudo ufw allow " + MOSH_LO + ":" + MOSH_HI + "/udp   # for the duration: Mosh's range",
+        "lab-vps");
+      note("ssh root@" + pub + " 'i=1; while :; do echo tick $i; sleep 1; i=$((i+1)); done'",
+        "lab-roam");
+      note("mosh root@" + pub + " -- \u2026the same loop\u2026", "lab-roam");
+
+      /* Both sessions are ordinary connections until they exist, so both are
+         opened through the ladder and either can fail at a rung. */
+      var sshT = openSession("ssh", {
+        from: "lab-roam", to: "lab-vps", port: "22", viaPublic: true, bytes: 4096
+      });
+      recordTrace("ssh root@" + pub + "  (the public address, on purpose)", sshT);
+      if (!sshT.ok) { outageCannotRun("ssh", sshT); return; }
+
+      var moshT = openSession("mosh", {
+        from: "lab-roam", to: "lab-vps", port: String(MOSH_PORT), viaPublic: true,
+        moshRangeOpen: true, bytes: 4096
+      });
+      recordTrace("mosh root@" + pub + "  (udp/" + MOSH_PORT + ", out of " +
+        MOSH_LO + "-" + MOSH_HI + ")", moshT);
+      if (!moshT.ok) { outageCannotRun("mosh", moshT); return; }
+
+      /* ---- act one · the tunnel ---------------------------------------
+         Resolved and said out loud before the second act starts, because the
+         first act does not do what everybody expects and that only reads if
+         you are allowed to finish being surprised by it. */
+      runSessions(OUTAGE.settle);
+      note("sudo sh -c 'ip link set eth0 down; sleep " + OUTAGE.blackout +
+        "; ip link set eth0 up' &   # act one: the tunnel", "lab-roam");
+      blackout(OUTAGE.blackout, OUTAGE.afterBlackout);
+      var ssh1 = S.sessions.ssh.ticks, mosh1 = S.sessions.mosh.ticks;
+
+      record({
+        ok: true, danger: false, rung: 0,
+        title: "act one \u00b7 " + OUTAGE.blackout + " seconds with no link at all",
+        head: "lab-roam eth0 down, " + OUTAGE.blackout + "s, then up \u2014 " +
+              "the address is unchanged",
+        why: "Both sessions survived it. ssh reached tick " + ssh1 +
+             ", mosh reached tick " + mosh1 + ".",
+        lines: [
+          "TCP does not give up on a stalled connection anywhere near that fast: it " +
+            "retransmits with backoff, and Linux's default of 15 retries works out at " +
+            "roughly " + (TCP_GIVES_UP_AFTER / 60) + " minutes before it gives up. This " +
+            "blackout was " + OUTAGE.blackout + " seconds.",
+          "So the far end kept counting into a socket nothing was draining, and when " +
+            "the link came back ssh retransmitted the backlog while mosh synced " +
+            "straight to the latest screen. Both caught up.",
+          "A tunnel, a lift or a dead spot is not what ends your session. That is " +
+            "folklore, and this is the act that kills it.",
+          "No rung decided this. The ladder answers whether a packet arrives; nothing " +
+            "on it has anything to say about a session that was already open."
+        ]
+      });
+      verdict("ok", "Act one: " + OUTAGE.blackout + " seconds of nothing, and both sessions " +
+        "are still there (ssh " + ssh1 + ", mosh " + mosh1 + "). If you expected SSH to " +
+        "drop, that is the belief worth losing. Act two is the one that costs you a " +
+        "session \u2014 and it is not the network going away.");
+      paintAll();
+      showTab("packets");
+
+      /* ---- act two · a different network -------------------------------
+         Deferred so act one is readable in the verdict line before it is
+         replaced. Both acts are in the packet log either way; nothing is lost
+         if the reader looks away. */
+      demoRunning = true;
+      setTimeout(function () {
+        demoRunning = false;
+        note("sudo ip addr flush dev eth0; sudo ip addr add " +
+          BY_ID["lab-roam"].lanRoamed + "/24 dev eth0   # act two: a different network",
+          "lab-roam");
+        var moved = addressChanged();
+        runSessions(OUTAGE.afterRoam);
+        var ssh2 = S.sessions.ssh.ticks, mosh2 = S.sessions.mosh.ticks;
+
+        note("sudo ufw --force delete allow " + MOSH_LO + ":" + MOSH_HI + "/udp", "lab-vps");
+
+        record({
+          ok: false, danger: false, rung: 0,
+          title: "act two \u00b7 the address changed underneath both sessions",
+          head: "lab-roam " + moved.before + " \u2192 " + moved.after +
+                " \u2014 eth0 never went down",
+          why: "ssh stopped at tick " + ssh2 + ". mosh reached tick " + mosh2 + ".",
+          lines: [
+            "ssh: " + S.sessions.ssh.why + ".",
+            "mosh: " + S.sessions.mosh.why + ".",
+            "This is what actually happens when a phone moves between networks, and " +
+              "it is the event act one was mistaken for.",
+            "lab-roam is still on the new address. Run the \u201cssh from the phone\u201d " +
+              "probe and it works \u2014 opening a new connection is not the same as an " +
+              "old one surviving, and it is the mix-up that makes this feel harmless."
+          ]
+        });
+        verdict("ok",
+          "Two acts, and the first one is the surprise. " + OUTAGE.blackout + " seconds " +
+          "with no link at all: both survived it (ssh " + ssh1 + ", mosh " + mosh1 + "), " +
+          "because TCP does not give up on a stalled connection anywhere near that fast. " +
+          "Then the address changed underneath both sessions, which is what actually " +
+          "happens when a phone moves. SSH stopped at tick " + ssh2 + ": its connection is " +
+          "a four-tuple and one corner of it no longer exists. Mosh reached " + mosh2 + ", " +
+          "because it is not holding a connection to lose \u2014 it is holding state, and " +
+          "state does not care which address the next datagram arrives from. Run the same " +
+          "two sessions over the tailnet address instead and SSH survives the roam as " +
+          "well, because the tailnet address does not change when the network under it " +
+          "does. That is why chapters 01 and 03 are worth having together.");
+        paintAll();
+        showTab("packets");
+      }, 2600);
+    }
+  };
+
+  /* A session that could not be opened is not a failed demonstration, it is a
+     configuration answering. Say which rung, and say which switch it was. */
+  function outageCannotRun(which, t) {
+    var v = S.vps;
+    /* lab/ takes the range away in a defer, so it comes away whichever way the
+       run ends. A script tab holding an `allow` with no matching `delete` would
+       be a rule this page told somebody to add and never told them to remove. */
+    note("sudo ufw --force delete allow " + MOSH_LO + ":" + MOSH_HI + "/udp", "lab-vps");
+    var fix = !v.allowPublic22
+      ? "public :22 is closed, which is chapter 08 working exactly as intended \u2014 " +
+        "this demonstration needs the ordinary internet, so turn that rule back on to " +
+        "watch it run."
+      : v.sshdListen === "tailnet"
+        ? "sshd is bound to the tailnet address, so it never sees a packet that arrived " +
+          "on eth0 \u2014 again the guide working, and again not a network this " +
+          "demonstration can run over."
+        : "Nothing got as far as the session layer: " + t.why + ".";
+    verdict("warn", "The " + which + " session was never established: stopped at rung " +
+      t.rung + " of 5. " + fix + " Over the tailnet both sessions survive both acts, " +
+      "because the tailnet address does not change when the network under it does \u2014 " +
+      "which is the tailnet earning its keep, and is not the comparison chapter 03 is " +
+      "making. This runs at lab-vps's public address on purpose, the same way lab/ does.");
+    paintAll();
+    showTab("packets");
+  }
+
+  function runDemo(name) {
+    var fn = DEMOS[name];
+    if (!fn) return;
+    fn();
+  }
+
+  /* ============================================================
      10 · Named configurations, and scoring them
 
      A preset on its own teaches very little — you click it, the screen
@@ -2001,12 +2377,15 @@
       s.machines[m.id].signed = p.tailnet;
       s.machines[m.id].online = true;
       s.machines[m.id].keyExpired = false;
+      s.machines[m.id].roamed = false;
     });
     s.machines["evil-box"] = { online: false, onTailnet: false, signed: false, keyExpired: false };
     s.segmentShared = false;
     /* A named configuration is a configuration, not a configuration plus
-       whatever somebody left running on the side. */
+       whatever somebody left running on the side. Sessions go the same way:
+       two shells somebody opened are not part of anybody's configuration. */
     s.tailcat = defaults().tailcat;
+    s.sessions = defaults().sessions;
     if (cleanLinks) s.links = defaults().links;
     return s;
   }
@@ -2215,8 +2594,12 @@
 
   /* Deliberately a banner and not a twelfth check. The eleven are a rubric
      shared one-for-one with the containers in lab/, and only a real host can
-     honestly be inspected for a tunnel process — so until that lands (issue
-     #46) this names the gap rather than moving a number it has not earned.
+     honestly be inspected for a tunnel process — which the lab half now does,
+     four switches' worth, on every observation. That did not make a twelfth
+     check right: a check only one of the two halves can answer would stop the
+     scores being comparable, which is the one thing the pair exists for. So
+     both halves name the gap instead, and if a twelfth is ever added it goes
+     into both in the same change.
 
      Note what driving it actually showed: the score is not uniformly blind.
      A tunnel on lab-vps drops it to 7/11 and one on lab-ubuntu to 10/11,
@@ -2316,7 +2699,7 @@
     try {
       var slim = {
         m: S.machines, l: S.links, g: S.segmentShared,
-        a: S.acl, v: S.vps, p: S.probe, c: S.tailcat
+        a: S.acl, v: S.vps, p: S.probe, c: S.tailcat, x: S.sessions
       };
       var json = JSON.stringify(slim);
       var b64 = btoa(unescape(encodeURIComponent(json)));
@@ -2337,6 +2720,10 @@
       if (o.v) S.vps = o.v;
       if (o.p) S.probe = o.p;
       if (o.c) S.tailcat = o.c;
+      if (o.x && o.x.ssh && o.x.mosh) S.sessions = o.x;
+      /* A link shared from before the session layer existed has no roamed flag
+         and no sessions, and both read as "nothing has happened yet", which is
+         exactly right. */
     } catch (e) { S = defaults(); }
   }
 

@@ -102,7 +102,8 @@ secure-remote-access/
 │   ├── nav.js         the chapter index — edit here to add or reorder chapters
 │   ├── app.js         theme, sidebar, TOC, chapter filter, copy buttons, checklists
 │   ├── anim.js        the stepped diagram simulations
-│   ├── sandbox.js     the sandbox: state, the five-rung engine, the attacks
+│   ├── sandbox.js     the sandbox: state, the five-rung engine, the session
+│   │                  layer, the attacks
 │   └── favicon.svg
 ├── chapters/
 │   └── 01-…-14-….html
