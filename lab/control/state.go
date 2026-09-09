@@ -99,12 +99,39 @@ type MachineState struct {
 	PathTo     string `json:"pathTo,omitempty"` // how this machine reaches lab-vps
 }
 
+// TailcatState is chapter 01's escape hatch, and the one part of this lab that
+// is not part of the build. Same five switches as the sandbox, same names, same
+// meanings — the panel is the shared vocabulary and this is the other end of
+// it.
+//
+// Four of the five are read back off a running process rather than remembered:
+// `pgrep` finds the tunnel, its command line says which service and whether
+// --allow is on, and the machine holding the process is Host. Shared is a file
+// on evil-box. Only the Host and Service a reader has *chosen* while the
+// tunnel is off have nowhere to be observed from, which is why this rides in
+// desired.json alongside the policy.
+type TailcatState struct {
+	On      bool   `json:"on"`
+	Host    string `json:"host"`
+	Service string `json:"service"` // ssh | no-auth-ssh | all
+	Allow   bool   `json:"allow"`
+	Shared  bool   `json:"shared"`
+
+	// Addr is the tailcat address the running server printed, truncated the
+	// way the sandbox truncates its own. It is a bearer credential — whoever
+	// holds it can connect — so the readout shows enough of it to recognise
+	// and not enough to use, and the full string never leaves the machine
+	// that printed it except when Shared puts it on evil-box.
+	Addr string `json:"addr,omitempty"`
+}
+
 type State struct {
 	Machines      map[string]*MachineState `json:"machines"`
 	Links         map[string]*LinkState    `json:"links"`
 	SegmentShared bool                     `json:"segmentShared"`
 	ACL           ACLState                 `json:"acl"`
 	VPS           VPSState                 `json:"vps"`
+	Tailcat       TailcatState             `json:"tailcat"`
 
 	// Read-only observations, for the readout panes.
 	Catalog []Machine `json:"catalog"`
@@ -128,6 +155,10 @@ func defaultState() *State {
 			DockerPublish: false, SSHDListen: "all",
 			PasswordAuth: false, PermitRoot: false,
 		},
+		// Off, on the laptop, in the shape chapter 01 recommends. Every switch
+		// under it is then a deliberate step away from that advice, which is
+		// the same starting point the sandbox uses.
+		Tailcat: TailcatState{On: false, Host: "lab-ubuntu", Service: "ssh"},
 		Catalog: Catalog,
 	}
 	for _, m := range Catalog {
@@ -291,13 +322,15 @@ type tsStatus struct {
 // ---------------------------------------------------------------------------
 
 type desiredState struct {
-	ACL           ACLState `json:"acl"`
-	SegmentShared bool     `json:"segmentShared"`
+	ACL           ACLState     `json:"acl"`
+	SegmentShared bool         `json:"segmentShared"`
+	Tailcat       TailcatState `json:"tailcat"`
 }
 
 func (c *Controller) saveDesired() {
 	s := c.Snapshot()
-	b, err := json.MarshalIndent(desiredState{ACL: s.ACL, SegmentShared: s.SegmentShared}, "", "  ")
+	b, err := json.MarshalIndent(desiredState{
+		ACL: s.ACL, SegmentShared: s.SegmentShared, Tailcat: s.Tailcat}, "", "  ")
 	if err != nil {
 		return
 	}
@@ -316,6 +349,12 @@ func (c *Controller) loadDesired() {
 	c.with(func(s *State) {
 		s.ACL = d.ACL
 		s.SegmentShared = d.SegmentShared
+		// A file written before the tailcat panel existed has the zero value
+		// here, and a Host of "" would leave the panel with no machine
+		// selected and every command it prints addressed to nowhere.
+		if d.Tailcat.Host != "" {
+			s.Tailcat = d.Tailcat
+		}
 	})
 }
 
@@ -371,6 +410,7 @@ func (c *Controller) Observe(ctx context.Context) {
 
 	c.observeLinks(ctx)
 	c.observeVPS(ctx)
+	c.observeTailcat(ctx)
 	c.with(func(s *State) { s.Ready = true })
 }
 
@@ -496,6 +536,164 @@ func (v *VPSState) readSSHD(out string) {
 	if listens > 0 && listens == tailnet {
 		v.SSHDListen = "tailnet"
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Tailcat — the escape hatch, observed rather than remembered
+//
+// The sandbox has to be told a tunnel is running. Here there either is a
+// process or there is not, and that difference is the whole reason this half
+// of the pair was worth building: a tunnel is a thing a machine can be
+// inspected for, and the inspection is four lines of shell.
+// ---------------------------------------------------------------------------
+
+// tailcatAddrFile is where the serving machine keeps the address it printed,
+// and it is deliberately not under /lab/state. That volume is mounted by every
+// container in the lab including evil-box, so an address written there would
+// already be in the attacker's hands and the "the address got out" switch
+// would have nothing left to model.
+const tailcatAddrFile = "/run/lab-tailcat.address"
+
+// tailcatLogFile is where the server's own output goes, which is where the
+// address comes from in the first place and where a failure to start says why.
+const tailcatLogFile = "/var/log/lab-tailcat.log"
+
+// tailcatSharedFile is the address in somebody else's hands. A file on
+// evil-box, because that is what "pasted into a chat" leaves behind.
+const tailcatSharedFile = "/root/tailcat-address"
+
+// tailcatServices are the three the panel offers, which are three of the five
+// tailcat has. `files` and `exit-node` are left out for the same reason the
+// sandbox leaves them out: the panel is a shared vocabulary, and a switch on
+// one side that does not exist on the other is how the two stop being
+// comparable.
+var tailcatServices = []string{"ssh", "no-auth-ssh", "all"}
+
+// tailcatHosts is every machine that may run one: the three you own. evil-box
+// is not on the list, and that is the lesson rather than an omission — this
+// attack starts with somebody on the inside.
+func tailcatHosts() []string {
+	var out []string
+	for _, m := range Catalog {
+		if !m.Hostile {
+			out = append(out, m.ID)
+		}
+	}
+	return out
+}
+
+// readTailcatServe reads `pgrep -af tailcat` output and says what the running
+// server is serving. It is a pure function of one string so the panel's idea
+// of the tunnel can be tested without a container, and because the alternative
+// — believing whatever the last button press asked for — is exactly the kind
+// of remembered state this lab exists to avoid.
+//
+// The service is the last bare argument. Everything tailcat takes before it is
+// a --flag, and the flags that carry values carry them with an `=`, so there is
+// no argument to skip and no ambiguity to resolve.
+func readTailcatServe(pgrepOut string) (running bool, service string, allow bool) {
+	for _, line := range strings.Split(pgrepOut, "\n") {
+		fields := strings.Fields(line)
+		// pgrep -af prints "<pid> <command line>", and a line without a
+		// `serve` in it is a client — `tailcat ssh`, or the ProxyCommand it
+		// execs — which is not a server and must not read as one.
+		if len(fields) < 3 || !containsWord(fields, "serve") {
+			continue
+		}
+		svc := ""
+		for _, f := range fields[2:] {
+			if strings.HasPrefix(f, "-") {
+				if strings.HasPrefix(f, "--allow=") {
+					allow = true
+				}
+				continue
+			}
+			svc = f
+		}
+		for _, known := range tailcatServices {
+			if svc == known {
+				return true, svc, allow
+			}
+		}
+	}
+	return false, "", false
+}
+
+func containsWord(fields []string, want string) bool {
+	for _, f := range fields {
+		if f == want {
+			return true
+		}
+	}
+	return false
+}
+
+// shortTailcatAddr truncates an address for the readouts. The full string is a
+// bearer credential: whoever holds it can connect, there is no identity behind
+// it and nothing to revoke, so the page shows enough to recognise one and not
+// enough to use one. The sandbox truncates its own the same way and to the
+// same shape.
+func shortTailcatAddr(addr string) string {
+	addr = strings.TrimSpace(addr)
+	if len(addr) <= 24 {
+		return addr
+	}
+	return addr[:16] + "\u2026" + addr[len(addr)-4:]
+}
+
+func (c *Controller) observeTailcat(ctx context.Context) {
+	found := TailcatState{}
+	for _, id := range tailcatHosts() {
+		if !c.lab.Running(ctx, id) {
+			continue
+		}
+		// The bracket keeps the search from finding the shell running it: that
+		// shell's own command line contains the word being searched for, and a
+		// panel that read it would report a tunnel on every machine it asked.
+		r, err := c.lab.Sh(ctx, id, `pgrep -af '[t]ailcat' 2>/dev/null || true`)
+		if err != nil {
+			continue
+		}
+		running, svc, allow := readTailcatServe(r.Stdout)
+		if !running {
+			continue
+		}
+		found = TailcatState{On: true, Host: id, Service: svc, Allow: allow}
+		// Only from a machine that is actually serving. A file left behind by
+		// a tunnel that has since stopped is a dead address, and printing one
+		// as though it were live is the readout telling a lie it cannot be
+		// caught in — so stopping a tunnel deletes it, whoever started it.
+		//
+		// A tunnel somebody started by hand has no file and shows no address,
+		// which is the honest answer: the lab found the process by inspecting
+		// the machine, and inspecting a machine does not hand you a credential
+		// the process only ever printed to whoever ran it.
+		if a, err := c.lab.Sh(ctx, id, "cat "+tailcatAddrFile+" 2>/dev/null || true"); err == nil {
+			found.Addr = shortTailcatAddr(a.Stdout)
+		}
+		break
+	}
+
+	// Who is holding the address is a fact about evil-box, and it survives the
+	// tunnel that produced it — which is the point chapter 01 makes about a
+	// saved key and the reason the switch is worth its own line.
+	if c.lab.Running(ctx, "evil-box") {
+		if r, err := c.lab.Sh(ctx, "evil-box",
+			"test -s "+tailcatSharedFile+" && echo yes || true"); err == nil {
+			found.Shared = strings.TrimSpace(r.Stdout) == "yes"
+		}
+	}
+
+	c.with(func(s *State) {
+		// With no tunnel running, Host and Service are a choice the reader has
+		// made and not an observation, so they are kept rather than blanked.
+		if !found.On {
+			s.Tailcat.On, s.Tailcat.Allow, s.Tailcat.Addr = false, false, ""
+			s.Tailcat.Shared = found.Shared
+			return
+		}
+		s.Tailcat = found
+	})
 }
 
 // ---------------------------------------------------------------------------

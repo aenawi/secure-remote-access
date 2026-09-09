@@ -762,6 +762,17 @@
     var html = '<p><span class="score">' + rep.passed + " / " + rep.total +
       '</span> <span class="muted">checks held</span>' + stuckNote + "</p>";
 
+    /* A perfect score with a tunnel open is the most misleading thing this
+       page could print, so the tunnel is said first — above the list, not
+       inside it. It is not a twelfth check and must not read as one: it moves
+       no number, and the sentence it carries is about what the number cannot
+       see rather than about what it counted. */
+    if (rep.hatch) {
+      html += '<div class="hatch is-' + esc(rep.hatchTone || "warn") + '">' +
+        "<b>Nothing below asks whether a tunnel is running.</b> " + esc(rep.hatch) +
+        "</div>";
+    }
+
     ["access", "attack", "config"].forEach(function (kind) {
       var rows = rep.checks.filter(function (c) { return c.kind === kind; });
       if (!rows.length) return;

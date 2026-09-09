@@ -70,6 +70,21 @@ type AuditReport struct {
 	Tone      string  `json:"tone"`
 	Verdict   string  `json:"verdict"`
 	Note      string  `json:"note,omitempty"`
+
+	// Hatch is the tunnel none of the eleven asks about, said out loud above
+	// the list rather than counted in it.
+	//
+	// It is deliberately not a twelfth check. The eleven are a rubric shared
+	// one-for-one with the sandbox, and a check only one half can honestly
+	// answer would make the two scores stop being comparable — which is the
+	// one thing this pair exists to do. Issue 46 says the same: if a twelfth
+	// is ever added it goes into both halves in the same change.
+	//
+	// So it moves no number and says so. It is also the more alarming reading
+	// of the two: this half cannot even move the score by accident. See
+	// hatchBanner.
+	Hatch     string `json:"hatch,omitempty"`
+	HatchTone string `json:"hatchTone,omitempty"` // warn | bad
 }
 
 // ---------------------------------------------------------------------------
@@ -288,7 +303,65 @@ func (c *Controller) Audit(ctx context.Context) AuditReport {
 		exposed, 5, "ss -tlnp ; ufw status", "docker exec lab-vps ss -tlnp")
 
 	// ---- the score -------------------------------------------------------
-	return scoreAudit(rep.Checks)
+	//
+	// The tunnel is read after the checks and before the arithmetic, because
+	// it belongs to neither: it changes nothing about the eleven and it
+	// changes everything about what the number is worth.
+	c.observeTailcat(ctx)
+	scored := scoreAudit(rep.Checks)
+	scored.Hatch, scored.HatchTone = hatchBanner(c.Snapshot().Tailcat)
+	if scored.Hatch != "" && scored.Tone == "ok" {
+		// A clean sweep with a tunnel open is the single most misleading thing
+		// this page can print, so it does not get to print it.
+		scored.Tone = "warn"
+	}
+	return scored
+}
+
+// hatchBanner is what the audit says about a tunnel it does not score.
+//
+// The sandbox's version of this banner tells the reader that the score is not
+// uniformly blind — that a tunnel on lab-vps drops it to 7 of 11 and one on
+// lab-roam leaves a clean 11, because some checks happen to probe those
+// machines. That is true of the sandbox and it is not true here, and the
+// difference is not a detail. In the sandbox a tunnel changes what *any* probe
+// to that machine does, because choosePath answers before the ordinary network
+// does. In this lab a tailcat address is not an address: every one of the
+// eleven aims `nc` at an IP, and no `nc` anywhere can reach a tailcat server.
+// So the score does not move at all, whichever machine is serving.
+//
+// That is the more alarming of the two readings, and it is the measured one.
+// lab/README.md records it as a disagreement rather than reconciling either
+// half into the other.
+func hatchBanner(t TailcatState) (string, string) {
+	if !t.On {
+		return "", ""
+	}
+	lead := "No check above asks whether a tunnel is running, and none of them can " +
+		"stumble over one either: every check here aims an ordinary connection at an " +
+		"address, and a tailcat address is not one. The score does not move. "
+
+	switch {
+	case t.Allow:
+		return lead + "A tailcat tunnel is running on " + t.Host + ", pinned to one client " +
+			"key with --allow. That is the mitigated shape, and it is still a way in that " +
+			"nothing above looks at.", "warn"
+	case t.Service == "all" || t.Service == "no-auth-ssh":
+		held := ""
+		if t.Shared {
+			held = " — and evil-box is holding it"
+		}
+		what := "a shell"
+		if t.Service == "all" {
+			what = "every port this machine opens"
+		}
+		return lead + "A tailcat tunnel is running on " + t.Host + ", serving " + t.Service +
+			", with the address as the only credential" + held + ". Anyone who has that " +
+			"string has " + what + ".", "bad"
+	default:
+		return lead + "A tailcat tunnel is running on " + t.Host + ". One SSH key stands " +
+			"between the address and a shell, and nothing above knows the tunnel is there.", "warn"
+	}
 }
 
 // scoreAudit is the arithmetic and the verdict, over eleven checks that have

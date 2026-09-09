@@ -111,10 +111,26 @@ func main() {
 	// ---- the lab's own CA ------------------------------------------------
 	// Written before the coordination server starts, because DERP requires TLS
 	// and a lab that needs you to have openssl is a lab with a prerequisite.
-	if err := ensureCA(*flagStateDir); err != nil {
+	replaced, err := ensureCA(*flagStateDir)
+	if err != nil {
 		log.Fatalf("cannot create the lab CA: %v", err)
 	}
 	log.Printf("lab CA ready in %s", filepath.Join(*flagStateDir, "ca"))
+	if replaced {
+		// A volume from before the relay existed keeps its CA certificate and
+		// not the key that signed it, so the second leaf cannot be added and
+		// the root has to be replaced. Every machine copies the CA at boot and
+		// the coordination server reads its certificate at boot, so both ends
+		// of that have to be told — otherwise the first symptom is every
+		// machine failing to join with "certificate signed by unknown
+		// authority", which reads like a broken image rather than an upgrade.
+		log.Printf("the lab CA was replaced: restarting the coordination server so it " +
+			"picks up its new certificate. If a machine will not join, `make reset && make up`.")
+		if lab.Running(ctx, "headscale") {
+			_ = lab.Stop(ctx, "headscale")
+			_ = lab.Start(ctx, "headscale")
+		}
+	}
 
 	// Read the lab before waiting on anything. The control server can be
 	// restarted while the lab keeps running, and it should come back knowing
@@ -259,19 +275,61 @@ func guardBind(ctx context.Context, lab *Lab, addr string, override bool) error 
 // The lab CA
 // ---------------------------------------------------------------------------
 
-func ensureCA(dir string) error {
+// derpHostname is the name tailcat's relay answers to, and it has to be
+// exactly this in three places at once: the certificate this file mints, the
+// `extra_hosts` entry every machine resolves, and the `--region` that gets
+// baked into a tailcat address. A tailcat address carries a hostname and
+// nothing else — no address, no port — so a mismatch is a TLS failure with
+// nothing in it to suggest which of the three moved.
+//
+// It has a dot in it because tailcat decides that a --region is a hostname
+// rather than a region name by looking for one. `derp` alone is parsed as the
+// name of a region to search the public DERP map for, which is a fetch this
+// lab must never make.
+const derpHostname = "derp.lab.internal"
+
+// ensureCA generates the lab's certificate authority and the two leaves the
+// stack needs: one for the coordination server, one for tailcat's relay.
+//
+// The CA private key is kept, which it did not used to be. With one leaf there
+// was nothing to mint later and throwing the key away was the tidier answer;
+// with two there is, and a second leaf that can only be added by regenerating
+// the root would hand every machine already holding the old CA a coordination
+// server it no longer trusts. So the key stays in the volume `make reset`
+// deletes, next to everything else that must not outlive the lab.
+//
+// It returns replaced=true when it had to build a new root over one that was
+// already there, which is a thing the caller has to act on rather than log.
+func ensureCA(dir string) (replaced bool, err error) {
 	caDir := filepath.Join(dir, "ca")
 	if err := os.MkdirAll(caDir, 0o755); err != nil {
-		return err
+		return false, err
 	}
 	crt := filepath.Join(caDir, "headscale.crt")
-	if _, err := os.Stat(crt); err == nil {
-		return nil // already generated; `make reset` throws the volume away
+	caKeyPath := filepath.Join(caDir, "lab-ca.key")
+	derpCrt := filepath.Join(caDir, derpHostname+".crt")
+
+	_, haveSrv := os.Stat(crt)
+	_, haveCAKey := os.Stat(caKeyPath)
+	_, haveDerp := os.Stat(derpCrt)
+	switch {
+	case haveSrv == nil && haveDerp == nil:
+		return false, nil // already generated; `make reset` throws the volume away
+	case haveSrv == nil && haveCAKey == nil:
+		// A volume from before the relay existed, with the CA key kept. Mint
+		// the one leaf that is missing and leave the root and the machines'
+		// trust stores alone.
+		return false, mintFromCA(caDir, derpHostname, net.ParseIP("203.0.113.3"))
 	}
+
+	// Anything reaching here with a coordination-server certificate already in
+	// place is a volume from before the relay existed, kept without the key
+	// that signed it. The root has to be replaced, and the caller has to know.
+	replaced = haveSrv == nil
 
 	caKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		return err
+		return false, err
 	}
 	caTpl := &x509.Certificate{
 		SerialNumber:          big.NewInt(1),
@@ -284,16 +342,16 @@ func ensureCA(dir string) error {
 	}
 	caDER, err := x509.CreateCertificate(rand.Reader, caTpl, caTpl, &caKey.PublicKey, caKey)
 	if err != nil {
-		return err
+		return false, err
 	}
 	caCert, err := x509.ParseCertificate(caDER)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	srvKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		return err
+		return false, err
 	}
 	srvTpl := &x509.Certificate{
 		SerialNumber: big.NewInt(2),
@@ -307,7 +365,7 @@ func ensureCA(dir string) error {
 	}
 	srvDER, err := x509.CreateCertificate(rand.Reader, srvTpl, caCert, &srvKey.PublicKey, caKey)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	write := func(name string, blocks ...*pem.Block) error {
@@ -324,16 +382,81 @@ func ensureCA(dir string) error {
 		return nil
 	}
 	if err := write("lab-ca.crt", &pem.Block{Type: "CERTIFICATE", Bytes: caDER}); err != nil {
-		return err
+		return false, err
 	}
 	// The chain, so a client that only has the leaf can still build a path.
 	if err := write("headscale.crt",
 		&pem.Block{Type: "CERTIFICATE", Bytes: srvDER},
 		&pem.Block{Type: "CERTIFICATE", Bytes: caDER}); err != nil {
+		return false, err
+	}
+	if err := write("headscale.key",
+		&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(srvKey)}); err != nil {
+		return false, err
+	}
+	// 0o600: this is the one file in the volume that could mint a certificate
+	// for anything, and it is kept only so a later leaf does not cost the lab
+	// its root.
+	if err := os.WriteFile(filepath.Join(caDir, "lab-ca.key"),
+		pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY",
+			Bytes: x509.MarshalPKCS1PrivateKey(caKey)}), 0o600); err != nil {
+		return false, err
+	}
+	return replaced, mintFromCA(caDir, derpHostname, net.ParseIP("203.0.113.3"))
+}
+
+// mintFromCA writes one server certificate for host, signed by the CA already
+// in caDir. derper is given `-certmode manual`, which means it looks for
+// <hostname>.crt and <hostname>.key by name — so the file names are part of
+// the interface and not a choice.
+func mintFromCA(caDir, host string, ips ...net.IP) error {
+	caPEM, err := os.ReadFile(filepath.Join(caDir, "lab-ca.crt"))
+	if err != nil {
 		return err
 	}
-	return write("headscale.key",
-		&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(srvKey)})
+	keyPEM, err := os.ReadFile(filepath.Join(caDir, "lab-ca.key"))
+	if err != nil {
+		return err
+	}
+	caBlock, _ := pem.Decode(caPEM)
+	keyBlock, _ := pem.Decode(keyPEM)
+	if caBlock == nil || keyBlock == nil {
+		return fmt.Errorf("the lab CA in %s is not readable as PEM", caDir)
+	}
+	caCert, err := x509.ParseCertificate(caBlock.Bytes)
+	if err != nil {
+		return err
+	}
+	caKey, err := x509.ParsePKCS1PrivateKey(keyBlock.Bytes)
+	if err != nil {
+		return err
+	}
+
+	leafKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return err
+	}
+	tpl := &x509.Certificate{
+		SerialNumber: big.NewInt(3),
+		Subject:      pkix.Name{CommonName: host},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().AddDate(2, 0, 0),
+		KeyUsage:     x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		DNSNames:     []string{host},
+		IPAddresses:  ips,
+	}
+	der, err := x509.CreateCertificate(rand.Reader, tpl, caCert, &leafKey.PublicKey, caKey)
+	if err != nil {
+		return err
+	}
+	chain := append(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), caPEM...)
+	if err := os.WriteFile(filepath.Join(caDir, host+".crt"), chain, 0o644); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(caDir, host+".key"),
+		pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY",
+			Bytes: x509.MarshalPKCS1PrivateKey(leafKey)}), 0o600)
 }
 
 // ---------------------------------------------------------------------------
