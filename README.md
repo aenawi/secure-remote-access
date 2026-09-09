@@ -88,13 +88,12 @@ Then there is a lab that runs. [`lab/`](lab/README.md) is the same topology as
 real containers: four machines on four isolated segments, each behind its own
 NAT router, running real `tailscaled` on real TUN devices. `docker compose up`
 and a browser is the whole setup; Docker is the only prerequisite. Every switch
-on the page is a command that runs inside a container, every probe watches the
-far end while it knocks and reports the rung that decided it, and the
-eleven-check audit is the same eleven the sandbox scores, so a real stack and
-the model can be compared directly. Where they disagree,
+on the page is a command that runs inside a container, and every probe watches
+the far end while it knocks and reports the rung that decided it. Its audit runs
+the same eleven checks chapter 14 scores, so you can put the simulation and a
+real stack side by side. Where the two disagree,
 [lab/README.md](lab/README.md#where-this-lab-and-the-sandbox-disagree) records
-the gap and explains why, with what was measured, when, and which half changed;
-that is the most useful thing the pair produces. An attacker container is
+what we measured, when, and which half we changed. An attacker container is
 included and never starts unless you ask for it.
 
 Smaller things: checklist ticks are saved in `localStorage`, per chapter, and
@@ -157,8 +156,8 @@ scenario-specific layer *except* those tagged `data-poster` until it does. So
 worth setting deliberately on any new simulation.
 
 Navigation is defined as a plain global rather than fetched, because `fetch()` is
-blocked on the `file:` scheme, and that is what lets the guide work by
-double-clicking `index.html`.
+blocked on the `file:` scheme. Declaring it as a global instead is what lets the
+guide work by double-clicking `index.html`.
 
 `sandbox.js` follows the same opt-in rule as `anim.js`: only a page containing
 `[data-sandbox]` loads it. It builds its control panels from a declarative spec and
@@ -172,12 +171,16 @@ you extend it. State round-trips through the URL hash, so a configuration is a l
 
 The short version: **do not argue with me, beat me in the lab.**
 
-Chapter 14 is a model of this topology and [`lab/`](lab/README.md) is the same
-topology as real containers. When they disagree, one of them is wrong about
-something real, and
-[Where this lab and the sandbox disagree](lab/README.md#where-this-lab-and-the-sandbox-disagree)
-is the file that records them, each with what was measured, when, and which
-half changed. A new entry there is the most valuable thing anyone can send.
+The guide ships two versions of the same network. Chapter 14 simulates it in
+your browser. [`lab/`](lab/README.md) builds it for real, in containers. Run the
+same test against both and they should give you the same answer.
+
+Sometimes they do not, and when that happens one of the two is wrong about how
+the real world behaves. Every disagreement found so far is written up in
+[Where this lab and the sandbox disagree](lab/README.md#where-this-lab-and-the-sandbox-disagree),
+with what we measured, when, and which half we changed.
+
+Finding a new one is the most useful thing you can contribute.
 
 So if you think a chapter is wrong, you do not have to convince me. Build the
 case where it fails. And if you are new to this and a paragraph lost you, that
