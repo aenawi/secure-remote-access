@@ -301,6 +301,15 @@
                   <span>Close both doors, in the wrong sequence, and be outside</span>
                 </button>
               </div>
+              <div class="pp-hr"></div>
+              <p class="pp-note">
+                Not an attack — nothing here is hostile and nothing is defending. This one is
+                the session layer rather than the network layer, and it runs at
+                <code>lab-vps</code>'s <b>public</b> address on purpose.
+              </p>
+              <button type="button" class="pp-btn pp-demo" data-demo="outage">
+                ssh and mosh, through a 20-second outage
+              </button>
               <button type="button" class="pp-btn pp-reset" data-act="reset">Reset everything</button>
             </section>
           </div>
@@ -392,10 +401,11 @@
         </p>
       </div>
 
-      <h2>Eight things worth doing here first</h2>
+      <h2>Nine things worth doing here first</h2>
       <p>
-        The console will let you do anything in any order. These eight are the ones that change how
-        you think, roughly in the order they are worth doing.
+        The console will let you do anything in any order. These nine are the ones that change how
+        you think, roughly in the order they are worth doing. The last one is the odd one out: it
+        is not an attack, and it is about the session layer rather than the network.
       </p>
 
       <h3>1 · Close port 22 while you are still logged in</h3>
@@ -498,6 +508,39 @@
         member, which is what the two <em>hostile member</em> checks in the audit are watching.
       </p>
 
+      <h3>9 · Watch a blackout fail to kill an SSH session</h3>
+      <p>
+        Press <b>ssh and mosh, through a 20-second outage</b>. Two sessions open from
+        <code>lab-roam</code> to <code>lab-vps</code>'s <em>public</em> address — deliberately not
+        the tailnet, for a reason in a moment — and then the demonstration does two things to
+        them, in this order.
+      </p>
+      <p>
+        <b>Act one</b> takes <code>eth0</code> away for twenty seconds and gives it back. Both
+        sessions survive, and if that surprises you, it is the most useful surprise on this page.
+        TCP does not give up on a stalled connection anywhere near that fast: it retransmits with
+        backoff, and Linux's default gives it about fifteen minutes before it stops trying. A
+        tunnel, a lift or a dead spot is not what ends your session.
+      </p>
+      <p>
+        <b>Act two</b> leaves <code>eth0</code> up and changes <code>lab-roam</code>'s address
+        instead — <code>10.0.27.2</code> to <code>10.0.27.77</code>, which is what a phone moving
+        from Wi-Fi to a tower actually does. SSH stops dead: a TCP connection is a four-tuple, and
+        one corner of it no longer exists. Mosh carries on counting, because it is not holding a
+        connection to lose — a datagram is genuine because it decrypts, not because it came from an
+        expected address. That is <a href="03-mosh-blink.html">chapter 03</a>, and the two acts
+        together are the reason it is a chapter rather than a paragraph.
+      </p>
+      <p>
+        Now the address it ran at. Over the tailnet both sessions survive both acts, because the
+        tailnet address does not change when the network under it does — which is
+        <a href="01-tailscale.html">chapter 01</a> earning its keep, and is a different lesson from
+        the one act two is teaching. So the demonstration aims at the public address, exactly as
+        the containers in <a href="../lab/README.md"><code>lab/</code></a> do. If your configuration
+        has already closed public <code>:22</code>, it will say so and stop, which is
+        <a href="08-vps.html">chapter 08</a> answering rather than a broken button.
+      </p>
+
       <h2>What is real here, and what is modelled</h2>
       <p>
         A model that oversells itself is worse than no model. Here is the honest split.
@@ -511,7 +554,7 @@
           <tbody>
             <tr>
               <td>The keypairs, the ECDH shared secret and the AES-GCM seal. The failed decrypt is a genuine cipher rejection in your browser</td>
-              <td>Path selection, NAT behaviour, the ACL evaluator, the firewall ordering including Docker's bypass, and the loss and latency arithmetic</td>
+              <td>Path selection, NAT behaviour, the ACL evaluator, the firewall ordering including Docker's bypass, the loss and latency arithmetic, and the tick counts in the outage demonstration — which are computed from its schedule, where <a href="../lab/README.md"><code>lab/</code></a> reads the same numbers off two real sessions</td>
               <td>Any actual packet, kernel, container or daemon. Nothing is transmitted and nothing listens</td>
             </tr>
             <tr>
@@ -567,6 +610,8 @@
         <li>Bound <code>sshd</code> to the tailnet address and seen a rung-5 failure that no firewall rule explains.</li>
         <li>Exported the script and read it against <a href="13-lab.html">chapter 13</a>.</li>
         <li>Probed the laptop from outside with no tailnet, and read rung 2 rather than a way in.</li>
+        <li>Watched a twenty-second blackout leave both sessions alive, then watched the address
+          change kill one of them — and noticed which of the two events the folklore blames.</li>
       </ul>
 
       <nav class="pager"></nav>

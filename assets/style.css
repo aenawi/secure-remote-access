@@ -601,6 +601,10 @@ td code { font-size: 12.5px; }
 .pp-btn:hover { border-color: var(--border-strong); }
 .pp-btn.is-primary { background: var(--accent-soft); border-color: var(--accent);
   color: var(--accent-text); font-weight: 650; }
+/* The one button on this panel that is not an attack. Its label is the lab's,
+   word for word, so a reader who can drive one half can drive the other blind —
+   which makes it long, and makes a line-height that assumes one line wrong. */
+.pp-demo { width: 100%; line-height: 1.35; }
 .pp-reset { margin-top: 10px; width: 100%; }
 
 .pp-quick { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }

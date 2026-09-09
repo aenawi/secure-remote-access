@@ -331,6 +331,10 @@ and **Rotate the key**. The first of those is the session layer rather than the
 network layer, and it is the one demonstration on the board that runs at
 lab-vps's **public** address on purpose, so both sessions are encrypted and
 neither is up in the tailnet plane, which is what the shot says while it runs.
+The sandbox carries that one as well now, under the same label and in the same
+place; what its half does instead of measuring is written up
+[with the finding](#the-sandbox-has-this-now-too-and-here-is-exactly-what-it-does-instead).
+**Rotate the key** is still only here.
 
 The second is maintenance, and it has two situations. If `lab-roam` is a member
 it opens an ssh session over the **tailnet** address, forces the re-auth
@@ -930,6 +934,50 @@ to read chapters 01 and 03 together.
 This one is TCP's behaviour and mosh's, not any coordination server's, so it is
 the finding least likely to move under you. Measured against tailscale
 1.102.3.
+
+#### The sandbox has this now too, and here is exactly what it does instead
+
+Until ticket #49 this demonstration existed only here, which made it the one
+place the lab could show something the model could not express at all: the model
+had a link that went up and down, loss, delay and a UDP port, and no session for
+any of it to happen to. Chapter 14 now carries the same button, with the same
+label, in the same place under the attack list, and a reader who can drive one
+can drive the other blind.
+
+What it does not carry is a measurement. The two halves are honest in different
+ways here, and the split is worth knowing before you quote either:
+
+- **The tick counts are computed there, read off two real sessions here.** The
+  sandbox runs the same schedule this does — ten seconds to settle, twenty with
+  no link, fifteen more, then the roam and twenty-five more — and turns it into
+  the same tick counts by arithmetic, because a tick is a second of session time
+  that survived the trip. The numbers agree with the run above. They agree
+  because they were built to, not because anything was observed.
+- **Twenty seconds is asserted there, waited here.** The lab's blackout costs
+  twenty real seconds and the board's fourth rule is that time is not faked. The
+  model's blackout costs nothing at all, and Linux's `tcp_retries2` is a
+  constant in a comment rather than a threshold the run could cross. There is no
+  lever to make the blackout longer, so the model cannot be made to disagree
+  with its own explanation.
+- **The failure this lab has and the model does not.** `demoOutage` has a branch
+  for Mosh printing nothing, which is what a `ufw` command failing to open
+  `60000:61000/udp` looks like from the outside, and it is chapter 03's
+  commonest real failure. Both halves open the range for the duration and take
+  it away again, so neither *ought* to reach it — but only one of them has a
+  `ufw` that can refuse. The model names the trap in prose; it cannot walk you
+  into it.
+
+None of that is a disagreement, and it is deliberately not filed as one. The
+two halves give the same answer to the same question, in the same order, with
+the same words on the button, and the list above is for the places where they do
+not. What the three points above are is the boundary of what the model was
+asked — the same distinction chapter 14 makes in its own *real, modelled,
+absent* table, which now names these tick counts under *modelled*.
+
+The other button underneath the attack list, **Rotate the key**, still has no
+sandbox equivalent. That is the asymmetry left over after that ticket, and it is
+a real one: continuity through a re-key is a thing you can only watch happen to
+something that is actually running.
 
 ---
 
