@@ -121,15 +121,21 @@ export function createBoard(canvas, hud) {
   function readTokens() {
     const cs = getComputedStyle(document.documentElement);
     const col = (n) => new THREE.Color(cs.getPropertyValue(n).trim() || "#888");
-    C.accent = col("--accent");
-    C.danger = col("--danger");
-    C.warn   = col("--warn");
-    C.ok     = col("--ok");
-    C.line   = col("--border-strong");
-    C.text   = col("--text");
-    C.muted  = col("--text-muted");
-    C.faint  = col("--text-faint");
-    C.card   = col("--bg-raised");
+    /* The nine --board-* properties, not the page tokens they used to be.
+       They are declared in style.css under "the board's palette" and each
+       defaults to the page token this line used to name, so the light/dark
+       button still moves the board and nothing about this call changed —
+       except that a theme under hud/themes/ now has somewhere to stand
+       between the two. */
+    C.accent = col("--board-accent");
+    C.danger = col("--board-danger");
+    C.warn   = col("--board-warn");
+    C.ok     = col("--board-ok");
+    C.line   = col("--board-line");
+    C.text   = col("--board-text");
+    C.muted  = col("--board-muted");
+    C.faint  = col("--board-faint");
+    C.card   = col("--board-card");
   }
   readTokens();
 

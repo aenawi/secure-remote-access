@@ -1282,8 +1282,63 @@ lab/
             ├── three.module.js  three.js r166, MIT, inside the binary
             ├── scene.js         the board: five gates, three planes, the packet
             ├── reading.js       what a Result says — pure, and the only tested part
-            └── setpieces.js     one exported function per attack id
+            ├── setpieces.js     one exported function per attack id
+            ├── themes.js        the theme store: what exists, and which is selected
+            └── themes/          one folder per palette — see below
+                ├── chapter/     the guide's own colours; overrides nothing
+                └── warroom/     amber on near-black
 ```
+
+### Themes for the board
+
+The board has never carried a palette. `readTokens()` in `hud/scene.js` reads
+nine CSS custom properties off the page and paints from what it read, which is
+how the light/dark button moves the drawing with it. A theme is that mechanism,
+used deliberately: redefine some of the nine, and tell the board they moved.
+
+One theme is one folder under `control/ui/hud/themes/`:
+
+```
+themes/warroom/
+├── theme.json    id, name, note, ground, author
+└── theme.css     the nine, scoped to :root[data-hud-theme="warroom"]
+```
+
+`themes.go` walks the embedded UI at startup and serves what it found at
+`/api/themes`, so the picker in the header is populated from the server rather
+than from a list in the markup. Adding a theme is a folder and a rebuild.
+Nothing else is edited.
+
+The nine are declared in `style.css` under **the board's palette**, each
+defaulting to the page token it replaced:
+
+| Property | What it paints |
+|---|---|
+| `--board-accent` | the tailnet, the gate posts, anything the lab owns |
+| `--board-danger` | a rule that refused, and the attacker |
+| `--board-warn` | an outcome that proved nothing either way |
+| `--board-ok` | a rung that held |
+| `--board-line` | gate posts, the ground grid, the rails |
+| `--board-text` | machine labels |
+| `--board-muted` | secondary labels |
+| `--board-faint` | addresses, and anything standing down |
+| `--board-card` | the plane the machines stand on |
+
+Those nine are the whole surface. A theme that sets anything else reaches past
+the drawing and repaints the panels around it, which is not what a board theme
+is for — and `hud/themes/chapter` is the proof the seam is real: it overrides
+nothing, and a test fails if it ever starts to.
+
+`ground` in `theme.json` is `light`, `dark` or `any`. Selecting a theme that
+names one moves the page to it; the light/dark button still wins afterwards,
+because a reader who presses it has said something more recent than the
+manifest did.
+
+A theme that does not parse, or whose `id` disagrees with its folder name, is
+skipped with a line at the console and the rest of the store still loads. The
+same choice `missing()` makes for set-pieces, for the same reason: a broken
+extra must not take the page with it, and a silent one is worse than a loud
+one.
 
 ### If you edit the UI, rebuild
 

@@ -37,6 +37,41 @@
     if (board) board.refreshTokens();
   });
 
+  /* ---- the board's palette ---------------------------------------
+     A second axis, and not the same one. The button above is the page's
+     ground; this is which of the embedded HUD themes paints the drawing.
+     hud/themes.js owns both halves — what exists, and what is selected —
+     because the server is what knows which folders were embedded.
+
+     The picker is populated from the answer rather than from markup, so a
+     theme added to hud/themes/ appears here after a rebuild with nothing
+     else edited. index.html ships one <option> so the control is not an
+     empty box in the moment before the module lands, or ever, if it does
+     not: no LabHUD means no board to theme, and the page is the flat
+     drawing, which is what it was before any of this. */
+  function startThemes() {
+    var api = window.LabHUD && window.LabHUD.themes;
+    var sel = $("#hud-theme");
+    if (!api || !sel) return;
+
+    api.init(board).then(function (applied) {
+      var list = api.list();
+      if (!list.length) return;          /* keep the one option markup shipped */
+      sel.innerHTML = list.map(function (t) {
+        return '<option value="' + esc(t.id) + '">' + esc(t.name) + "</option>";
+      }).join("");
+      sel.value = applied;
+      sel.title = (api.get(applied) || {}).note || "";
+    });
+
+    sel.addEventListener("change", function () {
+      api.apply(sel.value, board).then(function (applied) {
+        sel.value = applied;
+        sel.title = (api.get(applied) || {}).note || "";
+      });
+    });
+  }
+
   /* ---- the board --------------------------------------------------
      lab/control/ui/hud is an ES module, because three.js is one. It hands
      itself over on window.LabHUD and fires an event when it has loaded.
@@ -136,6 +171,9 @@
       boardBroken = true;
       $("#view-note").textContent = "the board needs WebGL, and this browser did not give it one";
       setView("flat");
+      /* Still worth selecting: the picker is the reader's setting, not the
+         board's, and it has to survive a session that never got a board. */
+      startThemes();
       return;
     }
     if (meta) applyMeta();
@@ -147,6 +185,7 @@
        ordinary case: the layout settles long before WebGL does. */
     measureRails();
     syncZoom();
+    startThemes();
   }
 
   if (window.LabHUD) startBoard();

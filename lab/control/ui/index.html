@@ -50,6 +50,17 @@
       <span class="viewswitch-note" id="view-note"></span>
     </div>
 
+    <!-- Two axes, deliberately separate. The button is the page's ground,
+         light or dark, and it moves the whole control surface. The picker is
+         the board's palette and touches nothing but the drawing. A theme that
+         was drawn for one ground moves the button to it when selected; the
+         button still wins afterwards. -->
+    <label class="hudtheme" for="hud-theme">
+      <span>board</span>
+      <select id="hud-theme">
+        <option value="chapter">Chapter</option>
+      </select>
+    </label>
     <button type="button" class="themebtn" id="theme">theme</button>
   </header>
 
@@ -452,7 +463,8 @@
 <script type="module">
   import { createBoard, GEOM } from "./hud/scene.js";
   import { SETPIECES, run, missing } from "./hud/setpieces.js";
-  window.LabHUD = { createBoard, GEOM, SETPIECES, run, missing };
+  import * as themes from "./hud/themes.js";
+  window.LabHUD = { createBoard, GEOM, SETPIECES, run, missing, themes };
   window.dispatchEvent(new Event("labhud-ready"));
 </script>
 <script src="app.js"></script>
