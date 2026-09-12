@@ -33,6 +33,16 @@ type Machine struct {
 	NAT     string `json:"nat"` // none | easy | hard
 	Hostile bool   `json:"hostile,omitempty"`
 
+	// Router is the container that carries this machine's packets off its own
+	// segment, and Gateway is the address it answers on. lab-vps has neither:
+	// it is the one machine with an address on the public segment itself.
+	//
+	// Worth naming rather than leaving implicit, because a stopped router does
+	// not stop the machine behind it — it strands it, which for a long time
+	// this lab had no way to say and scored straight through.
+	Router  string `json:"router,omitempty"`
+	Gateway string `json:"gateway,omitempty"`
+
 	// Which compose network carries this machine's own segment, and which
 	// carries the one standing in for the public internet.
 	LANNet string `json:"-"`
@@ -43,11 +53,14 @@ var Catalog = []Machine{
 	{ID: "lab-vps", Label: "lab-vps", Role: "the public box", Chapter: "08",
 		Tag: "tag:server", NAT: "none", WANNet: "wan", LANNet: "vpslan"},
 	{ID: "lab-ubuntu", Label: "lab-ubuntu", Role: "the laptop", Chapter: "09",
-		Tag: "tag:laptop", NAT: "easy", LANNet: "lan-ubuntu"},
+		Tag: "tag:laptop", NAT: "easy", LANNet: "lan-ubuntu",
+		Router: "nat-ubuntu", Gateway: "10.0.13.254"},
 	{ID: "lab-roam", Label: "lab-roam", Role: "the phone's stand-in", Chapter: "03",
-		Tag: "tag:roam", NAT: "hard", LANNet: "lan-roam"},
+		Tag: "tag:roam", NAT: "hard", LANNet: "lan-roam",
+		Router: "nat-roam", Gateway: "10.0.27.254"},
 	{ID: "evil-box", Label: "evil-box", Role: "a hostile machine", Chapter: "10",
-		Tag: "tag:untrusted", NAT: "easy", LANNet: "lan-evil", Hostile: true},
+		Tag: "tag:untrusted", NAT: "easy", LANNet: "lan-evil", Hostile: true,
+		Router: "nat-evil", Gateway: "10.0.66.254"},
 }
 
 func machineByID(id string) (Machine, bool) {
@@ -89,9 +102,16 @@ type LinkState struct {
 }
 
 type MachineState struct {
-	Online     bool   `json:"online"`
-	OnTailnet  bool   `json:"onTailnet"`
-	Signed     bool   `json:"signed"`
+	Online    bool `json:"online"`
+	OnTailnet bool `json:"onTailnet"`
+	Signed    bool `json:"signed"`
+	// RouterDown is the NAT box in front of this machine not running, while the
+	// machine itself is. It is named after what was read from Docker rather
+	// than after the conclusion — "stranded" would overstate it for evil-box,
+	// which keeps a second interface on lab-ubuntu's segment — but it is the
+	// difference between a machine that is online and a machine that can
+	// reach anything, and this state used to report only the first.
+	RouterDown bool   `json:"routerDown,omitempty"`
 	KeyExpired bool   `json:"keyExpired"`
 	TSAddr     string `json:"tsAddr,omitempty"`
 	LANAddr    string `json:"lanAddr,omitempty"`
@@ -367,6 +387,11 @@ func (c *Controller) Observe(ctx context.Context) {
 		ms := &MachineState{Online: running}
 
 		if running {
+			// Asked about every machine, not only the attacker. Each of the
+			// three behind a NAT can be left stranded the same way, and a
+			// machine whose router is down looks identical to one that is
+			// merely idle unless the page is told to look.
+			ms.RouterDown = m.Router != "" && !c.lab.Running(ctx, m.Router)
 			ms.LANAddr = c.lab.IPOn(ctx, m.ID, m.LANNet)
 			if m.WANNet != "" {
 				ms.WANAddr = c.lab.IPOn(ctx, m.ID, m.WANNet)

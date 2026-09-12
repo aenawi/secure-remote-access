@@ -27,8 +27,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  ev, rung, tone, ladderMark, neverRan, head, scanReading, sniffReading,
-  tailcatReading
+  ev, rung, tone, ladderMark, neverRan, head, whyNothingRan, scanReading,
+  sniffReading, tailcatReading
 } from "../control/ui/hud/reading.js";
 
 /* ---------- tone, and the rule that decides it ------------------- */
@@ -77,6 +77,20 @@ test("neverRan separates the attacker not starting from the defence holding", ()
   assert.equal(neverRan({ ok: false, danger: false, rung: 3 }), false);
   assert.equal(neverRan({ ok: true, danger: false, rung: 1 }), false);
   assert.equal(neverRan({ ok: false, danger: true, rung: 1 }), false);
+});
+
+test("a run that never ran says which of the three reasons it was", () => {
+  /* The attacker not being there was once the only way an attack could
+     refuse, so the heads asked "is evil-box running?" and were right. A
+     stopped nat-evil refuses with evil-box running, and a head that still
+     asked that question would be pointing at the wrong container. */
+  assert.equal(whyNothingRan({ rung: 1, rule: "evil-box is not in this stack" }),
+               "evil-box is not in this stack");
+  assert.equal(whyNothingRan({ rung: 1, rule: "nat-evil is stopped" }),
+               "nat-evil is stopped");
+  /* And a refusal that named no rule at all still asks something useful. */
+  assert.equal(whyNothingRan({ rung: 1 }), "is evil-box running? `make attack`");
+  assert.equal(whyNothingRan(null), "is evil-box running? `make attack`");
 });
 
 test("absent evidence is zero, not missing and not some", () => {
