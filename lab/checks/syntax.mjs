@@ -29,7 +29,7 @@
    ============================================================ */
 
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -50,11 +50,43 @@ const FILES = [
   ["lab/control/ui/hud/setpieces.js",    "module"],
   ["lab/control/ui/hud/reading.js",      "module"],
   ["lab/control/ui/hud/themes.js",       "module"],
+  ["lab/control/ui/hud/slots.js",        "module"],
   ["assets/app.js",                      "commonjs"],
   ["assets/anim.js",                     "commonjs"],
   ["assets/nav.js",                      "commonjs"],
-  ["assets/sandbox.js",                  "commonjs"]
+  ["assets/sandbox.js",                  "commonjs"],
+  ...widgets()
 ];
+
+/* The widgets are found rather than listed, because that is the whole
+   property widgets.go was written for: adding one is a folder and a rebuild,
+   not an edit to a list in three places. A list here would be the third
+   place, and the one nobody remembers — a widget added without its line in it
+   would ship unchecked, and a widget failing to import is a card that says
+   "did not load" with the reason only in the browser's console.
+
+   A folder with no widget.js is not this check's problem: the server skips it
+   with a line saying so, and TestEmbeddedWidgetsAreWellFormed fails. */
+function widgets() {
+  const dir = "lab/control/ui/hud/widgets";
+  let entries;
+  try {
+    entries = readdirSync(join(root, dir), { withFileTypes: true });
+  } catch {
+    return [];        /* no widgets embedded, which is a valid build */
+  }
+  return entries
+    .filter((e) => e.isDirectory())
+    .map((e) => [dir + "/" + e.name + "/widget.js", "module"])
+    .filter(([rel]) => {
+      try {
+        readFileSync(join(root, rel));
+        return true;
+      } catch {
+        return false;
+      }
+    });
+}
 
 let failed = 0;
 

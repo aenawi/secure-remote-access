@@ -1286,9 +1286,14 @@ lab/
             ├── reading.js       what a Result says — pure, and the only tested part
             ├── setpieces.js     one exported function per attack id
             ├── themes.js        the theme store: what exists, and which is selected
-            └── themes/          one folder per palette — see below
-                ├── chapter/     the guide's own colours; overrides nothing
-                └── warroom/     amber on near-black
+            ├── slots.js         the four docks, and what a widget is handed
+            ├── themes/          one folder per palette — see below
+            │   ├── chapter/     the guide's own colours; overrides nothing
+            │   └── warroom/     amber on near-black, and it docks three cards
+            └── widgets/         one folder per card — see below
+                ├── wire/        what the feed itself is doing
+                ├── tape/        every frame on the feed, written down
+                └── tally/       which rung has been deciding things
 ```
 
 ### The feed
@@ -1423,6 +1428,76 @@ skipped with a line at the console and the rest of the store still loads. The
 same choice `missing()` makes for set-pieces, for the same reason: a broken
 extra must not take the page with it, and a silent one is worse than a loud
 one.
+
+### Widgets and slots
+
+A theme can also dock cards. There are four docks around the board — `top`,
+`left`, `right`, `bottom` — and a card in one of them is a widget.
+
+One widget is one folder under `control/ui/hud/widgets/`:
+
+```
+widgets/tape/
+├── widget.json   id, name, note, slots it fits in, author
+├── widget.js     one exported create(), and what it returns
+└── widget.css    its own styling, scoped to its own card
+```
+
+`widgets.go` walks the embedded UI at startup and serves the registry at
+`/api/widgets`. Adding a widget is a folder and a rebuild, and nothing else is
+edited — the same property the theme store and `panels.go` already have.
+
+What a widget is handed is the whole seam, and it is deliberately small:
+
+```js
+export function create({ el, feed, options }) {
+  const off = feed.on("verdict", (data) => { /* draw into el */ });
+  return { destroy: off };
+}
+```
+
+`el` is the card's body and is yours until `destroy()`. `feed` is
+`window.LabFeed` — `on()` for the always-on sources, `want()` for a capture or
+a log tail, both handing back the function that undoes them. `options` is
+whatever the placement carried, verbatim.
+
+And that is all of it. There is no board object, no page element and no
+controller, because the board is twenty-five coupled methods over 1300 lines of
+three.js and publishing it as a plugin API would freeze `hud/scene.js` the day
+somebody wrote against it. A widget that wants to know what the lab is doing
+reads the feed, which is what the feed is for.
+
+Where a card goes is the theme's business, not the widget's, and it is in
+`theme.json`:
+
+```json
+"layout": [
+  { "widget": "wire",  "slot": "top" },
+  { "widget": "tape",  "slot": "right", "options": { "limit": 60 } },
+  { "widget": "tally", "slot": "bottom" }
+]
+```
+
+That is what `warroom` ships. `chapter` docks nothing — for the same reason its
+stylesheet overrides nothing: it is the page as it was before any of this, and
+it is where a saved theme id falls back to. A test fails if either starts to.
+
+A widget declares which docks it is willing to sit in, because the widget is
+what knows: a tape of every frame on the wire wants a tall column and reads as
+nonsense in a 90px strip. The server prunes the layout against the registry at
+startup — an unknown widget, or one placed in a dock it does not fit — so the
+page only ever mounts placements that can be built. Each dropped one says why at
+the console.
+
+The board itself is not a widget. It is the floor of the window: `app.js`
+creates it and drives it, and the docks' part in that is telling it how much of
+itself they are covering, so the camera frames the diagram in the gap the cards
+leave. Folding a rail moves the cards and re-frames the board with them.
+
+Each widget's stylesheet is scoped to `.card[data-widget="<id>"]`, and a test
+fails if a selector reaches wider — the same test, and the same reason, as the
+one holding a theme to the nine `--board-*` properties. Below 1000px the cards
+stop floating and stack at the foot of the page, which is what the rails do.
 
 ### If you edit the UI, rebuild
 

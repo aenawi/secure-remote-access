@@ -49,6 +49,31 @@ type Theme struct {
 	// button still wins afterwards.
 	Ground string `json:"ground"`
 	Author string `json:"author"`
+	// Layout is the cards this theme docks around the board, in the order it
+	// wants them stacked. Empty for a theme that only repaints, which is what
+	// every theme was before widgets.go existed — and what the base theme
+	// still is.
+	//
+	// A placement here is a request. Whether it can be honoured depends on
+	// what is in the widget registry, which this file does not know about:
+	// resolvePlacements() prunes the list at startup, so by the time the page
+	// is handed a layout every entry in it is buildable.
+	Layout []Placement `json:"layout"`
+}
+
+// Placement is one card: which widget, in which dock, with what on it.
+type Placement struct {
+	Widget string `json:"widget"`
+	Slot   string `json:"slot"`
+	// Title is what the card's header says. Optional — the widget's own name
+	// is the fallback, and it is the better label for a card placed once. A
+	// theme docking two of the same widget is the case this exists for.
+	Title string `json:"title,omitempty"`
+	// Options is handed to the widget verbatim and means nothing here. Every
+	// widget documents its own, and a widget that is given a key it does not
+	// recognise ignores it — so a theme written against a newer build of a
+	// widget degrades rather than breaks.
+	Options map[string]any `json:"options,omitempty"`
 }
 
 // themesDir is where the store lives inside the UI filesystem. It is a
@@ -130,5 +155,26 @@ func readTheme(fsys fs.FS, dir string) (Theme, bool) {
 		log.Printf("hud theme %q: ground %q is not light, dark or any — read as any", dir, t.Ground)
 		t.Ground = "any"
 	}
+
+	// The structural half of the layout: a placement with no widget named, or
+	// one aimed at a dock this build does not have, cannot become a card
+	// however the registry turns out. Dropping it here rather than at the
+	// page keeps the reason next to the folder that got it wrong.
+	//
+	// Whether the widget exists is resolvePlacements()' question.
+	var layout []Placement
+	for _, p := range t.Layout {
+		if p.Widget == "" {
+			log.Printf("hud theme %q: a placement names no widget, dropped", dir)
+			continue
+		}
+		if !validSlots[p.Slot] {
+			log.Printf("hud theme %q: %q asks for slot %q, which is not a dock, dropped", dir, p.Widget, p.Slot)
+			continue
+		}
+		layout = append(layout, p)
+	}
+	t.Layout = layout
+
 	return t, true
 }

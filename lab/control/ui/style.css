@@ -743,6 +743,96 @@ pre.out.live { max-height: 38vh; overflow-y: auto; }
 .hud-rung.delivered .t { color: var(--ok); font-weight: 600; }
 
 /* ---------------------------------------------------------------------------
+   Widgets and slots
+
+   Four docks around the board, holding cards a theme asked for. hud/slots.js
+   builds this layer and removes it again when a theme docks nothing, so there
+   is no empty element over the board in the ordinary case.
+
+   The layer sits inside the gap the rails leave: --rail-* is measured from
+   the live rails, the bar and the ladder, so the docks follow a rail being
+   folded without knowing that rails exist. It takes no pointer events itself
+   — only the cards do — because a transparent layer over the board is a layer
+   that would eat every drag aimed at the drawing underneath it.
+
+   --rail-* and not --pad-*, and that is the one thing here worth being
+   careful about. --pad-* is the same measurement plus what these cards are
+   covering — it is what moves the gauges and the verdict out of a card's way
+   — so a dock positioned from it would be a dock that moves every time it is
+   measured. app.js writes both and says why.
+
+   The docks themselves have no background. A dock with no cards in it is
+   nothing at all, which is what makes a one-card layout cost the reader one
+   card's worth of board rather than a frame around the whole window.
+   --------------------------------------------------------------------------- */
+.slots {
+  position: absolute; z-index: 22;
+  inset: calc(var(--rail-t, var(--bar-h)) + var(--hud-gap))
+         calc(var(--rail-r, 0px) + var(--hud-gap))
+         calc(var(--rail-b, 0px) + var(--hud-gap))
+         calc(var(--rail-l, 0px) + var(--hud-gap));
+  display: grid;
+  /* The corners go to the rows: a top strip that spans the full width reads as
+     a strip, and a left column that starts under it reads as a column. The
+     alternative — columns owning the corners — makes the top card look like a
+     third rail with a gap in it. */
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "top    top    top"
+    "left   .      right"
+    "bottom bottom bottom";
+  gap: var(--hud-gap);
+  pointer-events: none;
+}
+
+.dock { display: flex; gap: var(--hud-gap); min-width: 0; min-height: 0; }
+.dock-top { grid-area: top; }
+.dock-bottom { grid-area: bottom; align-items: flex-end; }
+.dock-left { grid-area: left; flex-direction: column; }
+.dock-right { grid-area: right; flex-direction: column; align-items: flex-end; }
+
+/* A column dock is as wide as the widest card in it and no wider, and a row
+   dock is as tall as its tallest. The cards are what have a size; the dock is
+   where they are. */
+.dock-left, .dock-right { width: max-content; max-width: 300px; }
+
+.card {
+  pointer-events: auto;
+  display: grid; grid-template-rows: auto minmax(0, 1fr);
+  min-width: 0; min-height: 0;
+  border-radius: var(--radius); overflow: hidden;
+}
+
+/* A card in a column may be tall; a card in a row may not. The scroll is on
+   the body so the header stays readable while its content moves, which is the
+   same arrangement the rails use. */
+.dock-left .card, .dock-right .card { width: 260px; max-height: 100%; }
+.dock-top .card, .dock-bottom .card { max-width: 100%; }
+
+.card-head {
+  display: flex; align-items: baseline; gap: 6px;
+  padding: 6px 10px 4px;
+  border-bottom: 1px solid var(--border);
+}
+.card-t {
+  font-family: var(--mono); font-size: 10px;
+  letter-spacing: .08em; text-transform: uppercase;
+  color: var(--text-faint);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.card-body { padding: 8px 10px; min-height: 0; overflow: auto; }
+
+/* A widget that did not load says so where the reader is already looking.
+   Everything else on this page fails quietly on purpose — a set-piece that
+   throws must not take the board down — but a card is a box with a name on
+   it, so an empty one is a visible question already, and the console is a
+   poor place to answer it. */
+.card-body.card-dead {
+  font-family: var(--mono); font-size: 11px; color: var(--danger);
+}
+
+/* ---------------------------------------------------------------------------
    The fallback
 
    A window too narrow for two columns, or too short for three bands, gets an
@@ -804,6 +894,24 @@ pre.out.live { max-height: 38vh; overflow-y: auto; }
      not float, and a pinch on a page this size is the browser's. */
   .railtog, .viewpad { display: none; }
   .hud-ladder { height: auto; }
+
+  /* The cards stack at the foot of the page, for the same reason the rails
+     stop floating: there is no margin left to overlay honestly. They come
+     after the readouts because that is where slots.js appends the layer, and
+     because a card is an extra the reader chose rather than the instrument. */
+  .slots {
+    position: static; inset: auto; display: block; gap: 0;
+    pointer-events: auto;
+  }
+  .dock { display: block; }
+  .dock-left, .dock-right { width: auto; max-width: none; }
+  .card {
+    border-radius: 0; box-shadow: none; backdrop-filter: none;
+    border-width: 1px 0 0 0; background: var(--bg);
+  }
+  .dock-left .card, .dock-right .card,
+  .dock-top .card, .dock-bottom .card { width: auto; max-width: none; max-height: none; }
+  .card-body { overflow: visible; }
 }
 
 @media (max-width: 720px) {

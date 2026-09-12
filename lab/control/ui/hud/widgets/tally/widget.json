@@ -1,0 +1,7 @@
+{
+  "id": "tally",
+  "name": "Which rung decided it",
+  "note": "Every verdict and every probe since the page loaded, counted by the rung that decided it and split by whether it was allowed. A defence that never answers is a defence you have not tested.",
+  "slots": ["top", "left", "right", "bottom"],
+  "author": "the guide"
+}

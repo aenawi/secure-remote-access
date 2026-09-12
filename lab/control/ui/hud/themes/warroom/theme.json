@@ -1,7 +1,12 @@
 {
   "id": "warroom",
   "name": "Warroom",
-  "note": "An operations wall: amber on near-black, with the verdict colours pushed apart so a denial reads across a room.",
+  "note": "An operations wall: amber on near-black, with the verdict colours pushed apart so a denial reads across a room. It docks three cards — the wire along the top, the tape down the right, and the rung tally across the bottom. Press [ or ] to fold a rail if you want the board back.",
   "ground": "dark",
-  "author": "the guide"
+  "author": "the guide",
+  "layout": [
+    { "widget": "wire", "slot": "top" },
+    { "widget": "tape", "slot": "right", "options": { "limit": 60 } },
+    { "widget": "tally", "slot": "bottom" }
+  ]
 }
