@@ -1,5 +1,10 @@
 # Contributing
 
+If you are an AI coding agent, or you are driving one at this repository, read
+[AGENTS.md](AGENTS.md) as well. Everything here applies to you unchanged; that
+file adds the handful of rules a person keeps by accident and a model breaks by
+being efficient.
+
 ## Do not argue with me. Beat me in the lab.
 
 Most security disagreements are two people trading confident opinions and
