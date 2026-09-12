@@ -714,11 +714,26 @@ pre.out.live { max-height: 38vh; overflow-y: auto; }
    over a 700px window is not a HUD, it is a blindfold — there is no margin
    left to put it in, which was the one thing that made overlaying honest. */
 @media (max-width: 1000px), (max-height: 620px) {
+  /* How tall the drawing's band is, written once. The verdict sticks directly
+     beneath it, so the two have to be the same number — and as two separate
+     declarations they were not: `height: 44vh; min-height: 240px` is 240px on a
+     window shorter than 545px, which the `max-height: 620px` arm of this query
+     reaches the moment a phone turns sideways, while the offset below stayed at
+     44vh and slid up over the drawing. One value cannot disagree with itself. */
+  :root { --band: max(44vh, 240px); }
   .app { display: block; height: auto; overflow: visible; }
   .topbar { position: sticky; inset: auto; }
+  /* `inset: auto` first, then `top`. The base rule pins this to the window with
+     `inset: 0`, so the shorthand has to undo it here — but a shorthand also
+     undoes the longhands written before it, and `top: 0; inset: auto` is a
+     sticky element with no offset to stick to, which is an element that
+     silently does not stick. The drawing is the one property this breakpoint
+     exists to keep, and the verdict below is measured from the bottom of it, so
+     losing the pin here did not lose one thing: it stranded the verdict in the
+     middle of the window with every panel sliding behind it. */
   .stagewrap {
-    position: sticky; top: 0; z-index: 5; inset: auto;
-    height: 44vh; min-height: 240px; box-shadow: var(--shadow);
+    position: sticky; inset: auto; top: 0; z-index: 5;
+    height: var(--band); box-shadow: var(--shadow);
   }
   .stage3d { height: 100%; }
   /* The band is a fixed fraction of the window here, so there is nothing for a
@@ -726,7 +741,7 @@ pre.out.live { max-height: 38vh; overflow-y: auto; }
      than a guess at how tall the verdict wrapped to. */
   .grip { display: none; }
   .verdict {
-    position: sticky; inset: auto; top: 44vh; z-index: 5;
+    position: sticky; inset: auto; top: var(--band); z-index: 5;
     width: auto; max-width: none; margin: 0; border-radius: 0;
     border-width: 0 0 1px 0;
   }
