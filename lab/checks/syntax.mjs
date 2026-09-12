@@ -48,6 +48,7 @@ const FILES = [
   ["lab/control/ui/hud/scene.js",        "module"],
   ["lab/control/ui/hud/setpieces.js",    "module"],
   ["lab/control/ui/hud/reading.js",      "module"],
+  ["lab/control/ui/hud/themes.js",       "module"],
   ["assets/app.js",                      "commonjs"],
   ["assets/anim.js",                     "commonjs"],
   ["assets/nav.js",                      "commonjs"],

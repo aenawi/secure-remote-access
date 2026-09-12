@@ -506,6 +506,11 @@ func routes(c *Controller) http.Handler {
 	}
 	mux.Handle("/", assets)
 
+	// Walked once, at startup: the themes are in the binary and cannot appear
+	// while it runs. Anything skipped has already said why at the console by
+	// the time this returns.
+	themes := loadThemes(ui)
+
 	writeJSON := func(w http.ResponseWriter, v any) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(v)
@@ -542,6 +547,20 @@ func routes(c *Controller) http.Handler {
 			"lossSteps":  []int{0, 5, 20, 40},
 			"delaySteps": []int{0, 40, 180},
 		})
+	})
+
+	// The HUD theme store: which palettes were embedded under ui/hud/themes.
+	// Separate from /api/meta because it describes the page rather than the
+	// lab, and because a reader adding a theme should not have to read a
+	// payload about machines and attacks to find out whether it was picked up.
+	mux.HandleFunc("/api/themes", func(w http.ResponseWriter, r *http.Request) {
+		// Never null: the page treats a non-array as an empty store, and an
+		// empty store is a picker with one option rather than a broken one.
+		if themes == nil {
+			writeJSON(w, []Theme{})
+			return
+		}
+		writeJSON(w, themes)
 	})
 
 	mux.HandleFunc("/api/state", func(w http.ResponseWriter, r *http.Request) {

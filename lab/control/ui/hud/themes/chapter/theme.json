@@ -1,0 +1,7 @@
+{
+  "id": "chapter",
+  "name": "Chapter",
+  "note": "The guide's own palette. The board borrows the page's colours and overrides none of them — this is what it looked like before there was a store.",
+  "ground": "any",
+  "author": "the guide"
+}

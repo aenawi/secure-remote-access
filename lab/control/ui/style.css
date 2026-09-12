@@ -40,6 +40,32 @@
   --radius: 10px;
 }
 
+/* ---- the board's palette ----
+   These nine, and only these nine, are what readTokens() in hud/scene.js
+   reads and what a HUD theme under hud/themes/ may redefine. They are the
+   contract: a theme setting anything else reaches past the drawing and
+   repaints the panels around it, which is not what a board theme is for.
+
+   Each defaults to the page token it used to read directly, so the light and
+   dark blocks below stay the single home of those nine colours and a theme
+   that overrides none of them — hud/themes/chapter — is the board exactly as
+   it was before the store existed.
+
+   They sit outside the theme blocks on purpose. A var() resolves where it is
+   used, not where it is declared, so one definition here follows the page
+   into light, into dark, and into whatever a theme does on top. */
+:root {
+  --board-accent: var(--accent);
+  --board-danger: var(--danger);
+  --board-warn:   var(--warn);
+  --board-ok:     var(--ok);
+  --board-line:   var(--border-strong);
+  --board-text:   var(--text);
+  --board-muted:  var(--text-muted);
+  --board-faint:  var(--text-faint);
+  --board-card:   var(--bg-raised);
+}
+
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #0e1116; --bg-raised: #161b22; --bg-sunken: #0a0d12; --bg-code: #12171f;
@@ -493,6 +519,22 @@ pre.out.live { max-height: 38vh; overflow-y: auto; }
   color: var(--text-muted); cursor: pointer;
 }
 .themebtn:hover { border-color: var(--accent); color: var(--accent-text); }
+
+/* The board's palette picker, sitting next to the page's light/dark button and
+   deliberately quieter than it: one is a setting most readers press once, the
+   other is a setting most readers never press at all. */
+.hudtheme {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12.5px; color: var(--text-faint);
+}
+.hudtheme > span { text-transform: uppercase; letter-spacing: .06em; font-size: 10.5px; }
+.hudtheme select {
+  font: inherit; font-size: 12.5px; padding: 3px 8px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--bg-sunken);
+  color: var(--text-muted); cursor: pointer; max-width: 11ch;
+}
+.hudtheme select:hover { border-color: var(--accent); color: var(--accent-text); }
+@media (max-width: 620px) { .hudtheme > span { display: none; } }
 
 /* ---------------------------------------------------------------------------
    The board — Five Gates
