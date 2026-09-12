@@ -500,7 +500,11 @@ func routes(c *Controller) http.Handler {
 	if err != nil {
 		log.Fatalf("embedded UI: %v", err)
 	}
-	mux.Handle("/", http.FileServer(http.FS(ui)))
+	assets, err := staticUI(ui)
+	if err != nil {
+		log.Fatalf("embedded UI: %v", err)
+	}
+	mux.Handle("/", assets)
 
 	writeJSON := func(w http.ResponseWriter, v any) {
 		w.Header().Set("Content-Type", "application/json")
