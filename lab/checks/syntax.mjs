@@ -44,6 +44,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
    vendored and minified: a parse error in it means a bad copy, not a typo,
    and nothing in this repo would fix it by hand. */
 const FILES = [
+  ["lab/control/ui/feed.js",             "commonjs"],
   ["lab/control/ui/app.js",              "commonjs"],
   ["lab/control/ui/hud/scene.js",        "module"],
   ["lab/control/ui/hud/setpieces.js",    "module"],

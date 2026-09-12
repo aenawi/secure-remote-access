@@ -568,10 +568,22 @@ func routes(c *Controller) http.Handler {
 		writeJSON(w, c.Snapshot())
 	})
 
+	// Every one of the four below does the same three things in the same order,
+	// and the order is the point. The reply is what the board draws from, so it
+	// is written last and nothing can delay it; the journal and the feed are
+	// both records of what happened, and a record written after the reply is a
+	// record of something the reader has already been told.
+	//
+	// The feed carries the Result as well as the reply carrying it. That is not
+	// a duplicate source — it is the same value marshalled twice — and it is
+	// what lets something that did not press the button see what the button
+	// did. See the top of feed.go.
 	mux.HandleFunc("/api/set", func(w http.ResponseWriter, r *http.Request) {
 		m := body(r)
-		res := c.Set(r.Context(), str(m, "path", ""), m["value"])
+		path := str(m, "path", "")
+		res := c.Set(r.Context(), path, m["value"])
 		record(res.Cmds)
+		c.PublishResult("set", path, res)
 		writeJSON(w, res)
 	})
 
@@ -580,6 +592,7 @@ func routes(c *Controller) http.Handler {
 		res := c.Probe(r.Context(),
 			str(m, "from", "lab-ubuntu"), str(m, "to", "lab-vps"), str(m, "port", "22"))
 		record(res.Cmds)
+		c.PublishResult("probe", "probe", res)
 		writeJSON(w, res)
 	})
 
@@ -594,13 +607,16 @@ func routes(c *Controller) http.Handler {
 			res = c.RunAttack(r.Context(), id)
 		}
 		record(res.Cmds)
+		c.PublishResult("action", id, res)
 		writeJSON(w, res)
 	})
 
 	mux.HandleFunc("/api/preset", func(w http.ResponseWriter, r *http.Request) {
 		m := body(r)
-		res := c.ApplyPreset(r.Context(), str(m, "id", ""))
+		id := str(m, "id", "")
+		res := c.ApplyPreset(r.Context(), id)
 		record(res.Cmds)
+		c.PublishResult("preset", id, res)
 		writeJSON(w, res)
 	})
 
@@ -618,10 +634,9 @@ func routes(c *Controller) http.Handler {
 		writeText(w, scriptText())
 	})
 
-	mux.HandleFunc("/api/stream/status", c.StreamStatus)
-	mux.HandleFunc("/api/stream/tcpdump", c.StreamTcpdump)
-	mux.HandleFunc("/api/stream/logs", c.StreamLogs)
-	mux.HandleFunc("/api/stream/stats", c.StreamStats)
+	// One wire, replacing /api/stream/{status,tcpdump,logs,stats}. Why, and
+	// what is on it, is at the top of feed.go.
+	mux.HandleFunc("/api/stream/hud", c.StreamHUD)
 
 	return mux
 }

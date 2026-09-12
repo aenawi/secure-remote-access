@@ -1272,11 +1272,13 @@ lab/
     ├── actions.go         one function per switch, and the five-rung probe
     ├── attacks.go         one function per attack
     ├── audit.go           the eleven checks
-    ├── stream.go          server-sent events: status, tcpdump, logs, stats
+    ├── feed.go            the one live wire: /api/stream/hud — see below
+    ├── stream.go          the SSE plumbing, and the text the readouts read
     ├── panels.go          the panel spec the UI renders
     ├── *_test.go          fixtures captured from a live lab; no containers needed
     └── ui/                the same vocabulary as chapter 14
         ├── index.html     the shell: both drawings, the two tab strips, the guide
+        ├── feed.js        one EventSource, shared by everything that reads the lab
         ├── app.js         a classic script, the same shape as assets/sandbox.js
         └── hud/
             ├── three.module.js  three.js r166, MIT, inside the binary
@@ -1288,6 +1290,88 @@ lab/
                 ├── chapter/     the guide's own colours; overrides nothing
                 └── warroom/     amber on near-black
 ```
+
+### The feed
+
+Everything live in this lab comes out of one endpoint:
+
+```bash
+curl -N http://127.0.0.1:8099/api/stream/hud
+```
+
+It used to be four — `status`, `tcpdump`, `logs` and `stats` — and each
+consumer opened the one it wanted and parsed it for itself. One wire is better
+for two readers who are not this page. Somebody writing a card that shows drop
+counts should not have to know which of four endpoints has them. And a
+recording of what happened should be one file in one order, rather than four
+whose clocks nobody reconciled.
+
+Every frame is the same envelope, and the `data:` line is complete on its own:
+
+```json
+{"seq":41,"at":1757682401337,"type":"verdict","data":{"id":"sniff","kind":"action","result":{"ok":true,"rung":2,"…":"…"}}}
+```
+
+`seq` is a position on *this* connection, counted from 1, and `at` is Unix
+milliseconds. Both are there for replay: the order, and how long apart. A
+reconnect starts a new wire and a new `seq`, and says so with a fresh `hello`.
+
+Ten types, and the opening `hello` lists them so a consumer can ask rather than
+assume:
+
+| type | carries | when |
+|---|---|---|
+| `hello` | the type list, what was subscribed, the server's clock | once, at open |
+| `state` | the whole `State` snapshot | when it changed |
+| `status` | `tailscale status`, as text | when it changed |
+| `netcheck` | `tailscale netcheck`, as text | when it changed |
+| `stat` | `[]Stats` — CPU, memory, interface counters | every 3s |
+| `verdict` | a `Result` from `/api/action`, `/api/set` or `/api/preset` | when one ran |
+| `flow` | a `Result` from `/api/probe` | when one ran |
+| `packet` | one line of `tcpdump` | only if `capture=` asked |
+| `log` | one line of `tailscaled.log` | only if `logs=` asked |
+| `note` | a source talking about itself, tagged with which source | as needed |
+
+The first seven cost nothing and are always on. The last three are asked for in
+the URL, because a capture is a process inside a container and only the reader
+knows whether anybody is looking at it:
+
+```bash
+curl -N 'http://127.0.0.1:8099/api/stream/hud?capture=evil-box'
+curl -N 'http://127.0.0.1:8099/api/stream/hud?capture=evil-box&iface=eth0&filter=icmp'
+curl -N 'http://127.0.0.1:8099/api/stream/hud?logs=lab-ubuntu&logsAll=1'
+```
+
+There is nothing to POST and no subscription state on the server: a reader that
+wants a capture reconnects with the parameter. That is what keeps a recording
+honest — the URL says what was being watched.
+
+`verdict` and `flow` are the same `Result` the POST replied with, published as
+well as returned. The board still draws from the reply, so the feed is not in
+the drawing path and cannot break it; what the feed adds is that something
+which *did not press the button* can see what the button did. Which is the
+whole reason it exists: a captured attack is a recording of this wire, and
+`data:` lines are `.jsonl` already.
+
+```bash
+# One attack, as a file. Play it back later with no Docker at all.
+curl -sN 'http://127.0.0.1:8099/api/stream/hud?capture=evil-box' \
+  | sed -n 's/^data: //p' > attack.jsonl
+```
+
+A reader that stops reading loses events rather than holding the lab up —
+`/api/action` publishes from inside the request, so a send that blocked would be
+an attack that never returned to the person who ran it. The count of what was
+dropped is in every `hello`, so a consumer can say there is a gap rather than
+draw a straight line across it.
+
+On this side of the wire, `ui/feed.js` owns the one `EventSource` and everything
+on the page shares it. Three calls: `on(type, fn)` to listen, `want({capture:
+"evil-box"})` to ask for a source that costs something — reference counted, so
+two things wanting the capture is one capture — and `status()` for what the
+connection is doing. It is a classic script loaded before `app.js`, because the
+readouts read the lab from their first line and the feed cannot be something the
+page waits for.
 
 ### Themes for the board
 

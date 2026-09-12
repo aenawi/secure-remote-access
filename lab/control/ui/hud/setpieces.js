@@ -367,10 +367,10 @@ function sniff(board, res, ctx) {
      than invented, which is the whole ethic of this directory. The stream is
      live traffic now, not the frames the capture already holds, and it is
      labelled as such. */
-  if (ctx && ctx.openStream && r.frames > 0 && !board.reduced) {
+  if (ctx && ctx.watch && r.frames > 0 && !board.reduced) {
     let n = 0;
     const live = [];
-    const stop = ctx.openStream("/api/stream/tcpdump?machine=evil-box", "packet", () => {
+    const stop = ctx.watch({ capture: "evil-box" }, "packet", () => {
       if (n++ > 60) return;
       const d = put(board, board.mk.sphere(0.06, C.danger, 0.85),
                     ux + 3.4 + (Math.random() - 0.5) * 0.6, Y_MACH - 0.5, uz);
