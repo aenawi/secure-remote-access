@@ -115,7 +115,16 @@ func (c *Controller) needEvil(ctx context.Context) *Result {
 			return nil
 		}
 	}
-	return &Result{
+	r := evilNotHere()
+	return &r
+}
+
+// evilNotHere is the one sentence for "the attacker was never created". Two
+// different controls land on it — every attack button, and the machines switch
+// — and a reader who pressed the switch first should not get a rawer answer
+// than one who pressed an attack first, so both read it from here.
+func evilNotHere() Result {
+	return Result{
 		Rung: 1,
 		Rule: "evil-box is not in this stack",
 		Why: "The attacker is behind a compose profile and never starts by default. Bring it " +
