@@ -31,9 +31,10 @@ You can run the lab, drive a browser and call the API, which means "I believe
 this works" is almost never the best sentence available to you. Run it, and
 report what came back.
 
-Two traps that make a correct change look broken, both covered in AGENTS.md:
-the UI is `//go:embed`-ed and needs the control container rebuilt, and the
-browser caches the assets hard.
+One trap that makes a correct change look broken, covered in AGENTS.md: the UI
+is `//go:embed`-ed and needs the control container rebuilt. The browser no
+longer needs a hard reload on top of that — the assets carry an `ETag` and
+revalidate — but the rebuild is still yours to run.
 
 ## The lab on this machine is probably in use
 

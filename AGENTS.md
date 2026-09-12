@@ -80,11 +80,17 @@ docker compose up -d --build --no-deps control
 ```
 
 Then confirm the server is actually serving your change — `curl` the asset and
-grep it — before concluding anything about whether the change worked. The
-browser caches these aggressively too, so a hard reload is part of the loop.
+grep it — before concluding anything about whether the change worked.
 
 This has already sent one session off to debug a fix that was correct the whole
 time.
+
+A hard reload used to be part of that loop as well, because the assets went out
+with no `ETag` and no `Cache-Control` and the browser was free to keep whatever
+it had. It no longer is: every asset is tagged with a hash of its own bytes and
+marked `no-cache`, so an ordinary reload revalidates and picks up the rebuild. A
+304 keeps that cheap. If you find yourself reaching for Cmd+Shift+R to see a
+change, that is a bug worth reporting rather than a step worth remembering.
 
 ## Verify in the lab, not only in the tests
 
