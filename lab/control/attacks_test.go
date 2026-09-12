@@ -731,3 +731,24 @@ func TestHatchBanner(t *testing.T) {
 		}
 	}
 }
+
+// The switch in the machines panel and every attack button share one failure:
+// the attacker was never created. They must share the sentence too. This is the
+// message a reader hits within minutes of first opening the lab, because
+// `make up` deliberately does not build evil-box, so it is worth a test that it
+// still names the command that does.
+func TestEvilNotHereNamesTheCommand(t *testing.T) {
+	r := evilNotHere()
+	if r.OK {
+		t.Error("a missing attacker is not an ok result")
+	}
+	if r.Rung != 1 {
+		t.Errorf("rung = %d, want 1 — a container that does not exist stops at 'is anything alive'", r.Rung)
+	}
+	// Both spellings, because the reader may be in the UI or at a prompt.
+	for _, want := range []string{"--profile attack", "make attack"} {
+		if !strings.Contains(r.Why, want) {
+			t.Errorf("the message does not name %q:\n%s", want, r.Why)
+		}
+	}
+}
