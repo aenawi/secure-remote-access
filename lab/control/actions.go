@@ -345,6 +345,29 @@ func (c *Controller) setOnline(ctx context.Context, id string, up bool) Result {
 		res.Cmds = []string{"docker compose start " + id}
 		err = c.lab.Start(ctx, id)
 		res.Why = id + " is running"
+		// A machine and the router in front of it come up together in compose,
+		// and this switch used to know only about the machine. Starting
+		// evil-box while nat-evil is stopped put an attacker on the board that
+		// could reach nothing — which every attack then scored as a firewall
+		// holding. So the pair goes back up together, and when the router is
+		// not there to start, the switch says that instead of leaving the
+		// reader to find the other half.
+		m, known := machineByID(id)
+		switch {
+		case err != nil || !known || m.Router == "" || c.lab.Running(ctx, m.Router):
+		case !c.lab.Exists(ctx, m.Router):
+			res.Why = id + " is running, and " + m.Router + " — the router in front of it —" +
+				" does not exist, so it reaches nothing off its own segment. That is what " +
+				"`--no-deps` leaves behind; `make attack` brings up the pair."
+		default:
+			if rerr := c.lab.Start(ctx, m.Router); rerr == nil {
+				res.Cmds = append(res.Cmds, "docker compose start "+m.Router+
+					"   # its router, or it reaches nothing")
+				res.Why = id + " is running, and so is " + m.Router + " — the router in " +
+					"front of it, which was stopped. Without that one the machine is up " +
+					"and reaching nothing, and nothing measured from there is worth a score."
+			}
+		}
 	} else {
 		res.Cmds = []string{"docker compose stop " + id}
 		err = c.lab.Stop(ctx, id)
@@ -386,6 +409,15 @@ func (c *Controller) evilJoin(ctx context.Context, join bool) Result {
 			"lab never issues a key this machine could present, so no peer will complete " +
 			"a handshake with it. Turn lock off and try the same thing again."
 		return res
+	}
+	// Lock first, because that refusal is a fact about the lab whether or not
+	// anything could have been reached. After it, a join is a packet to the
+	// coordination server on the public segment — and without a route there
+	// `tailscale up` spends its thirty seconds and reports a timeout, which is
+	// true and no help at all beside the one fact that explains it.
+	if r := c.needRouteOut(ctx); r != nil {
+		r.Rule = "it cannot reach the coordination server: " + r.Rule
+		return *r
 	}
 	if c.untrustedKey == "" {
 		res.Why = "no spare key was created at boot — try `make reset`"
@@ -458,16 +490,12 @@ func (c *Controller) setOnPath(ctx context.Context, on bool) Result {
 	return res
 }
 
+// gatewayFor is the address the machine's own router answers on. It reads the
+// catalog rather than repeating it, because the same three addresses are now
+// also what names the fault when one of those routers is down.
 func (c *Controller) gatewayFor(id string) string {
-	switch id {
-	case "lab-ubuntu":
-		return "10.0.13.254"
-	case "lab-roam":
-		return "10.0.27.254"
-	case "evil-box":
-		return "10.0.66.254"
-	}
-	return ""
+	m, _ := machineByID(id)
+	return m.Gateway
 }
 
 // ---------------------------------------------------------------------------

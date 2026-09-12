@@ -174,18 +174,20 @@ func (c *Controller) Audit(ctx context.Context) AuditReport {
 	c.loadDesired()
 	rep := AuditReport{}
 
-	// Checks 3 to 7 need somewhere hostile to fire from. Without it the score
-	// is not comparable to anything, so say so rather than scoring five checks
-	// out of thin air.
-	if !c.lab.Running(ctx, "evil-box") {
-		if r := c.needEvil(ctx); r != nil {
-			rep.Tone = "warn"
-			rep.Verdict = "Five of the eleven checks fire an attacker at this stack, and there " +
-				"is no attacker in it. Start one with `make attack` (or " +
-				"`docker compose --profile attack up -d`) and run the audit again — a " +
-				"score with five holes in it cannot be compared with the sandbox's."
-			return rep
-		}
+	// Checks 3 to 7 need somewhere hostile to fire from, and need it to be able
+	// to reach this stack. Missing either one, the score is not comparable to
+	// anything, so say so rather than scoring five checks out of thin air.
+	//
+	// The second half is the worse of the two and was the one nothing checked.
+	// An attacker with no route out fails all five, five failures to reach are
+	// five passes, and the report would have said so in the same words it uses
+	// for a stack that actually held.
+	if r := c.needEvilOut(ctx); r != nil {
+		rep.Tone = "warn"
+		rep.Verdict = "Five of the eleven checks fire an attacker at this stack, and this " +
+			"run could not. " + r.Why + "\n\nA score with five holes in it cannot be " +
+			"compared with the sandbox's, so it is withheld rather than filled in."
+		return rep
 	}
 
 	// Remember what the attacker was doing, and put it back afterwards.

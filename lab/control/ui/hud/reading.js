@@ -53,6 +53,15 @@ export const ladderMark = (res) => ((res && res.danger) ? "breached" : "stopped"
    eleven at night. */
 export const neverRan = (res) => !!res && !res.ok && !res.danger && rung(res) <= 1;
 
+/* Why a run never ran, in the refusal's own words rather than a guess.
+   Three faults land on neverRan now — the attacker was never created, the
+   router in front of it is stopped, or it is up and the wire carried nothing
+   — and a head that names one of them by hand names the wrong one two times
+   in three. Every refusal carries the rule it refused with; read that, and
+   keep the old question as the fallback for a Result that carries none. */
+export const whyNothingRan = (res) =>
+  (res && res.rule) || "is evil-box running? `make attack`";
+
 /* The three outcomes an attack can have, phrased so the head always names
    something rather than reporting a boolean. */
 export function head(res, defence, through, inconclusive) {
@@ -201,7 +210,7 @@ export function tailcatReading(res) {
         (ev(res, "ordinaryOK") > 0 ? " · in" : " · stopped")
     ],
     head:
-      neverRan(res) ? "INCONCLUSIVE · no tunnel ran — is evil-box running? `make attack`" :
+      neverRan(res) ? "INCONCLUSIVE · no tunnel ran — " + whyNothingRan(res) :
       refused ? "HELD · --allow pinned the server to one client key" :
       shell ? "THROUGH · a shell, and nothing you configured was asked" :
       "HELD · an SSH key, at rung 5, with rungs 3 and 4 never asked"

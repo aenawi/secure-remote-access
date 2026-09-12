@@ -54,8 +54,8 @@
    ============================================================ */
 
 import { GEOM } from "./scene.js";
-import { ev, tone, ladderMark, neverRan, head, scanReading, sniffReading,
-         tailcatReading } from "./reading.js";
+import { ev, tone, ladderMark, neverRan, head, whyNothingRan, scanReading,
+         sniffReading, tailcatReading } from "./reading.js";
 
 const { POS, GX, ANY, Y_PUB, Y_MACH, Y_NET, Y_DERP, TN_Y } = GEOM;
 
@@ -201,7 +201,7 @@ function scanPublic(board, res) {
     head: head(res,
       "ufw default incoming policy: deny",
       "the host firewall let them through",
-      "nothing was scanned — is evil-box running?"),
+      "nothing was scanned — " + whyNothingRan(res)),
     nums: scan.nums,
     chip: "public segment · in the clear", chipKind: "pub"
   });
@@ -826,7 +826,7 @@ function dockerBypass(board, res) {
   held(board, res, {
     head: head(res, "nothing was listening on :8080, so there was nothing to reach",
                "DOCKER-USER accepted it before ufw's chain ever ran",
-               "the trap was never set up — is evil-box running? `make attack`"),
+               "the trap was never set up — " + whyNothingRan(res)),
     nums: ["port 8080", through ? "answered" : "no answer"],
     chip: "public segment · in the clear", chipKind: "pub"
   });

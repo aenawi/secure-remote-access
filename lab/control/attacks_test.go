@@ -752,3 +752,117 @@ func TestEvilNotHereNamesTheCommand(t *testing.T) {
 		}
 	}
 }
+
+// ping's own summary, from evil-box with nat-evil down and then up. The exit
+// code is not the measurement — busybox exits 1 for a lost packet and for an
+// address it could not parse — so the summary line is, and it is the reason
+// this parser exists rather than a `.Code != 0`.
+const pingLost = `PING 203.0.113.3 (203.0.113.3): 56 data bytes
+
+--- 203.0.113.3 ping statistics ---
+1 packets transmitted, 0 received, +1 errors, 100% packet loss
+`
+
+const pingFine = `PING 203.0.113.3 (203.0.113.3): 56 data bytes
+64 bytes from 203.0.113.3: seq=0 ttl=63 time=0.151 ms
+
+--- 203.0.113.3 ping statistics ---
+1 packets transmitted, 1 received, 0% packet loss, round-trip min/avg/max = 0.151/0.151/0.151 ms
+`
+
+func TestPingGotThrough(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		in   string
+		want bool
+	}{
+		{"a reply", pingFine, true},
+		{"every packet lost", pingLost, false},
+		// Partial loss is still a route. A lossy wire is a condition this lab
+		// sets on purpose, and refusing to measure on one would be refusing to
+		// measure most of chapter 03.
+		{"lossy but carrying", "5 packets transmitted, 2 received, 60% packet loss", true},
+		{"no summary at all", "ping: bad address '203.0.113.3'", false},
+		{"nothing", "", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := pingGotThrough(tc.in); got != tc.want {
+				t.Fatalf("pingGotThrough() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+// The bug this guards is the one the lab is least able to notice about itself:
+// a stopped nat-evil reading as a firewall that held. Every attack that crosses
+// the public segment now refuses instead, and the refusal has three jobs — stop
+// at rung 1, claim nothing, and name the router — so all three are pinned here.
+func TestEvilStranded(t *testing.T) {
+	for _, tc := range []struct {
+		name                string
+		exists, running     bool
+		wantRule, wantInWhy string
+	}{
+		{"the router was never created", false, false,
+			"nat-evil is not in this stack", "--no-deps"},
+		{"the router is stopped", true, false,
+			"nat-evil is stopped", "docker start nat-evil"},
+		// Running, and still nothing came back: the lab's own link switches can
+		// do that, and pointing at the router would be pointing at the wrong
+		// thing.
+		{"the router is up and the wire is not", true, true,
+			"no route out of evil-box's segment", "network panel"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := evilStranded("nat-evil", "10.0.66.254", tc.exists, tc.running, pingLost)
+
+			if r.OK || r.Danger {
+				t.Error("a run that reached nothing is neither a pass nor a breach")
+			}
+			if r.Rung != 1 {
+				t.Errorf("rung = %d, want 1 — nothing on this path was alive, so no higher "+
+					"rung was consulted", r.Rung)
+			}
+			if r.Rule != tc.wantRule {
+				t.Errorf("rule = %q, want %q", r.Rule, tc.wantRule)
+			}
+			if !strings.Contains(r.Why, tc.wantInWhy) {
+				t.Errorf("the message does not name %q:\n%s", tc.wantInWhy, r.Why)
+			}
+			// The whole point: no defence is credited by name, and the numbers
+			// say nothing was reached rather than leaving a drawing to guess.
+			if strings.Contains(r.Rule, "ufw") || strings.Contains(r.Why, "firewall held") {
+				t.Errorf("a defence took credit for a packet nobody carried: %q / %s", r.Rule, r.Why)
+			}
+			if r.Evidence["reached"] != 0 {
+				t.Errorf("evidence claims something was reached: %v", r.Evidence)
+			}
+			if !strings.Contains(r.Why, "nobody measured") {
+				t.Errorf("the message does not say why nothing is scored:\n%s", r.Why)
+			}
+			if r.Raw == "" {
+				t.Error("the refusal carries no measurement to show for itself")
+			}
+		})
+	}
+}
+
+// nat-evil is the only one of the three routers a reader is ever told to stop,
+// but all three strand the machine behind them the same way, and the state has
+// to be able to say so. lab-vps is the machine with no router at all: a field
+// that went true for it would be a lie in the other direction.
+func TestEveryMachineBehindNATHasItsRouterNamed(t *testing.T) {
+	for _, m := range Catalog {
+		if m.ID == "lab-vps" {
+			if m.Router != "" || m.Gateway != "" {
+				t.Errorf("lab-vps has an address on the public segment itself and needs no "+
+					"router, but the catalog gives it %q / %q", m.Router, m.Gateway)
+			}
+			continue
+		}
+		if m.Router == "" || m.Gateway == "" {
+			t.Errorf("%s is behind a NAT with no router or gateway named: %q / %q",
+				m.ID, m.Router, m.Gateway)
+		}
+	}
+}

@@ -503,7 +503,10 @@
     var bits = meta.catalog.map(function (m) {
       var ms = state.machines[m.id] || {};
       if (!ms.online) return m.label + " off";
+      /* A machine whose router is stopped is online and reaches nothing, and
+         this line used to read identically to one that was simply idle. */
       return m.label + " " + (ms.tsAddr || ms.wanAddr || ms.lanAddr || "?") +
+        (ms.routerDown ? " (" + m.router + " down)" : "") +
         (ms.pathTo ? " (" + ms.pathTo + ")" : "");
     });
     $("#status-out").setAttribute("data-machines", bits.join(" · "));
@@ -575,7 +578,13 @@
         g.classList.toggle("is-hidden", gone);
       }
       var nat = el("nat-" + m.id);
-      if (nat) nat.classList.toggle("is-hidden", gone);
+      if (nat) {
+        nat.classList.toggle("is-hidden", gone);
+        /* Dimmed for the same reason a stopped machine is: the box is there and
+           nothing is going through it. Everything behind it is stranded, and a
+           NAT drawn at full strength says the opposite. */
+        nat.classList.toggle("is-off", !!ms.routerDown);
+      }
 
       /* The address a machine answers on is not a fact about the machine, it is
          a fact about the path you are taking to it. Show the tailnet address
@@ -592,6 +601,9 @@
       if (cond) {
         var bits = [];
         if (!link.up) bits.push("eth0 DOWN");
+        /* The condition the state had no word for: the machine is up, its
+           router is not, and it reaches nothing off its own segment. */
+        if (ms.routerDown) bits.push(m.router + " DOWN");
         if (link.loss) bits.push(link.loss + "% loss");
         if (link.delay) bits.push(link.delay + "ms");
         if (link.udpBlocked) bits.push("udp dropped");
