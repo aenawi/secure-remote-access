@@ -460,6 +460,12 @@
      no reason to churn it — so the module hands itself over on window and says
      when it is ready. A browser with no WebGL never gets here and the page is
      the flat drawing, which is what it was before any of this. -->
+<!-- The feed goes first, and as a classic script. app.js reads the lab through
+     it from its first line, so it cannot be something the page waits for: a
+     module here would be deferred behind app.js and the readouts would spend
+     their first moment with nowhere to listen. One connection, and everything
+     below shares it. -->
+<script src="feed.js"></script>
 <script type="module">
   import { createBoard, GEOM } from "./hud/scene.js";
   import { SETPIECES, run, missing } from "./hud/setpieces.js";

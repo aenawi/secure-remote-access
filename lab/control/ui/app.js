@@ -102,25 +102,34 @@
     };
   }
 
-  /* One EventSource at a time for the board, closed the moment the next
-     action starts. A set-piece that keeps a stream open after its shot has
-     gone is a set-piece drawing frames that belong to something else. */
+  /* One watch at a time for the board, dropped the moment the next action
+     starts. A set-piece that keeps reading after its shot has gone is a
+     set-piece drawing frames that belong to something else.
+
+     A set-piece used to be handed a URL and left to open it. Now it says what
+     it wants to watch and the feed works out whether anything has to be started
+     for it: two things wanting the capture is one capture, and the shot ending
+     while the packets pane is still on takes nothing away from the pane. That
+     bookkeeping does not belong in a file about drawing. */
   function hudCtx() {
     return {
-      openStream: function (url, event, onLine) {
+      watch: function (sources, type, onEvent) {
         stopHudStream();
-        try {
-          var es = new EventSource(url);
-          hudStream = es;
-          es.addEventListener(event, function (ev) { onLine(ev); });
-          es.onerror = function () { /* EventSource reconnects on its own */ };
-          return function () { if (hudStream === es) stopHudStream(); };
-        } catch (e) { return function () {}; }
+        if (!feed) return function () {};
+        var offEvent = feed.on(type, onEvent);
+        var releaseWant = feed.want(sources);
+        var mine = { off: offEvent, release: releaseWant };
+        hudStream = mine;
+        return function () { if (hudStream === mine) stopHudStream(); };
       }
     };
   }
   function stopHudStream() {
-    if (hudStream) { hudStream.close(); hudStream = null; }
+    if (!hudStream) return;
+    var gone = hudStream;
+    hudStream = null;
+    gone.off();
+    gone.release();
   }
 
   function boardOn() { return !!board && view === "board"; }
@@ -851,9 +860,16 @@
     verdict(rep.tone, rep.verdict);
   }
 
-  /* ---- live streams ------------------------------------------------ */
-  var streams = {};
-  function stopStream(k) { if (streams[k]) { streams[k].close(); delete streams[k]; } }
+  /* ---- the live wire ------------------------------------------------
+     One /api/stream/hud, owned by feed.js, and every readout below listens to
+     it. This used to be four EventSources opened in four places — status here,
+     tcpdump in the capture toggle, the tailscaled log in its own, and a fourth
+     inside the board's set-piece context — which is four connections to leak
+     and four copies of "parse the data and hope it is the shape I expect".
+
+     The panes are the same panes. What changed is that a widget nobody has
+     written yet can read the same lab without opening anything. */
+  var feed = window.LabFeed || null;
   function tailInto(el, line) {
     el.textContent += (el.textContent ? "\n" : "") + line;
     var lines = el.textContent.split("\n");
@@ -861,18 +877,49 @@
     el.scrollTop = el.scrollHeight;
   }
 
-  function openStatusStream() {
-    var es = new EventSource("/api/stream/status");
-    streams.status = es;
+  /* The two text panes, each fed off the one wire.
+
+     A pane is attached once and then left attached: a listener is a callback,
+     and the expensive half — the process inside the container — is started and
+     stopped by asking the feed for the source, not by adding and removing
+     handlers. What the switch controls is the cost, not the wiring.
+
+     Two filters, both load-bearing:
+
+       - `on()` checks the switch, because a line can still be in flight when
+         it goes off and a pane that keeps growing while hidden is a pane that
+         will be wrong when it is shown again.
+       - `d.source` checks which source the note came from. On four streams a
+         note could only have come from the stream it arrived on; on one wire a
+         capture pane headed `tail -f /var/log/tailscaled.log` is what dropping
+         this line gets you. */
+  var attached = {};
+  function attachPane(key, el, lineType, source, on) {
+    if (attached[key]) return;
+    attached[key] = true;
+    feed.on(lineType, function (d) { if (on() && d) tailInto(el, d.line); });
+    feed.on("note", function (d) { if (on() && d && d.source === source) tailInto(el, "# " + d.line); });
+  }
+
+  /* The feed hands back a release function per request; kept per pane so a
+     second flip cannot lose the first one's. */
+  var release = {};
+  function releaseSource(k) { if (release[k]) { release[k](); delete release[k]; } }
+
+  function openFeed() {
+    if (!feed) {
+      verdict("bad", "feed.js did not load, so the readouts will not update on their own.");
+      return;
+    }
     var status = "", netcheck = "";
     function paint() {
       var m = $("#status-out").getAttribute("data-machines") || "";
       $("#status-out").textContent = status + "\n\n" + netcheck + (m ? "\n\n# " + m : "");
     }
-    es.addEventListener("status", function (e) { status = JSON.parse(e.data).text; paint(); });
-    es.addEventListener("netcheck", function (e) { netcheck = JSON.parse(e.data).text; paint(); });
-    es.addEventListener("state", function (e) {
-      state = JSON.parse(e.data);
+    feed.on("status", function (d) { status = d.text; paint(); });
+    feed.on("netcheck", function (d) { netcheck = d.text; paint(); });
+    feed.on("state", function (d) {
+      state = d;
       paintPanels();
       /* This is the only thing that notices a change nobody clicked — a
          container stopping, `make weak` from another terminal, a session
@@ -881,7 +928,6 @@
          waits rather than wiping it. */
       if (board && !board.holding) board.setState(state);
     });
-    es.onerror = function () { /* EventSource reconnects on its own */ };
   }
 
   /* ---- wiring ------------------------------------------------------ */
@@ -935,26 +981,28 @@
         parseInt(n.value, 10));
       return;
     }
+    /* The two toggles that cost a process inside a container. Asking the feed
+       for the source is what makes the server start it; the listeners stay
+       attached either way, because a listener is a callback and the pane is
+       hidden when the toggle is off. */
     if (n.id === "cap-on") {
       var out = $("#cap-out");
       out.hidden = !n.checked;
-      if (!n.checked) { stopStream("cap"); return; }
+      if (!n.checked) { releaseSource("cap"); return; }
       out.textContent = "";
-      var es = new EventSource("/api/stream/tcpdump?machine=evil-box");
-      streams.cap = es;
-      es.addEventListener("packet", function (ev) { tailInto(out, JSON.parse(ev.data).line); });
-      es.addEventListener("note", function (ev) { tailInto(out, "# " + JSON.parse(ev.data).line); });
+      if (!feed) { tailInto(out, "# feed.js did not load, so there is nothing to listen with."); return; }
+      attachPane("cap", out, "packet", "capture", function () { return $("#cap-on").checked; });
+      release.cap = feed.want({ capture: "evil-box" });
       return;
     }
     if (n.id === "logs-on") {
       var lo = $("#logs-out");
       lo.hidden = !n.checked;
-      if (!n.checked) { stopStream("logs"); return; }
+      if (!n.checked) { releaseSource("logs"); return; }
       lo.textContent = "";
-      var ls = new EventSource("/api/stream/logs?machine=lab-ubuntu");
-      streams.logs = ls;
-      ls.addEventListener("log", function (ev) { tailInto(lo, JSON.parse(ev.data).line); });
-      ls.addEventListener("note", function (ev) { tailInto(lo, "# " + JSON.parse(ev.data).line); });
+      if (!feed) { tailInto(lo, "# feed.js did not load, so there is nothing to listen with."); return; }
+      attachPane("logs", lo, "log", "logs", function () { return $("#logs-on").checked; });
+      release.logs = feed.want({ logs: "lab-ubuntu" });
     }
   });
 
@@ -1126,7 +1174,7 @@
     return refresh();
   }).then(function () {
     renderPanels();
-    openStatusStream();
+    openFeed();
     startBoard();
     /* First visit opens the documentation rather than a log of a lab that has
        not done anything yet. After that it is wherever you last were. */

@@ -276,6 +276,13 @@ type Controller struct {
 	mu    sync.Mutex
 	state *State
 
+	// The one wire out. Every Result the API returns is published here as well
+	// as being replied with, so a reader watching the feed sees what happened
+	// without having been the thing that asked for it. Never nil in the server;
+	// a test that builds a Controller directly may leave it so, and
+	// PublishResult is a no-op when it is.
+	feed *Feed
+
 	stateDir string
 	// Held back until "tailnet lock" is turned off. An attacker with no key
 	// gets no session, which is the property the check is really about.
@@ -285,7 +292,7 @@ type Controller struct {
 
 func NewController(lab *Lab, stateDir string) *Controller {
 	return &Controller{
-		lab: lab, state: defaultState(), stateDir: stateDir,
+		lab: lab, state: defaultState(), stateDir: stateDir, feed: NewFeed(),
 		log: func(f string, a ...any) { fmt.Printf("[control] "+f+"\n", a...) },
 	}
 }
