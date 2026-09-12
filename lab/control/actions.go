@@ -326,6 +326,20 @@ func (c *Controller) pushPolicy(ctx context.Context, res Result, what string) Re
 
 func (c *Controller) setOnline(ctx context.Context, id string, up bool) Result {
 	res := Result{Rung: 1, Rule: id}
+	// This switch starts and stops a container; it does not create one. Asking
+	// Docker to start a container that was never created answers "No such
+	// container: evil-box", which reads as a broken lab rather than as a switch
+	// with nothing behind it yet. evil-box is the only machine compose keeps
+	// behind a profile, so it is the only one this happens to by design — and
+	// it gets the same sentence the attack buttons already give.
+	if up && !c.lab.Exists(ctx, id) {
+		if id == "evil-box" {
+			return evilNotHere()
+		}
+		res.Why = id + " is not in this stack. Bring the lab up first."
+		res.Cmds = []string{"make up   # in lab/"}
+		return res
+	}
 	var err error
 	if up {
 		res.Cmds = []string{"docker compose start " + id}
