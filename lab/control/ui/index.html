@@ -135,15 +135,21 @@
              rung and a round-trip time and grows into the middle of the row. -->
         <text data-el="public-lane-label" x="846" y="306" text-anchor="end" class="sb-svg-lane-label">THE PUBLIC SEGMENT — anyone on it, to lab-vps</text>
 
-        <!-- one NAT router per machine -->
-        <rect x="186" y="30"  width="58" height="56" rx="8" class="svg-card svg-stroke" stroke-width="1.2"/>
-        <text x="215" y="62"  text-anchor="middle" class="svg-sub">NAT</text>
+        <!-- One NAT router per machine, each with a handle of its own: a
+             stopped router leaves the machine behind it running and reaching
+             nothing, and the drawing dims the box it is not going through. -->
+        <g data-el="nat-lab-roam">
+          <rect x="186" y="30"  width="58" height="56" rx="8" class="svg-card svg-stroke" stroke-width="1.2"/>
+          <text x="215" y="62"  text-anchor="middle" class="svg-sub">NAT</text>
+        </g>
         <g data-el="nat-evil-box" class="is-hidden">
           <rect x="186" y="104" width="58" height="56" rx="8" class="svg-card svg-stroke" stroke-width="1.2"/>
           <text x="215" y="136" text-anchor="middle" class="svg-sub">NAT</text>
         </g>
-        <rect x="186" y="178" width="58" height="56" rx="8" class="svg-card svg-stroke" stroke-width="1.2"/>
-        <text x="215" y="212" text-anchor="middle" class="svg-sub">NAT</text>
+        <g data-el="nat-lab-ubuntu">
+          <rect x="186" y="178" width="58" height="56" rx="8" class="svg-card svg-stroke" stroke-width="1.2"/>
+          <text x="215" y="212" text-anchor="middle" class="svg-sub">NAT</text>
+        </g>
 
         <!-- the tailnet -->
         <rect x="322" y="24" width="196" height="134" rx="10" class="svg-surface svg-stroke" stroke-width="1.3"/>

@@ -347,6 +347,48 @@ key the coordination server holds before and after, so "it re-keyed" is
 something the run found rather than something the button claims. It takes about
 a minute.
 
+#### Every attack that crosses the public segment measures the route first
+
+`make attack` creates two containers, not one: `evil-box` and `nat-evil`, the
+router that carries its packets off its own segment. Stop the router and the
+attacker keeps running, keeps its default route, and reaches nothing —
+`ping 203.0.113.3` to the lab's own relay is 100% loss while
+`docker ps` and `/api/state` both still say `online`.
+
+That state used to score. `nmap` prints `filtered` both for "a firewall dropped
+this" and for "nothing carried this", and at rung 4 there is nothing else to
+tell them apart, so **Scan from the open internet** answered a stopped router
+with `ok`, rung 4 and `ufw default incoming policy: deny` — byte for byte the
+verdict a run where the firewall really did the work gets. Measured on Docker
+29.7.2 on 2026-09-12, and it was the same for the other six attacks that have
+to leave that segment, and for five of the eleven audit checks, where five
+failures to reach read as five passes.
+
+So the precondition is no longer "the attacker's container is running". Before
+any of those seven scores, one packet goes from `evil-box` to the relay at
+`203.0.113.3`, and a run that gets no answer refuses at rung 1, naming the
+router rather than a defence:
+
+```
+{"ok": false, "rung": 1, "rule": "nat-evil is stopped",
+ "why": "The attacker's own router is down, so it reaches nothing at all — not
+         lab-vps, not the coordination server, not the relay. Its route survived
+         the outage; the gateway at 10.0.66.254 did not. …"}
+```
+
+The relay is the target on purpose: it sits on the public segment, holds none of
+your firewall rules, and no configuration in this lab changes it. Aiming at
+`lab-vps` would ask two questions in one packet. The router is not restarted for
+you either — a stopped router is a network condition, like a downed link, and
+this lab's job with those is to measure them. The one control that does put it
+back is `evil-box`'s own switch in the **Machines** panel, which brings up the
+pair and says so, and `/api/state` now carries `routerDown` for any machine
+whose NAT box is stopped, which the drawing dims and labels.
+
+**Sit on the wire and capture** and **Replay a captured frame** are the two that
+still ask only for `evil-box`, because `nat-evil` carries none of their packets:
+both work on the segment `evil-box` already shares with `lab-ubuntu`.
+
 #### The capture has a control experiment in it
 
 "We captured the traffic and could not read it" proves very little on its own:
@@ -1274,6 +1316,11 @@ that carries everything.
   its log, and `make reset && make up` is the clean way through.
 - A machine never joins. Try `docker compose logs lab-ubuntu`. The usual cause
   is that the lab CA was not there when it booted; `make reset && make up`.
+- Every attack refuses at rung 1 with `nat-evil is stopped` or
+  `nat-evil is not in this stack`. That is the refusal working: the attacker
+  cannot reach anything, so nothing it does can be scored. `docker start
+  nat-evil`, or `make attack` if it was never created — starting `evil-box`
+  on its own with `--no-deps` leaves exactly this.
 - Every probe dies at rung 3. Check `docker exec headscale headscale policy get`,
   then `docker exec headscale headscale nodes list` and confirm each machine
   carries the tag the policy names. See the Headscale wrinkle above.

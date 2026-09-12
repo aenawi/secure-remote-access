@@ -104,7 +104,8 @@ func (c *Controller) RunAttack(ctx context.Context, id string) Result {
 	return Result{Why: "no attack called " + id}
 }
 
-// needEvil is the one precondition every attack shares.
+// needEvil is the one precondition every attack shares: the attacker has to
+// exist. It is not the whole precondition for most of them — see needEvilOut.
 func (c *Controller) needEvil(ctx context.Context) *Result {
 	if c.lab.Running(ctx, "evil-box") {
 		return nil
@@ -117,6 +118,113 @@ func (c *Controller) needEvil(ctx context.Context) *Result {
 	}
 	r := evilNotHere()
 	return &r
+}
+
+// needEvilOut is that precondition plus the half a stopped router walked
+// straight through: the attacker also has to be able to reach this stack.
+//
+// `nmap` prints `filtered` both for "a firewall dropped this" and for "nothing
+// carried this", and at rung 4 there is nothing else to separate them. So an
+// attack run with nat-evil stopped measured no packet at all and credited
+// `ufw default incoming policy: deny` by name for the silence — the same
+// verdict, byte for byte, as a run where the firewall really did the work.
+// That is a block nobody measured, and refusing to score is the right failure:
+// "I could not reach anything" teaches more than "the firewall held".
+//
+// The two attacks that work on the wire evil-box shares with lab-ubuntu keep
+// asking for needEvil instead, because no router carries those packets.
+func (c *Controller) needEvilOut(ctx context.Context) *Result {
+	if r := c.needEvil(ctx); r != nil {
+		return r
+	}
+	return c.needRouteOut(ctx)
+}
+
+// needRouteOut measures the route rather than inferring it from the router's
+// state, because a running router is not the same claim as a working one — a
+// link this lab can take down with a switch sits between them. The router is
+// still asked about afterwards, but only to name the fault.
+//
+// It deliberately does not start nat-evil the way needEvil starts evil-box. A
+// stopped router is a network condition, like a downed link, and the lab's job
+// with those is to measure and report them rather than to tidy them away
+// behind the reader's back.
+func (c *Controller) needRouteOut(ctx context.Context) *Result {
+	evil, _ := machineByID("evil-box")
+	ping, _ := c.lab.Sh(ctx, "evil-box",
+		fmt.Sprintf("ping -c 1 -W 2 %s 2>&1", labRelayAddr))
+	if pingGotThrough(ping.Out()) {
+		return nil
+	}
+	r := evilStranded(evil.Router, evil.Gateway,
+		c.lab.Exists(ctx, evil.Router), c.lab.Running(ctx, evil.Router),
+		strings.TrimSpace(ping.Out()))
+	return &r
+}
+
+// labRelayAddr is the lab's own DERP relay, and the reachability probe aims at
+// it on purpose. It sits on the segment standing in for the public internet, it
+// holds no policy and none of the reader's firewall rules, and no configuration
+// in this lab changes it. Aiming at lab-vps instead would ask two questions in
+// one packet — "is there a route" and "did the host firewall allow it" — and
+// then hand the answer to whichever one you already believed.
+const labRelayAddr = "203.0.113.3"
+
+// pingGotThrough reads ping's own summary line rather than an exit code. The
+// code says 1 for a fully lost run and for a name that would not resolve, and
+// what matters here is a measurement, not an error.
+func pingGotThrough(out string) bool {
+	m := lossRe.FindStringSubmatch(out)
+	if len(m) != 2 {
+		return false
+	}
+	loss, err := strconv.ParseFloat(m[1], 64)
+	return err == nil && loss < 100
+}
+
+// evilStranded is the sentence for "the attacker reached nothing", which is the
+// answer a firewall's name used to be given for. Rung 1: the ladder's first
+// question is whether anything on the path is alive, and on this path nothing
+// is — so no higher rung was consulted and none may be reported.
+//
+// Three faults land here and they are three different problems, so they get
+// three different sentences: the router was never created, the router is
+// stopped, or the router is up and the wire still carried nothing.
+func evilStranded(router, gw string, exists, running bool, raw string) Result {
+	res := Result{
+		Rung: 1, From: "evil-box", Path: "public", Raw: raw,
+		Cmds: []string{"ping -c 1 -W 2 " + labRelayAddr + "   # on evil-box, the lab's relay"},
+	}
+	// The same finding as Why, in numbers, so a drawing never has to read the
+	// prose to find out that nothing was measured.
+	res.Evidence = map[string]int{"reached": 0}
+
+	unscored := " Nothing is scored from a run like this, on purpose. A packet nobody " +
+		"carried draws the same silence a dropped one does — `nmap` prints `filtered` " +
+		"for both — so a defence credited here would be a block nobody measured."
+
+	switch {
+	case !exists:
+		res.Rule = router + " is not in this stack"
+		res.Why = "evil-box is running, its default route still points at " + gw + ", and " +
+			"nothing is on the other end: " + router + " was never created. That is what " +
+			"starting the attacker on its own leaves behind — `--no-deps`. Bring the pair " +
+			"up together with `docker compose --profile attack up -d`, or `make attack`." +
+			unscored
+	case !running:
+		res.Rule = router + " is stopped"
+		res.Why = "The attacker's own router is down, so it reaches nothing at all — not " +
+			"lab-vps, not the coordination server, not the relay. Its route survived the " +
+			"outage; the gateway at " + gw + " did not. Start it with `docker start " +
+			router + "` and run this again." + unscored
+		res.Cmds = append([]string{"docker start " + router}, res.Cmds...)
+	default:
+		res.Rule = "no route out of evil-box's segment"
+		res.Why = router + " is running and the relay at " + labRelayAddr + " still " +
+			"answered nothing. Check evil-box's own link in the network panel: an " +
+			"interface that is down takes every route through it with it." + unscored
+	}
+	return res
 }
 
 // evilNotHere is the one sentence for "the attacker was never created". Two
@@ -135,7 +243,7 @@ func evilNotHere() Result {
 // ---------------------------------------------------------------------------
 
 func (c *Controller) atkScanPublic(ctx context.Context) Result {
-	if r := c.needEvil(ctx); r != nil {
+	if r := c.needEvilOut(ctx); r != nil {
 		return *r
 	}
 	target := c.lab.IPOn(ctx, "lab-vps", "wan")
@@ -166,7 +274,7 @@ func (c *Controller) atkScanPublic(ctx context.Context) Result {
 }
 
 func (c *Controller) atkScanTailnet(ctx context.Context) Result {
-	if r := c.needEvil(ctx); r != nil {
+	if r := c.needEvilOut(ctx); r != nil {
 		return *r
 	}
 	// The defence under test is the policy, so make sure the machine is on the
@@ -220,6 +328,10 @@ func (c *Controller) atkScanTailnet(ctx context.Context) Result {
 // broken. So the lab sends the same marker twice — once in the clear, once
 // through the tunnel — and reports both counts. One appears, one does not.
 func (c *Controller) atkSniff(ctx context.Context) Result {
+	// needEvil rather than needEvilOut: nothing here leaves the segment
+	// evil-box shares with lab-ubuntu, so nat-evil carries none of it and a
+	// stopped router is not this attack's problem. What would be — a capture
+	// that saw nothing — this one already measures with its control marker.
 	if r := c.needEvil(ctx); r != nil {
 		return *r
 	}
@@ -298,6 +410,9 @@ func (c *Controller) atkSniff(ctx context.Context) Result {
 }
 
 func (c *Controller) atkReplay(ctx context.Context) Result {
+	// Same segment, same reason as atkSniff: the frames go back onto the wire
+	// evil-box is already attached to, and the count lab-vps's own interface
+	// moved by is the measurement.
 	if r := c.needEvil(ctx); r != nil {
 		return *r
 	}
@@ -348,7 +463,12 @@ func (c *Controller) atkReplay(ctx context.Context) Result {
 }
 
 func (c *Controller) atkStolenKey(ctx context.Context) Result {
-	if r := c.needEvil(ctx); r != nil {
+	// Both halves of this one cross the public segment — the join, and the
+	// ordinary-network probe that runs whether or not the key was accepted. A
+	// stranded attacker fails both and the second failure used to read as "the
+	// ordinary network gave its holder nothing either", which is the same
+	// unmeasured credit in the shape of a compliment.
+	if r := c.needEvilOut(ctx); r != nil {
 		return *r
 	}
 	join := c.evilJoin(ctx, true)
@@ -771,7 +891,7 @@ func shortKey(k string) string {
 }
 
 func (c *Controller) atkRogueExit(ctx context.Context) Result {
-	if r := c.needEvil(ctx); r != nil {
+	if r := c.needEvilOut(ctx); r != nil {
 		return *r
 	}
 	if join := c.evilJoin(ctx, true); !join.OK {
@@ -805,7 +925,7 @@ func (c *Controller) atkRogueExit(ctx context.Context) Result {
 }
 
 func (c *Controller) atkDockerBypass(ctx context.Context) Result {
-	if r := c.needEvil(ctx); r != nil {
+	if r := c.needEvilOut(ctx); r != nil {
 		return *r
 	}
 	_ = c.Set(ctx, "vps.ufwDefaultDeny", true)
@@ -848,9 +968,18 @@ func (c *Controller) atkLockOut(ctx context.Context) Result {
 	res.Cmds = append(r1.Cmds, r2.Cmds...)
 
 	overTailnet := c.Probe(ctx, "lab-ubuntu", "lab-vps", "22")
-	overPublic := c.Probe(ctx, "evil-box", "lab-vps", "22")
-	if !c.lab.Running(ctx, "evil-box") {
-		overPublic = Result{Rung: 1, Why: "no machine outside to try from — evil-box is not running"}
+
+	// The outside half is a courtesy line rather than the verdict — the verdict
+	// is whether *you* are still in — but it is printed as a rung, and a rung
+	// printed from a machine that could not have reached anything is a reading
+	// of nothing. So establish the route first and print the reason instead.
+	overPublic := Result{Rung: 1, Why: "no machine outside to try from — evil-box is not running"}
+	if c.lab.Running(ctx, "evil-box") {
+		if r := c.needRouteOut(ctx); r != nil {
+			overPublic = *r
+		} else {
+			overPublic = c.Probe(ctx, "evil-box", "lab-vps", "22")
+		}
 	}
 	res.Raw = fmt.Sprintf("over the tailnet: rung %d — %s\nfrom outside:     rung %d — %s",
 		overTailnet.Rung, overTailnet.Why, overPublic.Rung, overPublic.Why)
@@ -1053,7 +1182,11 @@ echo "--- mosh, last lines ---"; tr -d '\r' < /tmp/mosh.out 2>/dev/null | grep -
 // would be wrong, and this lab can show it is wrong: the firewall is still
 // there, still default-deny, still right, and was never in the path.
 func (c *Controller) atkTailcatTunnel(ctx context.Context) Result {
-	if r := c.needEvil(ctx); r != nil {
+	// The tunnel meets in the middle, at the relay on the public segment, so
+	// evil-box has to be able to get there. A tunnel that would not dial is
+	// already a rung-1 answer here; a tunnel that could not have dialled is
+	// the same answer earlier, with the reason attached.
+	if r := c.needEvilOut(ctx); r != nil {
 		return *r
 	}
 	st := c.Snapshot().Tailcat
