@@ -1,0 +1,73 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later
+   Copyright (C) 2026 Hashem Aldhaheri */
+
+/* Scoped to this widget's card, and a Go test says so. */
+
+.card[data-widget="tally"] .tally-rows {
+  display: grid;
+  gap: 3px;
+}
+
+.card[data-widget="tally"] .tally-row {
+  display: grid;
+  grid-template-columns: 6ch 1fr 7ch;
+  gap: 8px;
+  align-items: center;
+}
+
+.card[data-widget="tally"] .tally-n {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.card[data-widget="tally"] .tally-bar {
+  display: flex;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--bg-sunken);
+  overflow: hidden;
+}
+
+.card[data-widget="tally"] .tally-ok { background: var(--ok); width: 0; }
+.card[data-widget="tally"] .tally-no { background: var(--danger); width: 0; }
+
+.card[data-widget="tally"] .tally-v {
+  font-family: var(--mono);
+  font-size: 11px;
+  text-align: right;
+  color: var(--text);
+}
+
+.card[data-widget="tally"] .tally-foot {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A horizontal dock gets the rungs side by side: five rows of an 8px bar
+   stacked in a 40px strip is five bars nobody can tell apart. */
+.dock-top .card[data-widget="tally"] .tally-rows,
+.dock-bottom .card[data-widget="tally"] .tally-rows {
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(90px, 1fr);
+  gap: 0 12px;
+}
+
+.dock-top .card[data-widget="tally"] .tally-row,
+.dock-bottom .card[data-widget="tally"] .tally-row {
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto;
+  align-items: baseline;
+}
+
+.dock-top .card[data-widget="tally"] .tally-bar,
+.dock-bottom .card[data-widget="tally"] .tally-bar {
+  grid-column: 1 / -1;
+}
+
+.dock-top .card[data-widget="tally"] .tally-foot,
+.dock-bottom .card[data-widget="tally"] .tally-foot { display: none; }

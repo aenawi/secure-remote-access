@@ -470,7 +470,8 @@
   import { createBoard, GEOM } from "./hud/scene.js";
   import { SETPIECES, run, missing } from "./hud/setpieces.js";
   import * as themes from "./hud/themes.js";
-  window.LabHUD = { createBoard, GEOM, SETPIECES, run, missing, themes };
+  import * as slots from "./hud/slots.js";
+  window.LabHUD = { createBoard, GEOM, SETPIECES, run, missing, themes, slots };
   window.dispatchEvent(new Event("labhud-ready"));
 </script>
 <script src="app.js"></script>

@@ -1,0 +1,47 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later
+   Copyright (C) 2026 Hashem Aldhaheri */
+
+/* Scoped to this widget's card, and a Go test says so. */
+
+.card[data-widget="tape"] .tape-lines {
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.card[data-widget="tape"] .tape-line {
+  display: grid;
+  grid-template-columns: 4ch 7ch 1fr;
+  gap: 8px;
+  padding: 1px 0;
+  border-top: 1px solid var(--border);
+  /* A frame is one line. A packet line is 120 characters and wrapping it
+     turns the tape into paragraphs, which loses the thing a tape is for:
+     one row, one event, countable at a glance. */
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.card[data-widget="tape"] .tape-line:first-child { border-top: 0; }
+
+.card[data-widget="tape"] .tape-waiting {
+  font-family: var(--sans);
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.card[data-widget="tape"] .tape-seq { color: var(--text-faint); }
+.card[data-widget="tape"] .tape-type { color: var(--text-muted); }
+.card[data-widget="tape"] .tape-said {
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The four types that are the lab answering, rather than the lab being
+   polled. They are what a reader is waiting for, so they are the ones with a
+   colour on them. */
+.card[data-widget="tape"] .tape-line[data-type="verdict"] .tape-type,
+.card[data-widget="tape"] .tape-line[data-type="flow"] .tape-type { color: var(--accent); }
+.card[data-widget="tape"] .tape-line[data-type="packet"] .tape-type { color: var(--danger); }
+.card[data-widget="tape"] .tape-line[data-type="note"] .tape-type { color: var(--warn); }

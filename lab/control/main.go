@@ -506,10 +506,15 @@ func routes(c *Controller) http.Handler {
 	}
 	mux.Handle("/", assets)
 
-	// Walked once, at startup: the themes are in the binary and cannot appear
-	// while it runs. Anything skipped has already said why at the console by
-	// the time this returns.
-	themes := loadThemes(ui)
+	// Walked once, at startup: the themes and the widgets are in the binary
+	// and cannot appear while it runs. Anything skipped has already said why
+	// at the console by the time this returns.
+	//
+	// The registry is read first because the layouts are pruned against it: a
+	// theme that docks a widget nobody embedded is served with that card
+	// missing rather than with a placement the page cannot honour.
+	widgets := loadWidgets(ui)
+	themes := resolvePlacements(loadThemes(ui), widgets)
 
 	writeJSON := func(w http.ResponseWriter, v any) {
 		w.Header().Set("Content-Type", "application/json")
@@ -561,6 +566,19 @@ func routes(c *Controller) http.Handler {
 			return
 		}
 		writeJSON(w, themes)
+	})
+
+	// The widget registry: which cards were embedded under ui/hud/widgets,
+	// and which docks each one is willing to sit in. The page does not need
+	// this to mount a layout — a theme's layout already names what to build —
+	// but it is how a reader writing a theme finds out what there is to place,
+	// and it is what tells the page that an id it was handed is real.
+	mux.HandleFunc("/api/widgets", func(w http.ResponseWriter, r *http.Request) {
+		if widgets == nil {
+			writeJSON(w, []Widget{})
+			return
+		}
+		writeJSON(w, widgets)
 	})
 
 	mux.HandleFunc("/api/state", func(w http.ResponseWriter, r *http.Request) {

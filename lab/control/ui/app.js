@@ -55,6 +55,7 @@
     if (!api || !sel) return;
 
     api.init(board).then(function (applied) {
+      mountLayout(applied);
       var list = api.list();
       if (!list.length) return;          /* keep the one option markup shipped */
       sel.innerHTML = list.map(function (t) {
@@ -66,11 +67,46 @@
 
     sel.addEventListener("change", function () {
       api.apply(sel.value, board).then(function (applied) {
+        mountLayout(applied);
         sel.value = applied;
         sel.title = (api.get(applied) || {}).note || "";
       });
     });
   }
+
+  /* ---- the cards docked around the board -------------------------
+     A theme is two things now: nine colours, and a layout. The colours are
+     hud/themes.js' business and the layout is hud/slots.js', and this is
+     where the page puts them together — selecting a theme repaints the board
+     and re-docks the cards, in that order, because the cards are styled off
+     the palette they land in.
+
+     Which widget goes where is not decided here and is not in index.html.
+     It is in the theme's theme.json, pruned by the server against what was
+     actually embedded, so this function never has to decide what to do about
+     a card it cannot build.
+
+     Everything here is optional twice over: no slots module means no cards,
+     and a theme with no layout means no cards either. Both leave the page as
+     the board and two rails, which is what it was. */
+  function mountLayout(id) {
+    var api = window.LabHUD && window.LabHUD.themes;
+    var slots = window.LabHUD && window.LabHUD.slots;
+    if (!api || !slots) return;
+
+    if (!slotsStarted) {
+      /* The feed is not passed: slots.js reads window.LabFeed, and feed.js
+         is a classic script that ran before this one. Handing it `feed` from
+         here would hand it undefined — this runs from startBoard(), which is
+         called above the line that reads the feed off window. */
+      slots.init({ onLayout: measureRails });
+      slotsStarted = true;
+    }
+
+    var theme = api.get(id);
+    slots.apply(theme && theme.layout);
+  }
+  var slotsStarted = false;
 
   /* ---- the board --------------------------------------------------
      lab/control/ui/hud is an ES module, because three.js is one. It hands
@@ -318,11 +354,60 @@
     }
 
     root.setProperty("--ladder-h", Math.round(ladderH) + "px");
+
+    /* Two sets of tokens, because there are now two answers and the
+       difference between them is the docked cards.
+
+       --rail-* is the furniture that is bolted on: the rails, the bar, the
+       ladder. The slot layer is positioned from these, and from these only.
+       --pad-* is that plus whatever the cards are covering, and it is what
+       every floating thing over the board already reads — so the gauges, the
+       verdict and the view controls move out of a card's way with nothing in
+       the stylesheet edited to teach them about cards.
+
+       The two cannot be one token. The docks are laid out from --rail-*, so
+       their own size going back into the token that positions them would be
+       a layout that moves every time it is measured. Keeping the feedback out
+       is the whole reason for the split; the camera, which cannot resize a
+       card, is free to read the sum. */
+    root.setProperty("--rail-l", Math.round(covered.left) + "px");
+    root.setProperty("--rail-r", Math.round(covered.right) + "px");
+    root.setProperty("--rail-t", Math.round(covered.top) + "px");
+    root.setProperty("--rail-b", Math.round(Math.max(covered.bottom, ladderH)) + "px");
+
+    /* Each dock sits inboard of the rail on its side, so the overlap with the
+       board is the larger of the two rather than their sum.
+
+       Measured twice, against two rectangles, and the bottom edge is why.
+       The camera has to know what covers the *canvas*; a floating panel has
+       to know what is occupied at the bottom of the *window*, and those
+       differ by the height of the rung ladder, which sits below the viewport
+       rather than over it. This is the distinction --pad-b has always made
+       for the ladder itself — `max(covered.bottom, ladderH)` — and a docked
+       card runs into it the same way: a card measured against the viewport
+       and then positioned against the window is short by exactly one ladder,
+       which put the verdict 40px inside the bottom card. */
+    var slots = window.LabHUD && window.LabHUD.slots;
+    var padBottom = Math.max(covered.bottom, ladderH);
+
+    if (slots && !floatQ.matches) {
+      var canvasBox = document.querySelector(".viewport").getBoundingClientRect();
+      var windowBox = document.querySelector(".app").getBoundingClientRect();
+      var onCanvas = slots.covered(canvasBox);
+      var onWindow = slots.covered(windowBox);
+
+      covered.left = Math.max(covered.left, onCanvas.left);
+      covered.right = Math.max(covered.right, onCanvas.right);
+      covered.top = Math.max(covered.top, onCanvas.top);
+      covered.bottom = Math.max(covered.bottom, onCanvas.bottom);
+      padBottom = Math.max(padBottom, onWindow.bottom);
+    }
+
     root.setProperty("--pad-l", Math.round(covered.left) + "px");
     root.setProperty("--pad-r", Math.round(covered.right) + "px");
     root.setProperty("--pad-t", Math.round(covered.top) + "px");
     /* The floating panels clear the ladder; the camera, above, does not. */
-    root.setProperty("--pad-b", Math.round(Math.max(covered.bottom, ladderH)) + "px");
+    root.setProperty("--pad-b", Math.round(padBottom) + "px");
     if (board && board.setViewInset) board.setViewInset(covered);
   }
 
