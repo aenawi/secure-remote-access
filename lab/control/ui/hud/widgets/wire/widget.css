@@ -1,0 +1,46 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later
+   Copyright (C) 2026 Hashem Aldhaheri */
+
+/* Every rule is scoped to this widget's own card. A widget that styled
+   anything wider would repaint a page it does not own, and a Go test fails
+   if one starts to — the same test, and the same reason, as the one that
+   holds a theme to the nine --board-* properties. */
+
+.card[data-widget="wire"] .wire-rows {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 3px 10px;
+  align-items: baseline;
+}
+
+.card[data-widget="wire"] .wire-k {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.card[data-widget="wire"] .wire-v {
+  font-family: var(--mono);
+  font-size: 12px;
+  text-align: right;
+  color: var(--text);
+}
+
+.card[data-widget="wire"] .wire-v.is-ok { color: var(--ok); }
+.card[data-widget="wire"] .wire-v.is-bad { color: var(--danger); }
+
+/* In a horizontal dock the rows run across rather than down: a top strip is
+   wide and 40px tall, and a two-column grid in it is a column of pairs with
+   the whole width to its right unused. */
+.dock-top .card[data-widget="wire"] .wire-rows,
+.dock-bottom .card[data-widget="wire"] .wire-rows {
+  grid-template-columns: none;
+  grid-auto-flow: column;
+  grid-template-rows: auto auto;
+  gap: 0 14px;
+  align-items: center;
+}
+
+.dock-top .card[data-widget="wire"] .wire-v,
+.dock-bottom .card[data-widget="wire"] .wire-v {
+  text-align: left;
+}

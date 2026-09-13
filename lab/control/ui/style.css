@@ -40,6 +40,32 @@
   --radius: 10px;
 }
 
+/* ---- the board's palette ----
+   These nine, and only these nine, are what readTokens() in hud/scene.js
+   reads and what a HUD theme under hud/themes/ may redefine. They are the
+   contract: a theme setting anything else reaches past the drawing and
+   repaints the panels around it, which is not what a board theme is for.
+
+   Each defaults to the page token it used to read directly, so the light and
+   dark blocks below stay the single home of those nine colours and a theme
+   that overrides none of them — hud/themes/chapter — is the board exactly as
+   it was before the store existed.
+
+   They sit outside the theme blocks on purpose. A var() resolves where it is
+   used, not where it is declared, so one definition here follows the page
+   into light, into dark, and into whatever a theme does on top. */
+:root {
+  --board-accent: var(--accent);
+  --board-danger: var(--danger);
+  --board-warn:   var(--warn);
+  --board-ok:     var(--ok);
+  --board-line:   var(--border-strong);
+  --board-text:   var(--text);
+  --board-muted:  var(--text-muted);
+  --board-faint:  var(--text-faint);
+  --board-card:   var(--bg-raised);
+}
+
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #0e1116; --bg-raised: #161b22; --bg-sunken: #0a0d12; --bg-code: #12171f;
@@ -494,6 +520,22 @@ pre.out.live { max-height: 38vh; overflow-y: auto; }
 }
 .themebtn:hover { border-color: var(--accent); color: var(--accent-text); }
 
+/* The board's palette picker, sitting next to the page's light/dark button and
+   deliberately quieter than it: one is a setting most readers press once, the
+   other is a setting most readers never press at all. */
+.hudtheme {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12.5px; color: var(--text-faint);
+}
+.hudtheme > span { text-transform: uppercase; letter-spacing: .06em; font-size: 10.5px; }
+.hudtheme select {
+  font: inherit; font-size: 12.5px; padding: 3px 8px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--bg-sunken);
+  color: var(--text-muted); cursor: pointer; max-width: 11ch;
+}
+.hudtheme select:hover { border-color: var(--accent); color: var(--accent-text); }
+@media (max-width: 620px) { .hudtheme > span { display: none; } }
+
 /* ---------------------------------------------------------------------------
    The board — Five Gates
 
@@ -571,6 +613,16 @@ pre.out.live { max-height: 38vh; overflow-y: auto; }
   position: absolute; inset: 0; pointer-events: none;
   padding: 12px calc(var(--pad-r, 0px) + 12px) 12px calc(var(--pad-l, 0px) + 12px);
   padding-top: calc(var(--pad-t, 0px) + 12px);
+  /* The fourth side, and it reads a different token from the other three.
+     Those are the same number against the window or against the board; this
+     one is not, because the rung ladder is below the viewport rather than
+     over it. --pad-b clears the ladder — right for .verdict, which is in
+     .app — and this box is inside .viewport, whose bottom edge is already
+     above the ladder. --pad-b-canvas is the number measured there, so the
+     verdict and the transcript stop on top of a bottom-docked card rather
+     than under it, and without a whole ladder of dead air when nothing is
+     docked at all. */
+  padding-bottom: calc(var(--pad-b-canvas, 0px) + 12px);
   display: grid; grid-template-rows: auto 1fr auto; gap: 8px;
   transition: padding .18s ease;
 }
@@ -701,6 +753,96 @@ pre.out.live { max-height: 38vh; overflow-y: auto; }
 .hud-rung.delivered .t { color: var(--ok); font-weight: 600; }
 
 /* ---------------------------------------------------------------------------
+   Widgets and slots
+
+   Four docks around the board, holding cards a theme asked for. hud/slots.js
+   builds this layer and removes it again when a theme docks nothing, so there
+   is no empty element over the board in the ordinary case.
+
+   The layer sits inside the gap the rails leave: --rail-* is measured from
+   the live rails, the bar and the ladder, so the docks follow a rail being
+   folded without knowing that rails exist. It takes no pointer events itself
+   — only the cards do — because a transparent layer over the board is a layer
+   that would eat every drag aimed at the drawing underneath it.
+
+   --rail-* and not --pad-*, and that is the one thing here worth being
+   careful about. --pad-* is the same measurement plus what these cards are
+   covering — it is what moves the gauges and the verdict out of a card's way
+   — so a dock positioned from it would be a dock that moves every time it is
+   measured. app.js writes both and says why.
+
+   The docks themselves have no background. A dock with no cards in it is
+   nothing at all, which is what makes a one-card layout cost the reader one
+   card's worth of board rather than a frame around the whole window.
+   --------------------------------------------------------------------------- */
+.slots {
+  position: absolute; z-index: 22;
+  inset: calc(var(--rail-t, var(--bar-h)) + var(--hud-gap))
+         calc(var(--rail-r, 0px) + var(--hud-gap))
+         calc(var(--rail-b, 0px) + var(--hud-gap))
+         calc(var(--rail-l, 0px) + var(--hud-gap));
+  display: grid;
+  /* The corners go to the rows: a top strip that spans the full width reads as
+     a strip, and a left column that starts under it reads as a column. The
+     alternative — columns owning the corners — makes the top card look like a
+     third rail with a gap in it. */
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "top    top    top"
+    "left   .      right"
+    "bottom bottom bottom";
+  gap: var(--hud-gap);
+  pointer-events: none;
+}
+
+.dock { display: flex; gap: var(--hud-gap); min-width: 0; min-height: 0; }
+.dock-top { grid-area: top; }
+.dock-bottom { grid-area: bottom; align-items: flex-end; }
+.dock-left { grid-area: left; flex-direction: column; }
+.dock-right { grid-area: right; flex-direction: column; align-items: flex-end; }
+
+/* A column dock is as wide as the widest card in it and no wider, and a row
+   dock is as tall as its tallest. The cards are what have a size; the dock is
+   where they are. */
+.dock-left, .dock-right { width: max-content; max-width: 300px; }
+
+.card {
+  pointer-events: auto;
+  display: grid; grid-template-rows: auto minmax(0, 1fr);
+  min-width: 0; min-height: 0;
+  border-radius: var(--radius); overflow: hidden;
+}
+
+/* A card in a column may be tall; a card in a row may not. The scroll is on
+   the body so the header stays readable while its content moves, which is the
+   same arrangement the rails use. */
+.dock-left .card, .dock-right .card { width: 260px; max-height: 100%; }
+.dock-top .card, .dock-bottom .card { max-width: 100%; }
+
+.card-head {
+  display: flex; align-items: baseline; gap: 6px;
+  padding: 6px 10px 4px;
+  border-bottom: 1px solid var(--border);
+}
+.card-t {
+  font-family: var(--mono); font-size: 10px;
+  letter-spacing: .08em; text-transform: uppercase;
+  color: var(--text-faint);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.card-body { padding: 8px 10px; min-height: 0; overflow: auto; }
+
+/* A widget that did not load says so where the reader is already looking.
+   Everything else on this page fails quietly on purpose — a set-piece that
+   throws must not take the board down — but a card is a box with a name on
+   it, so an empty one is a visible question already, and the console is a
+   poor place to answer it. */
+.card-body.card-dead {
+  font-family: var(--mono); font-size: 11px; color: var(--danger);
+}
+
+/* ---------------------------------------------------------------------------
    The fallback
 
    A window too narrow for two columns, or too short for three bands, gets an
@@ -762,6 +904,24 @@ pre.out.live { max-height: 38vh; overflow-y: auto; }
      not float, and a pinch on a page this size is the browser's. */
   .railtog, .viewpad { display: none; }
   .hud-ladder { height: auto; }
+
+  /* The cards stack at the foot of the page, for the same reason the rails
+     stop floating: there is no margin left to overlay honestly. They come
+     after the readouts because that is where slots.js appends the layer, and
+     because a card is an extra the reader chose rather than the instrument. */
+  .slots {
+    position: static; inset: auto; display: block; gap: 0;
+    pointer-events: auto;
+  }
+  .dock { display: block; }
+  .dock-left, .dock-right { width: auto; max-width: none; }
+  .card {
+    border-radius: 0; box-shadow: none; backdrop-filter: none;
+    border-width: 1px 0 0 0; background: var(--bg);
+  }
+  .dock-left .card, .dock-right .card,
+  .dock-top .card, .dock-bottom .card { width: auto; max-width: none; max-height: none; }
+  .card-body { overflow: visible; }
 }
 
 @media (max-width: 720px) {
@@ -805,3 +965,172 @@ pre.out.live { max-height: 38vh; overflow-y: auto; }
 .hatch.is-warn b { color: var(--warn); }
 .hatch.is-bad  { background: var(--danger-soft); border-left-color: var(--danger); }
 .hatch.is-bad b { color: var(--danger); }
+
+/* ---------------------------------------------------------------------------
+   Record and replay
+
+   Two pages share this section. On the live page it is one button in the bar:
+   recording is reading, so it sits with the view controls rather than with
+   anything that changes the lab. On replay.html it is the transport, the
+   moment list and the mat that invites a file.
+
+   The transport is positioned from --rail-* like the docks are, and its own
+   height goes into --pad-* only — so the verdict and the gauges float above
+   it while the cards stay where the rails put them. Feeding a bar's height
+   back into the token that positions the bar is a layout that never settles,
+   which is the same trap the docks documented.
+   --------------------------------------------------------------------------- */
+/* A deck with one rail in it. `.deck` is `space-between`, which is right for
+   the live page's pair and puts a lone rail against the left edge — and then
+   every inset is measured from the wrong side, so the cards, the transport and
+   the verdict all end up in a column an inch wide over a board with the whole
+   window free beside it. The player has one rail, and it is on the right. */
+.deck-right { justify-content: flex-end; }
+
+.recbar { display: flex; align-items: center; gap: 8px; }
+
+.recbtn {
+  font: inherit; font-size: 12.5px; font-family: var(--mono);
+  padding: 4px 11px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--border-strong); background: none; color: var(--text-muted);
+}
+.recbtn:hover { border-color: var(--accent); color: var(--accent-text); }
+.recbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* Recording, it is the one live thing in the bar and says so in the colour
+   this page already uses for "something is happening to you". */
+.recbtn.on {
+  border-color: var(--danger); background: var(--danger-soft); color: var(--danger);
+  font-weight: 600;
+}
+.recbtn.on::before {
+  content: "\25CF"; margin-right: 6px;
+  animation: rec-pulse 1.6s ease-in-out infinite;
+}
+@keyframes rec-pulse { 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) {
+  .recbtn.on::before { animation: none; }
+}
+
+.recplay {
+  font-family: var(--mono); font-size: 12px; color: var(--text-muted);
+  text-decoration: none; border-bottom: 1px dotted var(--border-strong);
+}
+.recplay:hover { color: var(--accent-text); border-bottom-color: var(--accent); }
+
+/* ---- the transport ---- */
+.transport {
+  position: absolute; z-index: 26;
+  left: calc(var(--rail-l, 0px) + var(--hud-gap));
+  right: calc(var(--rail-r, 0px) + var(--hud-gap));
+  /* From --ladder-h and not --rail-b, which is the one thing in this rule
+     worth being careful about: this bar's own height is part of --rail-b, so
+     that the docks stop above it. Reading --rail-b here as well would be a bar
+     that moves up by its own height every time it is measured. */
+  bottom: calc(var(--ladder-h, 0px) + var(--hud-gap));
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; border-radius: var(--radius);
+}
+.transport[hidden] { display: none; }
+
+.tbtn {
+  font: inherit; font-size: 12.5px; font-family: var(--mono);
+  min-width: 58px; padding: 5px 10px; border-radius: 7px; cursor: pointer;
+  border: 1px solid var(--border-strong); background: none; color: var(--text);
+}
+.tbtn:hover { border-color: var(--accent); color: var(--accent-text); }
+.tbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* The scrubber is the whole width that is left, because the thing a reader
+   does most on this page is move about in the file. */
+.tscrub { flex: 1 1 auto; min-width: 80px; accent-color: var(--accent); }
+.tscrub:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.ttime { color: var(--text-muted); white-space: pre; }
+
+.trate { display: flex; align-items: center; gap: 6px; }
+.trate > span {
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--text-faint);
+}
+.trate select {
+  font: inherit; font-size: 12.5px; font-family: var(--mono);
+  padding: 4px 8px; border-radius: 7px;
+  border: 1px solid var(--border-strong); background: var(--bg-raised); color: var(--text);
+}
+
+/* ---- what is in the file ---- */
+.col-body .note { font-size: 13px; line-height: 1.55; color: var(--text-muted); margin: 0 0 10px; }
+.col-body .note code { font-family: var(--mono); font-size: 12px; }
+
+.facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px 10px; }
+.facts-k {
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--text-faint); align-self: baseline;
+}
+.facts-v { font-family: var(--mono); font-size: 12px; color: var(--text); overflow-wrap: anywhere; }
+.facts-v.is-bad { color: var(--danger); font-weight: 600; }
+
+/* ---- the moments ----
+   One button per Result the lab returned. They are the reason the recording
+   exists, so they are a list you can press rather than something to find by
+   dragging the scrubber and watching for the board to move. */
+.moment {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 1px 8px;
+  width: 100%; text-align: left; font: inherit; cursor: pointer;
+  margin-top: 6px; padding: 7px 9px; border-radius: 8px;
+  border: 1px solid var(--border); border-left-width: 3px;
+  background: var(--bg-sunken); color: var(--text);
+}
+.moment:hover { border-color: var(--accent); }
+.moment:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* Where the reader currently is. The list says that as well as where they
+   could go, because a scrubber alone does not answer "which one is this". */
+.moment.on { background: var(--bg-raised); border-color: var(--accent-text); }
+.moment.ok   { border-left-color: var(--ok); }
+.moment.warn { border-left-color: var(--warn); }
+.moment.bad  { border-left-color: var(--danger); }
+
+.moment .m-at { grid-row: 1 / span 2; color: var(--text-faint); align-self: start; }
+.moment .m-head { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.moment .m-kind { font-size: 10.5px; color: var(--text-faint); }
+.moment .m-why {
+  grid-column: 2; font-size: 12px; line-height: 1.5; color: var(--text-muted);
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ---- the mat ----
+   It covers the board while nothing is open. An empty board with a small note
+   under it reads as a page that failed; this reads as a page waiting. */
+.dropmat {
+  position: absolute; z-index: 28; inset: var(--bar-h) 0 0 0;
+  display: grid; place-items: center; padding: 20px;
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+}
+.dropmat[hidden] { display: none; }
+.dropcard {
+  max-width: 440px; padding: 20px 22px; border-radius: var(--radius);
+  text-align: center;
+}
+.dropcard b { display: block; font-size: 16px; margin-bottom: 8px; }
+.dropcard p { font-size: 13px; line-height: 1.6; color: var(--text-muted); margin: 0 0 14px; }
+.dropcard code { font-family: var(--mono); font-size: 12px; }
+.dropcard .btn { width: auto; }
+
+/* A file over the window. The mat comes back even when a recording is already
+   open, because the drop will replace it and saying so beforehand is cheaper
+   than surprising somebody who was aiming at another tab. */
+html.dragging-file .dropmat { display: grid; }
+html.dragging-file .dropcard { border-color: var(--accent); }
+
+@media (max-width: 1000px), (max-height: 620px) {
+  /* The bar is sticky here and the board is a band at the top, so a transport
+     floating over the window has nothing to float on. It becomes an ordinary
+     block under the drawing. */
+  .transport {
+    position: static; inset: auto; border-radius: 0;
+    border-width: 1px 0; box-shadow: none; backdrop-filter: none;
+    background: var(--bg-raised); flex-wrap: wrap;
+  }
+  .dropmat { position: static; inset: auto; background: none; padding: 16px; }
+}

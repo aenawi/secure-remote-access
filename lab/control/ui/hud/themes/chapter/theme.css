@@ -1,0 +1,23 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later
+   Copyright (C) 2026 Hashem Aldhaheri */
+
+/* Chapter — the board as the guide draws it.
+
+   This file overrides nothing, and that is the whole of it.
+
+   The nine --board-* properties in style.css already resolve to the page's
+   own tokens, so a theme that sets none of them is the palette the board had
+   before the store existed. Restating them here would be a second copy of
+   nine colours that the light/dark blocks in style.css already own, and a
+   second copy is the copy that goes stale — which is the rule the rest of
+   this repository is built on.
+
+   So: the selector, empty, as the shape every other theme follows. Delete the
+   rule and nothing changes; it is here so that reading this folder tells you
+   what a theme is.
+
+   What a theme may set is listed in style.css under "the board's palette". */
+
+:root[data-hud-theme="chapter"] {
+  /* the page's own colours, unchanged */
+}

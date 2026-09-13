@@ -1119,6 +1119,7 @@ make up         # build and start, then wait for the three machines to join
 make attack     # add evil-box — it never starts on its own
 make status     # tailscale status and netcheck, from the laptop
 make audit      # the eleven checks, scored, from the command line
+make record     # write the wire to lab.jsonl, to watch back in replay.html
 make check      # Go and JavaScript — the one target that runs with the lab down
 make ui         # just the JavaScript half: parse-check ui/, run the board rules
 make hooks      # install the pre-push hook that runs make check for you
@@ -1256,7 +1257,8 @@ lab/
 ├── checks/                the JavaScript half of `make check` — no npm, no packages
 │   ├── syntax.mjs         node --check over every file the browser loads
 │   ├── reading.test.mjs   the board rules, asserted without a browser
-│   └── setpieces.test.mjs that hud/ links, and that no action lost its shot
+│   ├── setpieces.test.mjs that hud/ links, and that no action lost its shot
+│   └── replay.test.mjs    that a recording plays back as the thing recorded
 ├── config/headscale/      coordination server configuration, commented
 ├── images/
 │   ├── node/              a lab machine: tailscaled, tailcat, sshd, ufw, mosh
@@ -1272,18 +1274,323 @@ lab/
     ├── actions.go         one function per switch, and the five-rung probe
     ├── attacks.go         one function per attack
     ├── audit.go           the eleven checks
-    ├── stream.go          server-sent events: status, tcpdump, logs, stats
+    ├── feed.go            the one live wire: /api/stream/hud — see below
+    ├── stream.go          the SSE plumbing, and the text the readouts read
     ├── panels.go          the panel spec the UI renders
     ├── *_test.go          fixtures captured from a live lab; no containers needed
     └── ui/                the same vocabulary as chapter 14
         ├── index.html     the shell: both drawings, the two tab strips, the guide
+        ├── wire.js        what the wire carries — the only copy of that list
+        ├── feed.js        one EventSource, shared by everything that reads the lab
         ├── app.js         a classic script, the same shape as assets/sandbox.js
+        ├── replay.html    the player: a recording, with no lab behind it
+        ├── replay.js      both halves — record the wire, and play a file back
+        ├── replay-app.js  the player's page: a frame becomes a drawing here
         └── hud/
             ├── three.module.js  three.js r166, MIT, inside the binary
             ├── scene.js         the board: five gates, three planes, the packet
             ├── reading.js       what a Result says — pure, and the only tested part
-            └── setpieces.js     one exported function per attack id
+            ├── setpieces.js     one exported function per attack id
+            ├── themes.js        the theme store: what exists, and which is selected
+            ├── slots.js         the four docks, and what a widget is handed
+            ├── themes/          one folder per palette — see below
+            │   ├── chapter/     the guide's own colours; overrides nothing
+            │   └── warroom/     amber on near-black, and it docks three cards
+            └── widgets/         one folder per card — see below
+                ├── wire/        what the feed itself is doing
+                ├── tape/        every frame on the feed, written down
+                └── tally/       which rung has been deciding things
 ```
+
+### The feed
+
+Everything live in this lab comes out of one endpoint:
+
+```bash
+curl -N http://127.0.0.1:8099/api/stream/hud
+```
+
+It used to be four — `status`, `tcpdump`, `logs` and `stats` — and each
+consumer opened the one it wanted and parsed it for itself. One wire is better
+for two readers who are not this page. Somebody writing a card that shows drop
+counts should not have to know which of four endpoints has them. And a
+recording of what happened should be one file in one order, rather than four
+whose clocks nobody reconciled.
+
+Every frame is the same envelope, and the `data:` line is complete on its own:
+
+```json
+{"seq":41,"at":1757682401337,"type":"verdict","data":{"id":"sniff","kind":"action","result":{"ok":true,"rung":2,"…":"…"}}}
+```
+
+`seq` is a position on *this* connection, counted from 1, and `at` is Unix
+milliseconds. Both are there for replay: the order, and how long apart. A
+reconnect starts a new wire and a new `seq`, and says so with a fresh `hello`.
+
+Ten types, and the opening `hello` lists them so a consumer can ask rather than
+assume:
+
+| type | carries | when |
+|---|---|---|
+| `hello` | the type list, what was subscribed, the server's clock, and `page` | once, at open |
+| `state` | the whole `State` snapshot | when it changed |
+| `status` | `tailscale status`, as text | when it changed |
+| `netcheck` | `tailscale netcheck`, as text | when it changed |
+| `stat` | `[]Stats` — CPU, memory, interface counters | every 3s |
+| `verdict` | a `Result` from `/api/action`, `/api/set` or `/api/preset` | when one ran |
+| `flow` | a `Result` from `/api/probe` | when one ran |
+| `packet` | one line of `tcpdump` | only if `capture=` asked |
+| `log` | one line of `tailscaled.log` | only if `logs=` asked |
+| `note` | a source talking about itself, tagged with which source | as needed |
+
+The first seven cost nothing and are always on. The last three are asked for in
+the URL, because a capture is a process inside a container and only the reader
+knows whether anybody is looking at it:
+
+```bash
+curl -N 'http://127.0.0.1:8099/api/stream/hud?capture=evil-box'
+curl -N 'http://127.0.0.1:8099/api/stream/hud?capture=evil-box&iface=eth0&filter=icmp'
+curl -N 'http://127.0.0.1:8099/api/stream/hud?logs=lab-ubuntu&logsAll=1'
+```
+
+There is nothing to POST and no subscription state on the server: a reader that
+wants a capture reconnects with the parameter. That is what keeps a recording
+honest — the URL says what was being watched.
+
+`verdict` and `flow` are the same `Result` the POST replied with, published as
+well as returned. The board still draws from the reply, so the feed is not in
+the drawing path and cannot break it; what the feed adds is that something
+which *did not press the button* can see what the button did. Which is the
+whole reason it exists: a captured attack is a recording of this wire, and
+`data:` lines are `.jsonl` already. [Record and replay](#record-and-replay) is
+what that turned into.
+
+The opening `hello` also carries `page` — the payload `/api/meta` serves, the
+theme store and the widget registry, the three things the page is made of. That
+looks like duplication and is the opposite: it is what makes a recording
+complete. The thing that plays one back has no server to ask, so a file
+carrying only events could not say which machines to cut doorways for, which
+actions have a set-piece, or where the cards go. The first line has to be enough
+on its own.
+
+A reader that stops reading loses events rather than holding the lab up —
+`/api/action` publishes from inside the request, so a send that blocked would be
+an attack that never returned to the person who ran it. The count of what was
+dropped is in every `hello`, so a consumer can say there is a gap rather than
+draw a straight line across it.
+
+On this side of the wire, `ui/feed.js` owns the one `EventSource` and everything
+on the page shares it. Three calls: `on(type, fn)` to listen, `want({capture:
+"evil-box"})` to ask for a source that costs something — reference counted, so
+two things wanting the capture is one capture — and `status()` for what the
+connection is doing. It is a classic script loaded before `app.js`, because the
+readouts read the lab from their first line and the feed cannot be something the
+page waits for.
+
+### Themes for the board
+
+The board has never carried a palette. `readTokens()` in `hud/scene.js` reads
+nine CSS custom properties off the page and paints from what it read, which is
+how the light/dark button moves the drawing with it. A theme is that mechanism,
+used deliberately: redefine some of the nine, and tell the board they moved.
+
+One theme is one folder under `control/ui/hud/themes/`:
+
+```
+themes/warroom/
+├── theme.json    id, name, note, ground, author
+└── theme.css     the nine, scoped to :root[data-hud-theme="warroom"]
+```
+
+`themes.go` walks the embedded UI at startup and serves what it found at
+`/api/themes`, so the picker in the header is populated from the server rather
+than from a list in the markup. Adding a theme is a folder and a rebuild.
+Nothing else is edited.
+
+The nine are declared in `style.css` under **the board's palette**, each
+defaulting to the page token it replaced:
+
+| Property | What it paints |
+|---|---|
+| `--board-accent` | the tailnet, the gate posts, anything the lab owns |
+| `--board-danger` | a rule that refused, and the attacker |
+| `--board-warn` | an outcome that proved nothing either way |
+| `--board-ok` | a rung that held |
+| `--board-line` | gate posts, the ground grid, the rails |
+| `--board-text` | machine labels |
+| `--board-muted` | secondary labels |
+| `--board-faint` | addresses, and anything standing down |
+| `--board-card` | the plane the machines stand on |
+
+Those nine are the whole surface. A theme that sets anything else reaches past
+the drawing and repaints the panels around it, which is not what a board theme
+is for — and `hud/themes/chapter` is the proof the seam is real: it overrides
+nothing, and a test fails if it ever starts to.
+
+`ground` in `theme.json` is `light`, `dark` or `any`. Selecting a theme that
+names one moves the page to it; the light/dark button still wins afterwards,
+because a reader who presses it has said something more recent than the
+manifest did.
+
+A theme that does not parse, or whose `id` disagrees with its folder name, is
+skipped with a line at the console and the rest of the store still loads. The
+same choice `missing()` makes for set-pieces, for the same reason: a broken
+extra must not take the page with it, and a silent one is worse than a loud
+one.
+
+### Widgets and slots
+
+A theme can also dock cards. There are four docks around the board — `top`,
+`left`, `right`, `bottom` — and a card in one of them is a widget.
+
+One widget is one folder under `control/ui/hud/widgets/`:
+
+```
+widgets/tape/
+├── widget.json   id, name, note, slots it fits in, author
+├── widget.js     one exported create(), and what it returns
+└── widget.css    its own styling, scoped to its own card
+```
+
+`widgets.go` walks the embedded UI at startup and serves the registry at
+`/api/widgets`. Adding a widget is a folder and a rebuild, and nothing else is
+edited — the same property the theme store and `panels.go` already have.
+
+What a widget is handed is the whole seam, and it is deliberately small:
+
+```js
+export function create({ el, feed, options }) {
+  const off = feed.on("verdict", (data) => { /* draw into el */ });
+  return { destroy: off };
+}
+```
+
+`el` is the card's body and is yours until `destroy()`. `feed` is
+`window.LabFeed` — `on()` for the always-on sources, `want()` for a capture or
+a log tail, both handing back the function that undoes them. `options` is
+whatever the placement carried, verbatim.
+
+And that is all of it. There is no board object, no page element and no
+controller, because the board is twenty-five coupled methods over 1300 lines of
+three.js and publishing it as a plugin API would freeze `hud/scene.js` the day
+somebody wrote against it. A widget that wants to know what the lab is doing
+reads the feed, which is what the feed is for.
+
+Where a card goes is the theme's business, not the widget's, and it is in
+`theme.json`:
+
+```json
+"layout": [
+  { "widget": "wire",  "slot": "top" },
+  { "widget": "tape",  "slot": "right", "options": { "limit": 60 } },
+  { "widget": "tally", "slot": "bottom" }
+]
+```
+
+That is what `warroom` ships. `chapter` docks nothing — for the same reason its
+stylesheet overrides nothing: it is the page as it was before any of this, and
+it is where a saved theme id falls back to. A test fails if either starts to.
+
+A widget declares which docks it is willing to sit in, because the widget is
+what knows: a tape of every frame on the wire wants a tall column and reads as
+nonsense in a 90px strip. The server prunes the layout against the registry at
+startup — an unknown widget, or one placed in a dock it does not fit — so the
+page only ever mounts placements that can be built. Each dropped one says why at
+the console.
+
+The board itself is not a widget. It is the floor of the window: `app.js`
+creates it and drives it, and the docks' part in that is telling it how much of
+itself they are covering, so the camera frames the diagram in the gap the cards
+leave. Folding a rail moves the cards and re-frames the board with them.
+
+Each widget's stylesheet is scoped to `.card[data-widget="<id>"]`, and a test
+fails if a selector reaches wider — the same test, and the same reason, as the
+one holding a theme to the nine `--board-*` properties. Below 1000px the cards
+stop floating and stack at the foot of the page, which is what the rails do.
+
+### Record and replay
+
+One wire was worth building for two readers. The first is a widget nobody has
+written yet. The second is a file:
+
+```bash
+make record                          # until you press Ctrl-C
+make record FOR=90                   # ninety seconds, then it stops by itself
+make record FILE=stolen-key.jsonl STREAM='/api/stream/hud?capture=evil-box'
+```
+
+That writes one JSON object per line — the frames from the wire, with the SSE
+framing stripped. To watch one, open **[`/replay.html`](control/ui/replay.html)**
+and drop the file on the page.
+
+```
+http://localhost:8099/replay.html
+```
+
+The live page has a **record** button in the bar, which is the other half of
+the same thing and usually the one you want. It opens no connection and starts
+no process in any container: the frames are already arriving, and it writes
+down the ones that do. So a recording is exactly what the page saw — including
+the capture you had switched on, and not including the one you had not. It
+opens with the board you were looking at rather than with three seconds of an
+empty one, because the snapshots the page is already drawn from go in first.
+Pressing stop hands you the file.
+
+**The player needs an HTTP origin and does not need a lab.** Nothing on that
+page asks the control server anything — the recording carries the machines, the
+attacks, the themes and the widget registry in its first line, which is what
+`page` in the `hello` is for. So this works with every container stopped, and
+with Docker not installed:
+
+```bash
+cd lab/control/ui && python3 -m http.server 8000
+# then http://localhost:8000/replay.html
+```
+
+It cannot be a double-click on the file, and that is the one limit worth
+knowing: `<script type="module">` is blocked on the `file:` scheme and the
+board is a module because three.js is one. This is the same wall
+[`lab/design/five-gates.html`](design/README.md) hit, and it solved it by
+inlining 750 KB of three.js into one page — which is a fine answer for a
+design proposal and the wrong one for a file you serve.
+
+What you get is a viewer and deliberately not a control surface. There are no
+switches, no presets and no attack buttons, because a recording has nothing to
+press them against: what happened, happened. What is there instead is the
+board, the cards the theme docked, and a transport —
+
+- **play**, at 0.25× to 10×, and a scrubber;
+- **the moments**, on the right: every `Result` the lab returned, in order,
+  each one a place to jump to. They are the reason the file exists, so they are
+  a list you press rather than something to find by dragging and watching for
+  the board to move;
+- **what is in the file**: how long, what was being captured, and how many
+  frames the server dropped while it was being made. That last number is the
+  one that says whether to trust the rest — a drawing across a hole is a
+  drawing making things up.
+
+Two things about a scrub are worth saying, because getting either wrong is
+invisible rather than broken.
+
+**A scrub is not a fast replay.** `state`, `status` and `netcheck` are sent
+only when they changed, so the picture at any point is the *last* one of each
+before that point, not the sum of everything since the start. Seeking puts
+those back and plays on, and skips the packets and verdicts in between. Playing
+a minute of `tcpdump` at 60× to arrive at the right board is both slower and
+wrong: every set-piece it passed through would fire.
+
+**The `hello` is a header, not a moment.** On a recording made from a session
+already in progress it is older than everything else in the file, so counting
+it as the first moment would open every such recording with a stretch of dead
+air as long as the session had been going. It is handed out the instant it is
+reached and takes no time at all.
+
+`ui/replay.js` is both halves — the recorder and the player — and the player
+hands back the same three calls `feed.js` does: `on`, `want`, `status`. That
+substitution is the whole seam. `want` cannot mean anything on a file and is
+kept rather than dropped, so a widget written against the live feed runs here
+without knowing which kind it was given, and a set-piece watching for packets
+gets the recorded ones at the times they arrived.
 
 ### If you edit the UI, rebuild
 

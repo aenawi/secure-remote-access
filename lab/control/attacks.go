@@ -658,9 +658,10 @@ sleep 8
 	// ---- the rotation ---------------------------------------------------
 	// --force-reauth only where there is a live registration to force. A
 	// machine that is already out has to re-register whatever is asked of it,
-	// and the plain command is the one the entrypoint and the reset path have
-	// always used to bring one back.
-	up := []string{"tailscale", "up",
+	// and the rest of the command is the one the entrypoint and the reset path
+	// use to bring one back — --reset included, for the reason spelled out above
+	// joinCmd in actions.go.
+	up := []string{"tailscale", "up", "--reset",
 		"--login-server=https://headscale:8443", "--authkey=" + key,
 		"--hostname=lab-roam", "--accept-routes=false", "--accept-dns=false", "--timeout=30s"}
 	if rot.wasMember {
@@ -697,6 +698,10 @@ sleep 8
 	})
 	c.EnsureNodes(ctx)
 	c.with(func(s *State) { s.Machines["lab-roam"].KeyExpired = !rot.isMember })
+	// The rotation is a rotation, not a rotation plus a setting turned off
+	// behind the reader's back: --reset cleared Tailscale SSH here, so it goes
+	// back to whatever the switch says before anything is measured.
+	c.setTailscaleSSH(ctx, c.Snapshot().ACL.SSH)
 
 	// ---- after ----------------------------------------------------------
 	addrAfter := ""

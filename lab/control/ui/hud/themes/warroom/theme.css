@@ -1,0 +1,27 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later
+   Copyright (C) 2026 Hashem Aldhaheri */
+
+/* Warroom — the board as an operations wall.
+
+   Drawn for a dark ground; theme.json says so, and selecting it moves the page
+   there. Amber carries the accent, which leaves green and red to mean only one
+   thing each: a rung that held, and a rung that did not. On the Chapter palette
+   the accent is teal and "ok" is green, which is two greens, and at a glance
+   across a room they are one.
+
+   The nine properties below are the whole surface a theme has. They are listed
+   in style.css under "the board's palette"; setting anything else here would
+   reach past the board and repaint the panels, which is not what a HUD theme
+   is for. */
+
+:root[data-hud-theme="warroom"] {
+  --board-accent: #e8a33d;   /* the tailnet, the gates, anything the lab owns */
+  --board-danger: #e2564a;   /* a rule that refused, and the attacker */
+  --board-warn:   #d98b2b;
+  --board-ok:     #5bbf7d;   /* a rung that held — the only green on the board */
+  --board-line:   #3b4652;   /* gate posts, the ground grid, rails */
+  --board-text:   #edf1f5;
+  --board-muted:  #9aa8b6;
+  --board-faint:  #62707e;
+  --board-card:   #12171c;   /* the plane the machines stand on */
+}

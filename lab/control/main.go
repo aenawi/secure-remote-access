@@ -148,6 +148,11 @@ func main() {
 		}); ok {
 			ctl.EnsureNodes(ctx)
 			_ = ctl.applyPolicy(ctx)
+			// The policy is only half of Tailscale SSH: the other half is a
+			// preference on each machine, which a `tailscale up --reset` at
+			// boot has just cleared. Put it back from the switch, and leave the
+			// answer where the next boot will read it for itself.
+			ctl.setTailscaleSSH(ctx, ctl.Snapshot().ACL.SSH)
 			log.Printf("all three machines are registered and tagged")
 		} else {
 			log.Printf("not every machine registered — check `docker compose logs lab-ubuntu`")
@@ -493,6 +498,34 @@ func scriptText() string {
 		"set -euo pipefail\n\n" + strings.Join(journal, "\n") + "\n"
 }
 
+// metaPayload is everything the page needs to know about the lab before
+// anything has happened: which machines exist, which configurations and
+// attacks it can offer, which switches to draw, and the steps the two link
+// selects step through.
+//
+// A function rather than a literal inside the /api/meta handler, because it is
+// now wanted in two places: that handler, and the feed's opening hello. Two
+// literals would be two answers, and the one that drifts is the one in the
+// recording — a `.jsonl` describing a lab with a machine the board does not
+// draw, with nothing anywhere to say they disagreed.
+func metaPayload() map[string]any {
+	return map[string]any{
+		"catalog": Catalog,
+		"presets": Presets,
+		"grants":  Grants,
+		"attacks": AttackList,
+		// Everything /api/action will dispatch, which is a longer list than
+		// AttackList: the board reports which of these has no set-piece, and
+		// handing it the nine attacks was how `rotate-key` stayed invisible
+		// to the tool built to notice exactly that.
+		"actions":    ActionIDs(),
+		"panels":     Panels,
+		"groups":     AuditGroups,
+		"lossSteps":  []int{0, 5, 20, 40},
+		"delaySteps": []int{0, 40, 180},
+	}
+}
+
 func routes(c *Controller) http.Handler {
 	mux := http.NewServeMux()
 
@@ -505,6 +538,21 @@ func routes(c *Controller) http.Handler {
 		log.Fatalf("embedded UI: %v", err)
 	}
 	mux.Handle("/", assets)
+
+	// Walked once, at startup: the themes and the widgets are in the binary
+	// and cannot appear while it runs. Anything skipped has already said why
+	// at the console by the time this returns.
+	//
+	// The registry is read first because the layouts are pruned against it: a
+	// theme that docks a widget nobody embedded is served with that card
+	// missing rather than with a placement the page cannot honour.
+	widgets := loadWidgets(ui)
+	themes := resolvePlacements(loadThemes(ui), widgets)
+
+	// And the same three things handed to the feed, so the opening hello can
+	// carry them. A recording is one file and the player has no server to ask:
+	// see Page in feed.go.
+	c.SetPage(Page{Meta: metaPayload(), Themes: themes, Widgets: widgets})
 
 	writeJSON := func(w http.ResponseWriter, v any) {
 		w.Header().Set("Content-Type", "application/json")
@@ -527,21 +575,34 @@ func routes(c *Controller) http.Handler {
 	}
 
 	mux.HandleFunc("/api/meta", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, map[string]any{
-			"catalog": Catalog,
-			"presets": Presets,
-			"grants":  Grants,
-			"attacks": AttackList,
-			// Everything /api/action will dispatch, which is a longer list than
-			// AttackList: the board reports which of these has no set-piece, and
-			// handing it the nine attacks was how `rotate-key` stayed invisible
-			// to the tool built to notice exactly that.
-			"actions":    ActionIDs(),
-			"panels":     Panels,
-			"groups":     AuditGroups,
-			"lossSteps":  []int{0, 5, 20, 40},
-			"delaySteps": []int{0, 40, 180},
-		})
+		writeJSON(w, metaPayload())
+	})
+
+	// The HUD theme store: which palettes were embedded under ui/hud/themes.
+	// Separate from /api/meta because it describes the page rather than the
+	// lab, and because a reader adding a theme should not have to read a
+	// payload about machines and attacks to find out whether it was picked up.
+	mux.HandleFunc("/api/themes", func(w http.ResponseWriter, r *http.Request) {
+		// Never null: the page treats a non-array as an empty store, and an
+		// empty store is a picker with one option rather than a broken one.
+		if themes == nil {
+			writeJSON(w, []Theme{})
+			return
+		}
+		writeJSON(w, themes)
+	})
+
+	// The widget registry: which cards were embedded under ui/hud/widgets,
+	// and which docks each one is willing to sit in. The page does not need
+	// this to mount a layout — a theme's layout already names what to build —
+	// but it is how a reader writing a theme finds out what there is to place,
+	// and it is what tells the page that an id it was handed is real.
+	mux.HandleFunc("/api/widgets", func(w http.ResponseWriter, r *http.Request) {
+		if widgets == nil {
+			writeJSON(w, []Widget{})
+			return
+		}
+		writeJSON(w, widgets)
 	})
 
 	mux.HandleFunc("/api/state", func(w http.ResponseWriter, r *http.Request) {
@@ -549,10 +610,22 @@ func routes(c *Controller) http.Handler {
 		writeJSON(w, c.Snapshot())
 	})
 
+	// Every one of the four below does the same three things in the same order,
+	// and the order is the point. The reply is what the board draws from, so it
+	// is written last and nothing can delay it; the journal and the feed are
+	// both records of what happened, and a record written after the reply is a
+	// record of something the reader has already been told.
+	//
+	// The feed carries the Result as well as the reply carrying it. That is not
+	// a duplicate source — it is the same value marshalled twice — and it is
+	// what lets something that did not press the button see what the button
+	// did. See the top of feed.go.
 	mux.HandleFunc("/api/set", func(w http.ResponseWriter, r *http.Request) {
 		m := body(r)
-		res := c.Set(r.Context(), str(m, "path", ""), m["value"])
+		path := str(m, "path", "")
+		res := c.Set(r.Context(), path, m["value"])
 		record(res.Cmds)
+		c.PublishResult("set", path, res)
 		writeJSON(w, res)
 	})
 
@@ -561,6 +634,7 @@ func routes(c *Controller) http.Handler {
 		res := c.Probe(r.Context(),
 			str(m, "from", "lab-ubuntu"), str(m, "to", "lab-vps"), str(m, "port", "22"))
 		record(res.Cmds)
+		c.PublishResult("probe", "probe", res)
 		writeJSON(w, res)
 	})
 
@@ -575,13 +649,16 @@ func routes(c *Controller) http.Handler {
 			res = c.RunAttack(r.Context(), id)
 		}
 		record(res.Cmds)
+		c.PublishResult("action", id, res)
 		writeJSON(w, res)
 	})
 
 	mux.HandleFunc("/api/preset", func(w http.ResponseWriter, r *http.Request) {
 		m := body(r)
-		res := c.ApplyPreset(r.Context(), str(m, "id", ""))
+		id := str(m, "id", "")
+		res := c.ApplyPreset(r.Context(), id)
 		record(res.Cmds)
+		c.PublishResult("preset", id, res)
 		writeJSON(w, res)
 	})
 
@@ -599,10 +676,9 @@ func routes(c *Controller) http.Handler {
 		writeText(w, scriptText())
 	})
 
-	mux.HandleFunc("/api/stream/status", c.StreamStatus)
-	mux.HandleFunc("/api/stream/tcpdump", c.StreamTcpdump)
-	mux.HandleFunc("/api/stream/logs", c.StreamLogs)
-	mux.HandleFunc("/api/stream/stats", c.StreamStats)
+	// One wire, replacing /api/stream/{status,tcpdump,logs,stats}. Why, and
+	// what is on it, is at the top of feed.go.
+	mux.HandleFunc("/api/stream/hud", c.StreamHUD)
 
 	return mux
 }

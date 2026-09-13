@@ -1,0 +1,7 @@
+{
+  "id": "wire",
+  "name": "The wire",
+  "note": "What the feed itself is doing: whether it is open, how far the sequence has got, which sources are on it, and what the server threw away because a reader could not keep up. A dropped count that is not zero means there is a gap in what you are looking at.",
+  "slots": ["top", "left", "right", "bottom"],
+  "author": "the guide"
+}

@@ -19,7 +19,7 @@ URL     ?= http://localhost:8099
 
 .DEFAULT_GOAL := help
 .PHONY: help up attack down reset logs shell status audit check ui hooks \
-        day-one typical weak hardened
+        record day-one typical weak hardened
 
 help:
 	@printf 'The lab — real containers, real WireGuard, real packets.\n\n'
@@ -27,6 +27,7 @@ help:
 	@printf '  make attack     add evil-box (never starts on its own)\n'
 	@printf '  make status     tailscale status from the laptop\n'
 	@printf '  make audit      run the eleven checks and print the score\n'
+	@printf '  make record     write the wire to lab.jsonl — watch it back in replay.html\n'
 	@printf '  make check      licences, links, go vet, go test, gofmt, and the UI JavaScript\n'
 	@printf '  make ui         parse-check ui/ and assets/, run the board rules\n'
 	@printf '  make hooks      install the pre-push hook that runs make check\n'
@@ -86,6 +87,42 @@ status:
 M ?= lab-vps
 shell:
 	$(COMPOSE) exec $(M) bash
+
+# A recording of the wire, with no browser in it.
+#
+# The wire is SSE, so what comes down it is an `event:` line, a `data:` line
+# and a blank one. `sed -n 's/^data: //p'` keeps the middle one, and what is
+# left is one JSON object per line — a `.jsonl` file, which is what
+# lab/control/ui/replay.html reads. The recording is complete on its own: the
+# first frame carries the machines, the attacks and the themes, so playing it
+# back needs no lab and no server.
+#
+#   make record                      until you press Ctrl-C
+#   make record FOR=90               ninety seconds, then stop by itself
+#   make record FILE=stolen-key.jsonl
+#
+# Ctrl-C is the ordinary ending and it can cut the last line in half. The
+# player counts that as one skipped line and plays the rest, which is why
+# there is no cleanup step here.
+#
+# It records what the wire carries by default, which is everything except the
+# two sources that cost a process inside a container. For a capture, ask for
+# it in the URL — the parameters are documented at the top of
+# lab/control/feed.go, and a recording's URL is the honest record of what was
+# being watched:
+#
+#   make record STREAM='/api/stream/hud?capture=evil-box'
+FILE   ?= lab.jsonl
+FOR    ?=
+STREAM ?= /api/stream/hud
+record:
+	@printf 'Recording %s from %s%s.\n' '$(FILE)' '$(URL)' '$(STREAM)'
+	@if [ -n '$(FOR)' ]; then printf 'Stopping by itself after %s seconds.\n\n' '$(FOR)'; \
+	  else printf 'Drive the lab, then press Ctrl-C.\n\n'; fi
+	@curl -sN $(if $(FOR),--max-time $(FOR),) '$(URL)$(STREAM)' \
+	  | sed -n 's/^data: //p' > '$(FILE)' || true
+	@printf '%s frames in %s.\n' "$$(wc -l < '$(FILE)' | tr -d ' ')" '$(FILE)'
+	@printf 'Watch it: open %s/replay.html and drop the file on the page.\n' '$(URL)'
 
 audit:
 	@curl -fsS $(URL)/api/audit | \

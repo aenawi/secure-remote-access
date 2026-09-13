@@ -1,0 +1,7 @@
+{
+  "id": "tape",
+  "name": "The tape",
+  "note": "The feed written down: one line per frame, newest at the top, with the sequence number the server gave it. This is what a recording is made of — what you read here is what a replay will have to work from. The three-second polls are hidden by default so the frames that mean something are not buried; hide: [] puts them back.",
+  "slots": ["left", "right", "bottom"],
+  "author": "the guide"
+}

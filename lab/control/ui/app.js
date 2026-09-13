@@ -37,58 +37,107 @@
     if (board) board.refreshTokens();
   });
 
+  /* ---- the board's palette ---------------------------------------
+     A second axis, and not the same one. The button above is the page's
+     ground; this is which of the embedded HUD themes paints the drawing.
+     hud/themes.js owns both halves — what exists, and what is selected —
+     because the server is what knows which folders were embedded.
+
+     The picker is populated from the answer rather than from markup, so a
+     theme added to hud/themes/ appears here after a rebuild with nothing
+     else edited. index.html ships one <option> so the control is not an
+     empty box in the moment before the module lands, or ever, if it does
+     not: no LabHUD means no board to theme, and the page is the flat
+     drawing, which is what it was before any of this. */
+  function startThemes() {
+    var api = window.LabHUD && window.LabHUD.themes;
+    var sel = $("#hud-theme");
+    if (!api || !sel) return;
+
+    api.init(board).then(function (applied) {
+      mountLayout(applied);
+      var list = api.list();
+      if (!list.length) return;          /* keep the one option markup shipped */
+      sel.innerHTML = list.map(function (t) {
+        return '<option value="' + esc(t.id) + '">' + esc(t.name) + "</option>";
+      }).join("");
+      sel.value = applied;
+      sel.title = (api.get(applied) || {}).note || "";
+    });
+
+    sel.addEventListener("change", function () {
+      api.apply(sel.value, board).then(function (applied) {
+        mountLayout(applied);
+        sel.value = applied;
+        sel.title = (api.get(applied) || {}).note || "";
+      });
+    });
+  }
+
+  /* ---- the cards docked around the board -------------------------
+     A theme is two things now: nine colours, and a layout. The colours are
+     hud/themes.js' business and the layout is hud/slots.js', and this is
+     where the page puts them together — selecting a theme repaints the board
+     and re-docks the cards, in that order, because the cards are styled off
+     the palette they land in.
+
+     Which widget goes where is not decided here and is not in index.html.
+     It is in the theme's theme.json, pruned by the server against what was
+     actually embedded, so this function never has to decide what to do about
+     a card it cannot build.
+
+     Everything here is optional twice over: no slots module means no cards,
+     and a theme with no layout means no cards either. Both leave the page as
+     the board and two rails, which is what it was. */
+  function mountLayout(id) {
+    var api = window.LabHUD && window.LabHUD.themes;
+    var slots = window.LabHUD && window.LabHUD.slots;
+    if (!api || !slots) return;
+
+    if (!slotsStarted) {
+      /* The feed is not passed: slots.js reads window.LabFeed, and feed.js
+         is a classic script that ran before this one. Handing it `feed` from
+         here would hand it undefined — this runs from startBoard(), which is
+         called above the line that reads the feed off window. */
+      slots.init({ onLayout: measureRails });
+      slotsStarted = true;
+    }
+
+    var theme = api.get(id);
+    slots.apply(theme && theme.layout);
+  }
+  var slotsStarted = false;
+
   /* ---- the board --------------------------------------------------
      lab/control/ui/hud is an ES module, because three.js is one. It hands
      itself over on window.LabHUD and fires an event when it has loaded.
      Everything below works whether or not that ever happens: no board means
      the flat drawing and the packets tab, which is what this page was. */
   var board = null, view = "board", boardBroken = false;
-  var hudStream = null;
 
-  function hudRefs() {
-    return {
-      chip:        $("#hud-chip"),
-      access:      $("#hud-access"),
-      accessNote:  $("#hud-access-note"),
-      dotLaptop:   $("#hud-dot-laptop"),
-      dotPhone:    $("#hud-dot-phone"),
-      exposed:     $("#hud-exposed"),
-      exposedN:    $("#hud-exposed-n"),
-      exposedNote: $("#hud-exposed-note"),
-      posture:     $("#hud-posture"),
-      verdict:     $("#hud-verdict"),
-      vRung:       $("#hud-v-rung"),
-      vRule:       $("#hud-v-rule"),
-      vWhy:        $("#hud-v-why"),
-      nums:        $("#hud-nums"),
-      transcript:  $("#hud-transcript"),
-      live:        $("#hud-live"),
-      rungs: [1, 2, 3, 4, 5].map(function (n) { return $("#hud-rung-" + n); })
-    };
-  }
+  /* What turns a frame on the wire into a drawing. hud/driver.js owns that
+     mapping and owns it for both pages: this one and replay.html made it
+     separately against the same wire until they did not have to.
 
-  /* One EventSource at a time for the board, closed the moment the next
-     action starts. A set-piece that keeps a stream open after its shot has
-     gone is a set-piece drawing frames that belong to something else. */
-  function hudCtx() {
-    return {
-      openStream: function (url, event, onLine) {
-        stopHudStream();
-        try {
-          var es = new EventSource(url);
-          hudStream = es;
-          es.addEventListener(event, function (ev) { onLine(ev); });
-          es.onerror = function () { /* EventSource reconnects on its own */ };
-          return function () { if (hudStream === es) stopHudStream(); };
-        } catch (e) { return function () {}; }
-      }
-    };
-  }
-  function stopHudStream() {
-    if (hudStream) { hudStream.close(); hudStream = null; }
-  }
+     So nothing below plays a shot, and nothing below calls setState except
+     through driver.state() — which is the same door the wire's snapshots come
+     in by, and the reason the held-frame rule only has to be written once.
+     What is left here is what is genuinely about this page: the POSTs, the
+     text trace, the tabs and the rails. */
+  var driver = null;
+
+  /* The overlay's elements come from hud/scene.js, which is what the board
+     needs them for — replay.html creates a board too, and the eighteen
+     lookups were the kind of list that ends up in two places with one of them
+     a readout short. */
 
   function boardOn() { return !!board && view === "board"; }
+
+  /* A set-piece drew, or there was none and the fallback drew instead. The
+     board is the driver's business either way; the tab is this page's. */
+  function onShot(shot) {
+    if (!shot.played) showTab("packets");
+  }
 
   /* The board needs the grants before it can cut a cell per grant, and the
      list of actions before it can say which ids have no set-piece. Whichever
@@ -123,23 +172,40 @@
     $("#view-flat").setAttribute("aria-pressed", String(!on));
     $("#view-board").disabled = boardBroken;
     try { localStorage.setItem("lab-view", view); } catch (e) {}
-    if (on) { board.resize(); if (state) board.setState(state); }
+    if (on) { board.resize(); if (driver) driver.state(state); }
   }
 
   function startBoard() {
     if (board || boardBroken || !window.LabHUD) return;
     try {
-      board = window.LabHUD.createBoard($("#stage-gl"), hudRefs());
+      board = window.LabHUD.createBoard($("#stage-gl"), window.LabHUD.refs(document));
     } catch (e) {
       /* No WebGL, or a driver that will not play. Say so once, quietly, and
          leave the page exactly as it was. */
       boardBroken = true;
       $("#view-note").textContent = "the board needs WebGL, and this browser did not give it one";
       setView("flat");
+      /* Still worth selecting: the picker is the reader's setting, not the
+         board's, and it has to survive a session that never got a board. */
+      startThemes();
       return;
     }
+    /* window.LabFeed rather than `feed`, which is read off window further
+       down this file: startBoard() runs above that line on the ready event,
+       and handing the driver `feed` from here would hand it undefined. The
+       same ordering slots.init() documents above.
+
+       A page whose feed.js did not load still gets a driver, and the board
+       still draws the configuration — refresh() hands it every snapshot it
+       reads back. What it loses is the shots, which arrive on the wire. */
+    driver = window.LabHUD.driver.create({
+      board: board,
+      feed: window.LabFeed || null,
+      active: boardOn,
+      onShot: onShot
+    });
     if (meta) applyMeta();
-    if (state) board.setState(state);
+    if (state) driver.state(state);
     var saved = null;
     try { saved = localStorage.getItem("lab-view"); } catch (e) {}
     setView(saved === "flat" ? "flat" : "board");
@@ -147,6 +213,7 @@
        ordinary case: the layout settles long before WebGL does. */
     measureRails();
     syncZoom();
+    startThemes();
   }
 
   if (window.LabHUD) startBoard();
@@ -270,11 +337,78 @@
     }
 
     root.setProperty("--ladder-h", Math.round(ladderH) + "px");
+
+    /* Two sets of tokens, because there are now two answers and the
+       difference between them is the docked cards.
+
+       --rail-* is the furniture that is bolted on: the rails, the bar, the
+       ladder. The slot layer is positioned from these, and from these only.
+       --pad-* is that plus whatever the cards are covering, and it is what
+       every floating thing over the board already reads — so the gauges, the
+       verdict and the view controls move out of a card's way with nothing in
+       the stylesheet edited to teach them about cards.
+
+       The two cannot be one token. The docks are laid out from --rail-*, so
+       their own size going back into the token that positions them would be
+       a layout that moves every time it is measured. Keeping the feedback out
+       is the whole reason for the split; the camera, which cannot resize a
+       card, is free to read the sum. */
+    root.setProperty("--rail-l", Math.round(covered.left) + "px");
+    root.setProperty("--rail-r", Math.round(covered.right) + "px");
+    root.setProperty("--rail-t", Math.round(covered.top) + "px");
+    root.setProperty("--rail-b", Math.round(Math.max(covered.bottom, ladderH)) + "px");
+
+    /* Each dock sits inboard of the rail on its side, so the overlap with the
+       board is the larger of the two rather than their sum.
+
+       Measured twice, against two rectangles, and the bottom edge is why.
+       The camera has to know what covers the *canvas*; a floating panel has
+       to know what is occupied at the bottom of the *window*, and those
+       differ by the height of the rung ladder, which sits below the viewport
+       rather than over it. This is the distinction --pad-b has always made
+       for the ladder itself — `max(covered.bottom, ladderH)` — and a docked
+       card runs into it the same way: a card measured against the viewport
+       and then positioned against the window is short by exactly one ladder,
+       which put the verdict 40px inside the bottom card. */
+    var slots = window.LabHUD && window.LabHUD.slots;
+    var padBottom = Math.max(covered.bottom, ladderH);
+
+    if (slots && !floatQ.matches) {
+      var canvasBox = document.querySelector(".viewport").getBoundingClientRect();
+      var windowBox = document.querySelector(".app").getBoundingClientRect();
+      var onCanvas = slots.covered(canvasBox);
+      var onWindow = slots.covered(windowBox);
+
+      covered.left = Math.max(covered.left, onCanvas.left);
+      covered.right = Math.max(covered.right, onCanvas.right);
+      covered.top = Math.max(covered.top, onCanvas.top);
+      covered.bottom = Math.max(covered.bottom, onCanvas.bottom);
+      padBottom = Math.max(padBottom, onWindow.bottom);
+    }
+
     root.setProperty("--pad-l", Math.round(covered.left) + "px");
     root.setProperty("--pad-r", Math.round(covered.right) + "px");
     root.setProperty("--pad-t", Math.round(covered.top) + "px");
     /* The floating panels clear the ladder; the camera, above, does not. */
-    root.setProperty("--pad-b", Math.round(Math.max(covered.bottom, ladderH)) + "px");
+    root.setProperty("--pad-b", Math.round(padBottom) + "px");
+    /* The bottom edge is the only one that needs saying twice. --pad-l, -r
+       and -t are the same number against either rectangle, because the
+       viewport starts at the top-left corner of the window and the rails are
+       drawn over it. The bottom is where the two part company, and which one
+       a rule wants depends on what it is positioned inside:
+
+         --pad-b         against the window. The page verdict and anything
+                         else that sits in .app, which the ladder is in.
+         --pad-b-canvas  against the board. The HUD overlay is laid out
+                         inside .viewport, whose bottom edge is already above
+                         the ladder — so clearing the ladder a second time
+                         lifts the verdict a whole ladder higher than the card
+                         it only had to clear by a gap.
+
+       Same number the camera is handed, for the same reason: it is what
+       covers the board rather than what is occupied at the foot of the
+       window. */
+    root.setProperty("--pad-b-canvas", Math.round(covered.bottom) + "px");
     if (board && board.setViewInset) board.setViewInset(covered);
   }
 
@@ -812,9 +946,16 @@
     verdict(rep.tone, rep.verdict);
   }
 
-  /* ---- live streams ------------------------------------------------ */
-  var streams = {};
-  function stopStream(k) { if (streams[k]) { streams[k].close(); delete streams[k]; } }
+  /* ---- the live wire ------------------------------------------------
+     One /api/stream/hud, owned by feed.js, and every readout below listens to
+     it. This used to be four EventSources opened in four places — status here,
+     tcpdump in the capture toggle, the tailscaled log in its own, and a fourth
+     inside the board's set-piece context — which is four connections to leak
+     and four copies of "parse the data and hope it is the shape I expect".
+
+     The panes are the same panes. What changed is that a widget nobody has
+     written yet can read the same lab without opening anything. */
+  var feed = window.LabFeed || null;
   function tailInto(el, line) {
     el.textContent += (el.textContent ? "\n" : "") + line;
     var lines = el.textContent.split("\n");
@@ -822,28 +963,127 @@
     el.scrollTop = el.scrollHeight;
   }
 
-  function openStatusStream() {
-    var es = new EventSource("/api/stream/status");
-    streams.status = es;
+  /* The two text panes, each fed off the one wire.
+
+     A pane is attached once and then left attached: a listener is a callback,
+     and the expensive half — the process inside the container — is started and
+     stopped by asking the feed for the source, not by adding and removing
+     handlers. What the switch controls is the cost, not the wiring.
+
+     Two filters, both load-bearing:
+
+       - `on()` checks the switch, because a line can still be in flight when
+         it goes off and a pane that keeps growing while hidden is a pane that
+         will be wrong when it is shown again.
+       - `d.source` checks which source the note came from. On four streams a
+         note could only have come from the stream it arrived on; on one wire a
+         capture pane headed `tail -f /var/log/tailscaled.log` is what dropping
+         this line gets you. */
+  var attached = {};
+  function attachPane(key, el, lineType, source, on) {
+    if (attached[key]) return;
+    attached[key] = true;
+    feed.on(lineType, function (d) { if (on() && d) tailInto(el, d.line); });
+    feed.on("note", function (d) { if (on() && d && d.source === source) tailInto(el, "# " + d.line); });
+  }
+
+  /* The feed hands back a release function per request; kept per pane so a
+     second flip cannot lose the first one's. */
+  var release = {};
+  function releaseSource(k) { if (release[k]) { release[k](); delete release[k]; } }
+
+  function openFeed() {
+    if (!feed) {
+      verdict("bad", "feed.js did not load, so the readouts will not update on their own.");
+      return;
+    }
     var status = "", netcheck = "";
     function paint() {
       var m = $("#status-out").getAttribute("data-machines") || "";
       $("#status-out").textContent = status + "\n\n" + netcheck + (m ? "\n\n# " + m : "");
     }
-    es.addEventListener("status", function (e) { status = JSON.parse(e.data).text; paint(); });
-    es.addEventListener("netcheck", function (e) { netcheck = JSON.parse(e.data).text; paint(); });
-    es.addEventListener("state", function (e) {
-      state = JSON.parse(e.data);
-      paintPanels();
-      /* This is the only thing that notices a change nobody clicked — a
+    feed.on("status", function (d) { status = d.text; paint(); });
+    feed.on("netcheck", function (d) { netcheck = d.text; paint(); });
+    feed.on("state", function (d) {
+      /* The panels only. The board is on the same wire and hears this frame
+         itself — hud/driver.js is what listens, and the held-frame rule that
+         used to be written out here is its.
+
+         This is still the only thing that notices a change nobody clicked: a
          container stopping, `make weak` from another terminal, a session
-         flipping from relay to direct. But a held set-piece frame is the
-         answer to a question somebody asked, so a poll arriving afterwards
-         waits rather than wiping it. */
-      if (board && !board.holding) board.setState(state);
+         flipping from relay to direct. */
+      state = d;
+      paintPanels();
     });
-    es.onerror = function () { /* EventSource reconnects on its own */ };
   }
+
+  /* ---- recording the wire -----------------------------------------
+     One button, two states, and no way to end up with a recording you cannot
+     get at: pressing stop writes the file there and then. An arm-and-save
+     pair would be tidier and it would also be the version where somebody
+     records a three-minute attack, presses stop, reloads, and has nothing.
+
+     Nothing here touches the lab. The recorder listens to the same fan-out
+     every widget listens to, so a recording is what this page saw — which is
+     why the capture toggles matter to it and why the button says how many
+     frames it has rather than how long it has been going. */
+  var recorder = null;
+  var recTimer = null;
+
+  function paintRecord() {
+    var b = $("#rec-btn");
+    if (!b) return;
+    if (!recorder) {
+      b.textContent = "record";
+      b.classList.remove("on");
+      b.setAttribute("aria-pressed", "false");
+      b.title = "Write every frame on the wire to a .jsonl file you can post";
+      return;
+    }
+    var n = recorder.count();
+    b.textContent = "stop · " + n + (n === 1 ? " frame" : " frames") +
+      (recorder.full() ? " · full" : "");
+    b.classList.add("on");
+    b.setAttribute("aria-pressed", "true");
+    b.title = recorder.full()
+      ? "The cap was reached, so frames are being dropped. Stop and save."
+      : "Stop, and save what has been recorded";
+  }
+
+  function startRecording() {
+    if (recorder) return;
+    if (!feed || !window.LabReplay) {
+      verdict("bad", "recording needs feed.js and replay.js, and one of them did not load.");
+      return;
+    }
+    recorder = window.LabReplay.createRecorder(feed);
+    recTimer = setInterval(paintRecord, 500);
+    paintRecord();
+    verdict("", "Recording the wire. Everything this page is told is going into the file — " +
+      "run the attack you want people to watch, then press stop.");
+  }
+
+  function stopRecording() {
+    if (!recorder) return;
+    var rec = recorder;
+    clearInterval(recTimer);
+    recTimer = null;
+    recorder = null;
+    rec.stop();
+    paintRecord();
+
+    var n = rec.count();
+    if (!rec.download()) {
+      verdict("warn", "Nothing was on the wire, so there is nothing to save.");
+      return;
+    }
+    verdict("ok", n + " frames saved. Open it in the player — replay.html — and it draws " +
+      "with no containers running at all." + (rec.full()
+        ? " The cap was reached, so the end of the session is not in the file."
+        : ""));
+  }
+
+  paintRecord();
 
   /* ---- wiring ------------------------------------------------------ */
   function setPath(path, value) {
@@ -860,28 +1100,15 @@
       state = s;
       paintPanels();
       /* Every gate on the board renders the configuration continuously, so a
-         switch has to move the picture without anything being probed. */
-      if (board) board.setState(state);
-    });
-  }
+         switch has to move the picture without anything being probed — and
+         without waiting up to three seconds for the poll to notice, which is
+         the only reason this page reads the lab back at all rather than
+         leaving the board entirely to the wire.
 
-  /* Every action that produces a Result ends here, so the board can never be
-     left blank or holding the previous action's frame under a new verdict.
-     Reads the lab back first, then plays the shot: the other order repaints
-     the board from the configuration a moment after the set-piece has drawn
-     what it measured, and the measurement loses. */
-  function playResult(id, res) {
-    return refresh().then(function () {
-      if (!boardOn()) return;
-      var ran = window.LabHUD.run(board, id, res, hudCtx());
-      if (ran) return;
-      /* No set-piece for this one yet. The board must still stop showing the
-         last one's held frame — an unnamed action sitting under the previous
-         action's verdict is worse than no picture. Ride it if it named two
-         machines; otherwise just report it. */
-      if (res.from && res.to) board.probe(res, true);
-      else board.report(res, true);
-      showTab("packets");
+         Handed to the driver rather than to the board, because a snapshot
+         that lands under a held set-piece frame has to wait, and that rule
+         belongs in one place. */
+      if (driver) driver.state(state);
     });
   }
 
@@ -896,26 +1123,28 @@
         parseInt(n.value, 10));
       return;
     }
+    /* The two toggles that cost a process inside a container. Asking the feed
+       for the source is what makes the server start it; the listeners stay
+       attached either way, because a listener is a callback and the pane is
+       hidden when the toggle is off. */
     if (n.id === "cap-on") {
       var out = $("#cap-out");
       out.hidden = !n.checked;
-      if (!n.checked) { stopStream("cap"); return; }
+      if (!n.checked) { releaseSource("cap"); return; }
       out.textContent = "";
-      var es = new EventSource("/api/stream/tcpdump?machine=evil-box");
-      streams.cap = es;
-      es.addEventListener("packet", function (ev) { tailInto(out, JSON.parse(ev.data).line); });
-      es.addEventListener("note", function (ev) { tailInto(out, "# " + JSON.parse(ev.data).line); });
+      if (!feed) { tailInto(out, "# feed.js did not load, so there is nothing to listen with."); return; }
+      attachPane("cap", out, "packet", "capture", function () { return $("#cap-on").checked; });
+      release.cap = feed.want({ capture: "evil-box" });
       return;
     }
     if (n.id === "logs-on") {
       var lo = $("#logs-out");
       lo.hidden = !n.checked;
-      if (!n.checked) { stopStream("logs"); return; }
+      if (!n.checked) { releaseSource("logs"); return; }
       lo.textContent = "";
-      var ls = new EventSource("/api/stream/logs?machine=lab-ubuntu");
-      streams.logs = ls;
-      ls.addEventListener("log", function (ev) { tailInto(lo, JSON.parse(ev.data).line); });
-      ls.addEventListener("note", function (ev) { tailInto(lo, "# " + JSON.parse(ev.data).line); });
+      if (!feed) { tailInto(lo, "# feed.js did not load, so there is nothing to listen with."); return; }
+      attachPane("logs", lo, "log", "logs", function () { return $("#logs-on").checked; });
+      release.logs = feed.want({ logs: "lab-ubuntu" });
     }
   });
 
@@ -933,6 +1162,10 @@
     if (b.id === "hud-zoom-out") { if (board) board.zoomOut(); syncZoom(); return; }
     if (b.classList.contains("railtog")) { toggleRail(b.getAttribute("data-rail")); return; }
     if (b.id === "to-guide")   { showTab("guide"); return; }
+    /* Above the busy guard on purpose. Recording changes nothing about the
+       lab, and the recording somebody most wants is of the minute an attack
+       is running — which is exactly when every other button is disabled. */
+    if (b.id === "rec-btn")    { if (recorder) stopRecording(); else startRecording(); return; }
     if (b.classList.contains("tab"))  { showTab(b.getAttribute("data-tab")); return; }
     if (b.classList.contains("ctab")) { pickCTab(b.getAttribute("data-ctab")); return; }
 
@@ -965,7 +1198,7 @@
       var id = b.getAttribute("data-attack");
       var label = b.querySelector("b").textContent;
       working(true);
-      stopHudStream();
+      if (driver) driver.stop();
       if (!boardOn()) showTab("packets");
       verdict("", "Running it…");
       post("/api/action", { id: id }).then(function (res) {
@@ -974,7 +1207,12 @@
            and it is the record in the packets tab either way. */
         trace(res, label);
         verdict(res.danger ? "bad" : res.ok ? "ok" : "warn", res.why, res.rung);
-        return playResult(id, res);
+        /* No shot is played from here. The same Result went out on the wire
+           the moment the handler was done with it, and hud/driver.js draws it
+           from there — on this page and on the player, off one mapping. What
+           is left to do is read the lab back, because the configuration the
+           attack left behind is what the board stands on. */
+        return refresh();
       }).finally(function () { working(false); });
       return;
     }
@@ -989,7 +1227,7 @@
     switch (b.id) {
       case "probe-btn":
         working(true);
-        stopHudStream();
+        if (driver) driver.stop();
         if (!boardOn()) showTab("packets");
         verdict("", "Knocking, and watching the far end…");
         post("/api/probe", {
@@ -997,7 +1235,9 @@
         }).then(function (res) {
           trace(res);
           verdict(res.danger ? "warn" : res.ok ? "ok" : "bad", res.why, res.rung);
-          if (boardOn()) board.probe(res);
+          /* The ride is not started from here. A probe goes out on the wire
+             as a `flow`, and hud/driver.js is what turns one of those into a
+             packet crossing the board — the same line the player runs. */
         }).finally(function () { working(false); });
         break;
 
@@ -1012,7 +1252,7 @@
 
       case "reset-btn":
         working(true);
-        stopHudStream();
+        if (driver) driver.stop();
         if (board) board.clearScratch();
         post("/api/action", { id: "reset" }).then(function (res) {
           trace(res, "reset");
@@ -1023,20 +1263,20 @@
 
       case "outage-btn":
         working(true);
-        stopHudStream();
+        if (driver) driver.stop();
         if (!boardOn()) showTab("packets");
         verdict("", "Two sessions from lab-roam, then twenty seconds with no link. " +
           "This one takes about a minute, and it is worth watching.");
         post("/api/action", { id: "outage" }).then(function (res) {
           trace(res, "ssh and mosh, through a 20-second outage");
           verdict(res.ok ? "ok" : "warn", res.why, res.rung);
-          return playResult("outage", res);
+          return refresh();
         }).finally(function () { working(false); });
         break;
 
       case "rotate-btn":
         working(true);
-        stopHudStream();
+        if (driver) driver.stop();
         if (!boardOn()) showTab("packets");
         /* It opens a session over the tailnet first when there is one to open,
            rotates underneath it, and then waits to see whether it kept
@@ -1047,7 +1287,7 @@
         post("/api/action", { id: "rotate-key" }).then(function (res) {
           trace(res, "rotate the key");
           verdict(res.ok ? "ok" : "bad", res.why, res.rung);
-          return playResult("rotate-key", res);
+          return refresh();
         }).finally(function () { working(false); });
         break;
 
@@ -1087,7 +1327,7 @@
     return refresh();
   }).then(function () {
     renderPanels();
-    openStatusStream();
+    openFeed();
     startBoard();
     /* First visit opens the documentation rather than a log of a lab that has
        not done anything yet. After that it is wherever you last were. */
