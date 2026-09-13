@@ -13,3 +13,7 @@
 
 # The control server binary, if you build it outside Docker
 lab/control/control
+
+# A recording from `make record`, under its default name. A file somebody
+# meant to keep gets a name of its own.
+lab/lab.jsonl

@@ -955,3 +955,172 @@ pre.out.live { max-height: 38vh; overflow-y: auto; }
 .hatch.is-warn b { color: var(--warn); }
 .hatch.is-bad  { background: var(--danger-soft); border-left-color: var(--danger); }
 .hatch.is-bad b { color: var(--danger); }
+
+/* ---------------------------------------------------------------------------
+   Record and replay
+
+   Two pages share this section. On the live page it is one button in the bar:
+   recording is reading, so it sits with the view controls rather than with
+   anything that changes the lab. On replay.html it is the transport, the
+   moment list and the mat that invites a file.
+
+   The transport is positioned from --rail-* like the docks are, and its own
+   height goes into --pad-* only — so the verdict and the gauges float above
+   it while the cards stay where the rails put them. Feeding a bar's height
+   back into the token that positions the bar is a layout that never settles,
+   which is the same trap the docks documented.
+   --------------------------------------------------------------------------- */
+/* A deck with one rail in it. `.deck` is `space-between`, which is right for
+   the live page's pair and puts a lone rail against the left edge — and then
+   every inset is measured from the wrong side, so the cards, the transport and
+   the verdict all end up in a column an inch wide over a board with the whole
+   window free beside it. The player has one rail, and it is on the right. */
+.deck-right { justify-content: flex-end; }
+
+.recbar { display: flex; align-items: center; gap: 8px; }
+
+.recbtn {
+  font: inherit; font-size: 12.5px; font-family: var(--mono);
+  padding: 4px 11px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--border-strong); background: none; color: var(--text-muted);
+}
+.recbtn:hover { border-color: var(--accent); color: var(--accent-text); }
+.recbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* Recording, it is the one live thing in the bar and says so in the colour
+   this page already uses for "something is happening to you". */
+.recbtn.on {
+  border-color: var(--danger); background: var(--danger-soft); color: var(--danger);
+  font-weight: 600;
+}
+.recbtn.on::before {
+  content: "\25CF"; margin-right: 6px;
+  animation: rec-pulse 1.6s ease-in-out infinite;
+}
+@keyframes rec-pulse { 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) {
+  .recbtn.on::before { animation: none; }
+}
+
+.recplay {
+  font-family: var(--mono); font-size: 12px; color: var(--text-muted);
+  text-decoration: none; border-bottom: 1px dotted var(--border-strong);
+}
+.recplay:hover { color: var(--accent-text); border-bottom-color: var(--accent); }
+
+/* ---- the transport ---- */
+.transport {
+  position: absolute; z-index: 26;
+  left: calc(var(--rail-l, 0px) + var(--hud-gap));
+  right: calc(var(--rail-r, 0px) + var(--hud-gap));
+  /* From --ladder-h and not --rail-b, which is the one thing in this rule
+     worth being careful about: this bar's own height is part of --rail-b, so
+     that the docks stop above it. Reading --rail-b here as well would be a bar
+     that moves up by its own height every time it is measured. */
+  bottom: calc(var(--ladder-h, 0px) + var(--hud-gap));
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; border-radius: var(--radius);
+}
+.transport[hidden] { display: none; }
+
+.tbtn {
+  font: inherit; font-size: 12.5px; font-family: var(--mono);
+  min-width: 58px; padding: 5px 10px; border-radius: 7px; cursor: pointer;
+  border: 1px solid var(--border-strong); background: none; color: var(--text);
+}
+.tbtn:hover { border-color: var(--accent); color: var(--accent-text); }
+.tbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* The scrubber is the whole width that is left, because the thing a reader
+   does most on this page is move about in the file. */
+.tscrub { flex: 1 1 auto; min-width: 80px; accent-color: var(--accent); }
+.tscrub:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.ttime { color: var(--text-muted); white-space: pre; }
+
+.trate { display: flex; align-items: center; gap: 6px; }
+.trate > span {
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--text-faint);
+}
+.trate select {
+  font: inherit; font-size: 12.5px; font-family: var(--mono);
+  padding: 4px 8px; border-radius: 7px;
+  border: 1px solid var(--border-strong); background: var(--bg-raised); color: var(--text);
+}
+
+/* ---- what is in the file ---- */
+.col-body .note { font-size: 13px; line-height: 1.55; color: var(--text-muted); margin: 0 0 10px; }
+.col-body .note code { font-family: var(--mono); font-size: 12px; }
+
+.facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px 10px; }
+.facts-k {
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--text-faint); align-self: baseline;
+}
+.facts-v { font-family: var(--mono); font-size: 12px; color: var(--text); overflow-wrap: anywhere; }
+.facts-v.is-bad { color: var(--danger); font-weight: 600; }
+
+/* ---- the moments ----
+   One button per Result the lab returned. They are the reason the recording
+   exists, so they are a list you can press rather than something to find by
+   dragging the scrubber and watching for the board to move. */
+.moment {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 1px 8px;
+  width: 100%; text-align: left; font: inherit; cursor: pointer;
+  margin-top: 6px; padding: 7px 9px; border-radius: 8px;
+  border: 1px solid var(--border); border-left-width: 3px;
+  background: var(--bg-sunken); color: var(--text);
+}
+.moment:hover { border-color: var(--accent); }
+.moment:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* Where the reader currently is. The list says that as well as where they
+   could go, because a scrubber alone does not answer "which one is this". */
+.moment.on { background: var(--bg-raised); border-color: var(--accent-text); }
+.moment.ok   { border-left-color: var(--ok); }
+.moment.warn { border-left-color: var(--warn); }
+.moment.bad  { border-left-color: var(--danger); }
+
+.moment .m-at { grid-row: 1 / span 2; color: var(--text-faint); align-self: start; }
+.moment .m-head { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.moment .m-kind { font-size: 10.5px; color: var(--text-faint); }
+.moment .m-why {
+  grid-column: 2; font-size: 12px; line-height: 1.5; color: var(--text-muted);
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ---- the mat ----
+   It covers the board while nothing is open. An empty board with a small note
+   under it reads as a page that failed; this reads as a page waiting. */
+.dropmat {
+  position: absolute; z-index: 28; inset: var(--bar-h) 0 0 0;
+  display: grid; place-items: center; padding: 20px;
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+}
+.dropmat[hidden] { display: none; }
+.dropcard {
+  max-width: 440px; padding: 20px 22px; border-radius: var(--radius);
+  text-align: center;
+}
+.dropcard b { display: block; font-size: 16px; margin-bottom: 8px; }
+.dropcard p { font-size: 13px; line-height: 1.6; color: var(--text-muted); margin: 0 0 14px; }
+.dropcard code { font-family: var(--mono); font-size: 12px; }
+.dropcard .btn { width: auto; }
+
+/* A file over the window. The mat comes back even when a recording is already
+   open, because the drop will replace it and saying so beforehand is cheaper
+   than surprising somebody who was aiming at another tab. */
+html.dragging-file .dropmat { display: grid; }
+html.dragging-file .dropcard { border-color: var(--accent); }
+
+@media (max-width: 1000px), (max-height: 620px) {
+  /* The bar is sticky here and the board is a band at the top, so a transport
+     floating over the window has nothing to float on. It becomes an ordinary
+     block under the drawing. */
+  .transport {
+    position: static; inset: auto; border-radius: 0;
+    border-width: 1px 0; box-shadow: none; backdrop-filter: none;
+    background: var(--bg-raised); flex-wrap: wrap;
+  }
+  .dropmat { position: static; inset: auto; background: none; padding: 16px; }
+}

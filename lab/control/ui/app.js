@@ -116,27 +116,10 @@
   var board = null, view = "board", boardBroken = false;
   var hudStream = null;
 
-  function hudRefs() {
-    return {
-      chip:        $("#hud-chip"),
-      access:      $("#hud-access"),
-      accessNote:  $("#hud-access-note"),
-      dotLaptop:   $("#hud-dot-laptop"),
-      dotPhone:    $("#hud-dot-phone"),
-      exposed:     $("#hud-exposed"),
-      exposedN:    $("#hud-exposed-n"),
-      exposedNote: $("#hud-exposed-note"),
-      posture:     $("#hud-posture"),
-      verdict:     $("#hud-verdict"),
-      vRung:       $("#hud-v-rung"),
-      vRule:       $("#hud-v-rule"),
-      vWhy:        $("#hud-v-why"),
-      nums:        $("#hud-nums"),
-      transcript:  $("#hud-transcript"),
-      live:        $("#hud-live"),
-      rungs: [1, 2, 3, 4, 5].map(function (n) { return $("#hud-rung-" + n); })
-    };
-  }
+  /* The overlay's elements come from hud/scene.js, which is what the board
+     needs them for — replay.html creates a board too, and the eighteen
+     lookups were the kind of list that ends up in two places with one of them
+     a readout short. */
 
   /* One watch at a time for the board, dropped the moment the next action
      starts. A set-piece that keeps reading after its shot has gone is a
@@ -209,7 +192,7 @@
   function startBoard() {
     if (board || boardBroken || !window.LabHUD) return;
     try {
-      board = window.LabHUD.createBoard($("#stage-gl"), hudRefs());
+      board = window.LabHUD.createBoard($("#stage-gl"), window.LabHUD.refs(document));
     } catch (e) {
       /* No WebGL, or a driver that will not play. Say so once, quietly, and
          leave the page exactly as it was. */
@@ -1015,6 +998,74 @@
     });
   }
 
+  /* ---- recording the wire -----------------------------------------
+     One button, two states, and no way to end up with a recording you cannot
+     get at: pressing stop writes the file there and then. An arm-and-save
+     pair would be tidier and it would also be the version where somebody
+     records a three-minute attack, presses stop, reloads, and has nothing.
+
+     Nothing here touches the lab. The recorder listens to the same fan-out
+     every widget listens to, so a recording is what this page saw — which is
+     why the capture toggles matter to it and why the button says how many
+     frames it has rather than how long it has been going. */
+  var recorder = null;
+  var recTimer = null;
+
+  function paintRecord() {
+    var b = $("#rec-btn");
+    if (!b) return;
+    if (!recorder) {
+      b.textContent = "record";
+      b.classList.remove("on");
+      b.setAttribute("aria-pressed", "false");
+      b.title = "Write every frame on the wire to a .jsonl file you can post";
+      return;
+    }
+    var n = recorder.count();
+    b.textContent = "stop · " + n + (n === 1 ? " frame" : " frames") +
+      (recorder.full() ? " · full" : "");
+    b.classList.add("on");
+    b.setAttribute("aria-pressed", "true");
+    b.title = recorder.full()
+      ? "The cap was reached, so frames are being dropped. Stop and save."
+      : "Stop, and save what has been recorded";
+  }
+
+  function startRecording() {
+    if (recorder) return;
+    if (!feed || !window.LabReplay) {
+      verdict("bad", "recording needs feed.js and replay.js, and one of them did not load.");
+      return;
+    }
+    recorder = window.LabReplay.createRecorder(feed);
+    recTimer = setInterval(paintRecord, 500);
+    paintRecord();
+    verdict("", "Recording the wire. Everything this page is told is going into the file — " +
+      "run the attack you want people to watch, then press stop.");
+  }
+
+  function stopRecording() {
+    if (!recorder) return;
+    var rec = recorder;
+    clearInterval(recTimer);
+    recTimer = null;
+    recorder = null;
+    rec.stop();
+    paintRecord();
+
+    var n = rec.count();
+    if (!rec.download()) {
+      verdict("warn", "Nothing was on the wire, so there is nothing to save.");
+      return;
+    }
+    verdict("ok", n + " frames saved. Open it in the player — replay.html — and it draws " +
+      "with no containers running at all." + (rec.full()
+        ? " The cap was reached, so the end of the session is not in the file."
+        : ""));
+  }
+
+  paintRecord();
+
   /* ---- wiring ------------------------------------------------------ */
   function setPath(path, value) {
     working(true);
@@ -1105,6 +1156,10 @@
     if (b.id === "hud-zoom-out") { if (board) board.zoomOut(); syncZoom(); return; }
     if (b.classList.contains("railtog")) { toggleRail(b.getAttribute("data-rail")); return; }
     if (b.id === "to-guide")   { showTab("guide"); return; }
+    /* Above the busy guard on purpose. Recording changes nothing about the
+       lab, and the recording somebody most wants is of the minute an attack
+       is running — which is exactly when every other button is disabled. */
+    if (b.id === "rec-btn")    { if (recorder) stopRecording(); else startRecording(); return; }
     if (b.classList.contains("tab"))  { showTab(b.getAttribute("data-tab")); return; }
     if (b.classList.contains("ctab")) { pickCTab(b.getAttribute("data-ctab")); return; }
 

@@ -44,15 +44,19 @@
 (function () {
   "use strict";
 
-  /* The names this build knows to listen for before the server has said.
-     The server's own list arrives in `hello` and is used from the next
-     connection onwards, so a server that grows a type is picked up without
-     this list being edited — but the first connection has to guess, and
-     guessing the list it shipped with is the only honest guess available. */
-  var KNOWN_TYPES = [
-    "hello", "state", "status", "netcheck", "stat",
-    "verdict", "flow", "packet", "log", "note"
-  ];
+  /* The names this build knows to listen for before the server has said, and
+     which of them are snapshots rather than moments. Both lists live in
+     wire.js, which replay.js reads as well — see the header there for why
+     there is exactly one copy of each.
+
+     A hard failure rather than a fallback: an empty type list is a connection
+     that receives nothing at all, and a page that draws nothing for a reason
+     it will not say is the worst version of this. wire.js is our own file, one
+     <script> above this one. */
+  var WIRE = window.LabWire;
+  if (!WIRE) throw new Error("feed.js needs wire.js, loaded before it");
+  var KNOWN_TYPES = WIRE.TYPES;
+  var LATCHING = WIRE.LATCHING;
 
   function createFeed(path) {
     var url = path || "/api/stream/hud";
@@ -71,6 +75,13 @@
       opened: 0,
       errors: 0
     };
+
+    /* The most recent whole envelope of each latching type, by type. Kept
+       because a recording is a file of envelopes and a recorder attached
+       halfway through has to be able to write the ones it missed — see
+       latest() at the bottom of this file. Bounded by construction: five
+       types, one object each, overwritten. */
+    var latched = {};
 
     /* ---- listeners --------------------------------------------------
        Kept per type rather than as one list with a filter, because the
@@ -181,6 +192,7 @@
 
         if (typeof ev.seq === "number") last.seq = ev.seq;
         if (ev.type === "hello") last.hello = ev.data || null;
+        if (WIRE.isLatching(ev.type)) latched[ev.type] = ev;
 
         fanOut(ev.type || type, ev);
         fanOut("*", ev);
@@ -238,6 +250,29 @@
       };
     }
 
+    /* The snapshots this connection has already seen, as whole envelopes, in
+       LATCHING order. Only the ones that have actually arrived.
+
+       This is what makes recording a session you are already in the middle of
+       worth doing. Pressing record opens no connection and asks the server for
+       nothing — there is nothing to ask, the state and the status are already
+       here — so the recording opens with the board the reader is looking at
+       rather than with three seconds of an empty one.
+
+       Envelopes, not payloads, and not copies of them. A recording is a file
+       of exactly these objects, so anything that reshaped them here would be a
+       second format that only recordings use. Nothing mutates an event after
+       fanning it out, so handing the same object back is safe and the
+       alternative — a deep copy per press — buys nothing. */
+    function latest() {
+      var out = [];
+      for (var i = 0; i < LATCHING.length; i++) {
+        var ev = latched[LATCHING[i]];
+        if (ev) out.push(ev);
+      }
+      return out;
+    }
+
     connect();
 
     return {
@@ -245,6 +280,7 @@
       off: off,
       want: want,
       status: status,
+      latest: latest,
       /* For a page being torn down, and for a test. A closed feed reopens on
          the next want(). */
       close: drop,

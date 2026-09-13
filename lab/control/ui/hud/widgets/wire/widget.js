@@ -62,8 +62,17 @@ export function create(host) {
   function draw() {
     const s = feed.status();
 
-    cell.link.textContent = s.open ? "open" : "closed — retrying";
-    cell.link.className = "wire-v " + (s.open ? "is-ok" : "is-bad");
+    /* A recording has nothing to be disconnected from, and saying "open"
+       about one is this card answering a question nobody asked. It reports
+       what it is watching instead — which on a player is the thing a reader
+       most needs to be reminded of, because the board looks identical. */
+    if (s.replay) {
+      cell.link.textContent = s.playing ? "a recording · playing" : "a recording · paused";
+      cell.link.className = "wire-v";
+    } else {
+      cell.link.textContent = s.open ? "open" : "closed — retrying";
+      cell.link.className = "wire-v " + (s.open ? "is-ok" : "is-bad");
+    }
 
     cell.seq.textContent = String(s.seq || 0);
     cell.seen.textContent = String(seen);
