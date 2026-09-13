@@ -391,6 +391,24 @@
     root.setProperty("--pad-t", Math.round(covered.top) + "px");
     /* The floating panels clear the ladder; the camera, above, does not. */
     root.setProperty("--pad-b", Math.round(padBottom) + "px");
+    /* The bottom edge is the only one that needs saying twice. --pad-l, -r
+       and -t are the same number against either rectangle, because the
+       viewport starts at the top-left corner of the window and the rails are
+       drawn over it. The bottom is where the two part company, and which one
+       a rule wants depends on what it is positioned inside:
+
+         --pad-b         against the window. The page verdict and anything
+                         else that sits in .app, which the ladder is in.
+         --pad-b-canvas  against the board. The HUD overlay is laid out
+                         inside .viewport, whose bottom edge is already above
+                         the ladder — so clearing the ladder a second time
+                         lifts the verdict a whole ladder higher than the card
+                         it only had to clear by a gap.
+
+       Same number the camera is handed, for the same reason: it is what
+       covers the board rather than what is occupied at the foot of the
+       window. */
+    root.setProperty("--pad-b-canvas", Math.round(covered.bottom) + "px");
     if (board && board.setViewInset) board.setViewInset(covered);
   }
 

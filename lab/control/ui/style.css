@@ -613,6 +613,16 @@ pre.out.live { max-height: 38vh; overflow-y: auto; }
   position: absolute; inset: 0; pointer-events: none;
   padding: 12px calc(var(--pad-r, 0px) + 12px) 12px calc(var(--pad-l, 0px) + 12px);
   padding-top: calc(var(--pad-t, 0px) + 12px);
+  /* The fourth side, and it reads a different token from the other three.
+     Those are the same number against the window or against the board; this
+     one is not, because the rung ladder is below the viewport rather than
+     over it. --pad-b clears the ladder — right for .verdict, which is in
+     .app — and this box is inside .viewport, whose bottom edge is already
+     above the ladder. --pad-b-canvas is the number measured there, so the
+     verdict and the transcript stop on top of a bottom-docked card rather
+     than under it, and without a whole ladder of dead air when nothing is
+     docked at all. */
+  padding-bottom: calc(var(--pad-b-canvas, 0px) + 12px);
   display: grid; grid-template-rows: auto 1fr auto; gap: 8px;
   transition: padding .18s ease;
 }
