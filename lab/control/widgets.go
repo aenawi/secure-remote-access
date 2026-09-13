@@ -30,13 +30,17 @@ import (
 // theme can rearrange the instrument without touching index.html.
 //
 // The board is not in this list. It is the floor of the window rather than a
-// card in a dock, app.js creates it and drives it by hand, and the slot it
-// sits in is host-owned — the layer knows its rectangle so cards stay off it,
-// and that is all. Making the board a widget under the same contract as these
-// means the board reading the feed instead of being called, which is the next
-// piece of work and not this one. A privileged contract that handed a widget
-// the twenty-five method board object would freeze hud/scene.js in place, so
-// there is no such contract here.
+// card in a dock, and the slot it sits in is host-owned — the layer knows its
+// rectangle so cards stay off it, and that is all.
+//
+// It is no longer driven by hand, though. ui/hud/driver.js subscribes to the
+// same feed a widget subscribes to and turns state, verdict, flow and packet
+// into a drawing, so the board reads the wire under the same rules as
+// everything in this registry. What keeps it out of the registry is only that
+// it is the floor: a card gets a div in a dock, and the board gets the
+// window. A privileged contract that handed a widget the twenty-five method
+// board object would freeze hud/scene.js in place, so there is no such
+// contract here either.
 // ---------------------------------------------------------------------------
 
 // Widget is one entry in the registry, as /api/widgets serves it.

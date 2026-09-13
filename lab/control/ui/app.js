@@ -114,44 +114,30 @@
      Everything below works whether or not that ever happens: no board means
      the flat drawing and the packets tab, which is what this page was. */
   var board = null, view = "board", boardBroken = false;
-  var hudStream = null;
+
+  /* What turns a frame on the wire into a drawing. hud/driver.js owns that
+     mapping and owns it for both pages: this one and replay.html made it
+     separately against the same wire until they did not have to.
+
+     So nothing below plays a shot, and nothing below calls setState except
+     through driver.state() — which is the same door the wire's snapshots come
+     in by, and the reason the held-frame rule only has to be written once.
+     What is left here is what is genuinely about this page: the POSTs, the
+     text trace, the tabs and the rails. */
+  var driver = null;
 
   /* The overlay's elements come from hud/scene.js, which is what the board
      needs them for — replay.html creates a board too, and the eighteen
      lookups were the kind of list that ends up in two places with one of them
      a readout short. */
 
-  /* One watch at a time for the board, dropped the moment the next action
-     starts. A set-piece that keeps reading after its shot has gone is a
-     set-piece drawing frames that belong to something else.
-
-     A set-piece used to be handed a URL and left to open it. Now it says what
-     it wants to watch and the feed works out whether anything has to be started
-     for it: two things wanting the capture is one capture, and the shot ending
-     while the packets pane is still on takes nothing away from the pane. That
-     bookkeeping does not belong in a file about drawing. */
-  function hudCtx() {
-    return {
-      watch: function (sources, type, onEvent) {
-        stopHudStream();
-        if (!feed) return function () {};
-        var offEvent = feed.on(type, onEvent);
-        var releaseWant = feed.want(sources);
-        var mine = { off: offEvent, release: releaseWant };
-        hudStream = mine;
-        return function () { if (hudStream === mine) stopHudStream(); };
-      }
-    };
-  }
-  function stopHudStream() {
-    if (!hudStream) return;
-    var gone = hudStream;
-    hudStream = null;
-    gone.off();
-    gone.release();
-  }
-
   function boardOn() { return !!board && view === "board"; }
+
+  /* A set-piece drew, or there was none and the fallback drew instead. The
+     board is the driver's business either way; the tab is this page's. */
+  function onShot(shot) {
+    if (!shot.played) showTab("packets");
+  }
 
   /* The board needs the grants before it can cut a cell per grant, and the
      list of actions before it can say which ids have no set-piece. Whichever
@@ -186,7 +172,7 @@
     $("#view-flat").setAttribute("aria-pressed", String(!on));
     $("#view-board").disabled = boardBroken;
     try { localStorage.setItem("lab-view", view); } catch (e) {}
-    if (on) { board.resize(); if (state) board.setState(state); }
+    if (on) { board.resize(); if (driver) driver.state(state); }
   }
 
   function startBoard() {
@@ -204,8 +190,22 @@
       startThemes();
       return;
     }
+    /* window.LabFeed rather than `feed`, which is read off window further
+       down this file: startBoard() runs above that line on the ready event,
+       and handing the driver `feed` from here would hand it undefined. The
+       same ordering slots.init() documents above.
+
+       A page whose feed.js did not load still gets a driver, and the board
+       still draws the configuration — refresh() hands it every snapshot it
+       reads back. What it loses is the shots, which arrive on the wire. */
+    driver = window.LabHUD.driver.create({
+      board: board,
+      feed: window.LabFeed || null,
+      active: boardOn,
+      onShot: onShot
+    });
     if (meta) applyMeta();
-    if (state) board.setState(state);
+    if (state) driver.state(state);
     var saved = null;
     try { saved = localStorage.getItem("lab-view"); } catch (e) {}
     setView(saved === "flat" ? "flat" : "board");
@@ -1005,14 +1005,15 @@
     feed.on("status", function (d) { status = d.text; paint(); });
     feed.on("netcheck", function (d) { netcheck = d.text; paint(); });
     feed.on("state", function (d) {
+      /* The panels only. The board is on the same wire and hears this frame
+         itself — hud/driver.js is what listens, and the held-frame rule that
+         used to be written out here is its.
+
+         This is still the only thing that notices a change nobody clicked: a
+         container stopping, `make weak` from another terminal, a session
+         flipping from relay to direct. */
       state = d;
       paintPanels();
-      /* This is the only thing that notices a change nobody clicked — a
-         container stopping, `make weak` from another terminal, a session
-         flipping from relay to direct. But a held set-piece frame is the
-         answer to a question somebody asked, so a poll arriving afterwards
-         waits rather than wiping it. */
-      if (board && !board.holding) board.setState(state);
     });
   }
 
@@ -1099,28 +1100,15 @@
       state = s;
       paintPanels();
       /* Every gate on the board renders the configuration continuously, so a
-         switch has to move the picture without anything being probed. */
-      if (board) board.setState(state);
-    });
-  }
+         switch has to move the picture without anything being probed — and
+         without waiting up to three seconds for the poll to notice, which is
+         the only reason this page reads the lab back at all rather than
+         leaving the board entirely to the wire.
 
-  /* Every action that produces a Result ends here, so the board can never be
-     left blank or holding the previous action's frame under a new verdict.
-     Reads the lab back first, then plays the shot: the other order repaints
-     the board from the configuration a moment after the set-piece has drawn
-     what it measured, and the measurement loses. */
-  function playResult(id, res) {
-    return refresh().then(function () {
-      if (!boardOn()) return;
-      var ran = window.LabHUD.run(board, id, res, hudCtx());
-      if (ran) return;
-      /* No set-piece for this one yet. The board must still stop showing the
-         last one's held frame — an unnamed action sitting under the previous
-         action's verdict is worse than no picture. Ride it if it named two
-         machines; otherwise just report it. */
-      if (res.from && res.to) board.probe(res, true);
-      else board.report(res, true);
-      showTab("packets");
+         Handed to the driver rather than to the board, because a snapshot
+         that lands under a held set-piece frame has to wait, and that rule
+         belongs in one place. */
+      if (driver) driver.state(state);
     });
   }
 
@@ -1210,7 +1198,7 @@
       var id = b.getAttribute("data-attack");
       var label = b.querySelector("b").textContent;
       working(true);
-      stopHudStream();
+      if (driver) driver.stop();
       if (!boardOn()) showTab("packets");
       verdict("", "Running it…");
       post("/api/action", { id: id }).then(function (res) {
@@ -1219,7 +1207,12 @@
            and it is the record in the packets tab either way. */
         trace(res, label);
         verdict(res.danger ? "bad" : res.ok ? "ok" : "warn", res.why, res.rung);
-        return playResult(id, res);
+        /* No shot is played from here. The same Result went out on the wire
+           the moment the handler was done with it, and hud/driver.js draws it
+           from there — on this page and on the player, off one mapping. What
+           is left to do is read the lab back, because the configuration the
+           attack left behind is what the board stands on. */
+        return refresh();
       }).finally(function () { working(false); });
       return;
     }
@@ -1234,7 +1227,7 @@
     switch (b.id) {
       case "probe-btn":
         working(true);
-        stopHudStream();
+        if (driver) driver.stop();
         if (!boardOn()) showTab("packets");
         verdict("", "Knocking, and watching the far end…");
         post("/api/probe", {
@@ -1242,7 +1235,9 @@
         }).then(function (res) {
           trace(res);
           verdict(res.danger ? "warn" : res.ok ? "ok" : "bad", res.why, res.rung);
-          if (boardOn()) board.probe(res);
+          /* The ride is not started from here. A probe goes out on the wire
+             as a `flow`, and hud/driver.js is what turns one of those into a
+             packet crossing the board — the same line the player runs. */
         }).finally(function () { working(false); });
         break;
 
@@ -1257,7 +1252,7 @@
 
       case "reset-btn":
         working(true);
-        stopHudStream();
+        if (driver) driver.stop();
         if (board) board.clearScratch();
         post("/api/action", { id: "reset" }).then(function (res) {
           trace(res, "reset");
@@ -1268,20 +1263,20 @@
 
       case "outage-btn":
         working(true);
-        stopHudStream();
+        if (driver) driver.stop();
         if (!boardOn()) showTab("packets");
         verdict("", "Two sessions from lab-roam, then twenty seconds with no link. " +
           "This one takes about a minute, and it is worth watching.");
         post("/api/action", { id: "outage" }).then(function (res) {
           trace(res, "ssh and mosh, through a 20-second outage");
           verdict(res.ok ? "ok" : "warn", res.why, res.rung);
-          return playResult("outage", res);
+          return refresh();
         }).finally(function () { working(false); });
         break;
 
       case "rotate-btn":
         working(true);
-        stopHudStream();
+        if (driver) driver.stop();
         if (!boardOn()) showTab("packets");
         /* It opens a session over the tailnet first when there is one to open,
            rotates underneath it, and then waits to see whether it kept
@@ -1292,7 +1287,7 @@
         post("/api/action", { id: "rotate-key" }).then(function (res) {
           trace(res, "rotate the key");
           verdict(res.ok ? "ok" : "bad", res.why, res.rung);
-          return playResult("rotate-key", res);
+          return refresh();
         }).finally(function () { working(false); });
         break;
 

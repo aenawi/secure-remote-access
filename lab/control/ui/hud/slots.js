@@ -31,8 +31,12 @@
    the feed, which is what the feed is for.
 
    The board is not a card and does not live here. It is the floor of the
-   window — app.js creates it, drives it, and tells it how much of itself the
-   furniture is covering. This file's part in that is covered(): the docks
+   window — the page creates it and tells it how much of itself the furniture
+   is covering, and hud/driver.js reads the same feed a widget reads and draws
+   it. That is as close to this contract as the board gets, and it is close
+   enough that a page no longer plays a shot by hand.
+
+   This file's part in the rest of it is covered(): the docks
    report what they hide, app.js adds it to what the rails hide, and the
    camera aims at the gap that is left. It reports to the camera and not to
    the stylesheet on purpose: the docks are positioned from --pad-*, so
