@@ -218,6 +218,11 @@
     root.setProperty("--pad-r", Math.round(covered.right) + "px");
     root.setProperty("--pad-t", Math.round(covered.top) + "px");
     root.setProperty("--pad-b", Math.round(padBottom) + "px");
+    /* The camera's answer, published, because the HUD overlay is laid out
+       inside the viewport and so wants the same one: what covers the *board*
+       — here the transport and whatever the docks hide — and not the ladder
+       below it. Why only this edge needs a second token is in app.js. */
+    root.setProperty("--pad-b-canvas", Math.round(covered.bottom) + "px");
     if (board && board.setViewInset) board.setViewInset(covered);
   }
 
