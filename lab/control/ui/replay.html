@@ -1,0 +1,214 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later
+     Copyright (C) 2026 Hashem Aldhaheri -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A recording — the lab</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- The player.
+
+     This page is the reason the lab was put on one wire. It reads a `.jsonl`
+     recording of that wire and draws it on the same board, with the same
+     set-pieces and the same cards a theme docked — and it asks no server
+     anything at all. No containers, no Docker, no lab. A captured attack is a
+     file somebody can post, and this is what opens it.
+
+     It is a viewer and it is deliberately not a control surface. There are no
+     switches, no presets, no probe and no attack buttons, because a recording
+     has nothing to press them against: what happened, happened, and a page
+     offering to change it would be a page lying about what it is. What is here
+     instead is a transport — play, scrub, and a list of the moments worth
+     jumping to — and everything that was ever a readout, which on a recording
+     is all of it.
+
+     The markup is the board's requirement rather than a copy of index.html.
+     `hud/scene.js` exports HUD_IDS and refs() and a check in
+     lab/checks/replay.test.mjs asserts every one of those ids is in this file
+     and in index.html, so a readout added to the board cannot quietly go
+     missing from one of the two pages.
+
+     It needs an HTTP origin and not a lab: `<script type="module">` is blocked
+     on the `file:` scheme, so double-clicking this will not work. Anything
+     that serves a directory does —
+
+         cd lab/control/ui && python3 -m http.server 8000
+
+     — and the control server serves it too, at /replay.html, for whoever
+     happens to have the lab up. -->
+<div class="app">
+
+  <header class="topbar glass">
+    <div class="brand">
+      <b>A recording</b><span id="rec-what">nothing open</span>
+    </div>
+
+    <button type="button" class="warnchip" id="pick-btn">
+      open a recording — a .jsonl file, or drop one anywhere on this page
+    </button>
+    <input type="file" id="pick" accept=".jsonl,.ndjson,.json,.txt,.log" hidden>
+
+    <div class="topbar-gap"></div>
+
+    <a class="recplay" href="index.html">the live lab</a>
+
+    <label class="hudtheme" for="hud-theme">
+      <span>board</span>
+      <select id="hud-theme">
+        <option value="chapter">Chapter</option>
+      </select>
+    </label>
+    <button type="button" class="themebtn" id="theme">theme</button>
+  </header>
+
+  <div class="stagewrap" id="stagewrap">
+    <div class="stage3d" id="stage3d">
+      <div class="viewport">
+        <canvas id="stage-gl" aria-hidden="true"></canvas>
+        <div class="hud-overlay">
+          <div class="hud-top">
+            <span class="hud-chip" id="hud-chip">nothing is open yet</span>
+            <div class="hud-gauges">
+              <div class="hud-gauge good" id="hud-access">
+                <div class="k">Your way in</div>
+                <div class="v"><span class="hud-dot" id="hud-dot-laptop"></span><span class="hud-dot" id="hud-dot-phone"></span></div>
+                <div class="n" id="hud-access-note">no recording open</div>
+              </div>
+              <div class="hud-gauge" id="hud-exposed">
+                <div class="k">Open to strangers</div>
+                <div class="v" id="hud-exposed-n">0</div>
+                <div class="n" id="hud-exposed-note">no recording open</div>
+              </div>
+              <div class="hud-posture" id="hud-posture">…</div>
+            </div>
+          </div>
+          <div></div>
+          <div class="hud-bottom">
+            <div class="hud-verdict" id="hud-verdict" hidden>
+              <div class="r" id="hud-v-rung"></div>
+              <div class="rule" id="hud-v-rule"></div>
+              <div class="why" id="hud-v-why"></div>
+            </div>
+            <div id="hud-nums"></div>
+            <div id="hud-transcript"></div>
+          </div>
+        </div>
+        <div class="viewpad glass" role="group" aria-label="View">
+          <button type="button" id="hud-zoom-out" aria-label="Zoom out">&minus;</button>
+          <button type="button" id="hud-zoom-in" aria-label="Zoom in">+</button>
+          <span class="sep" aria-hidden="true"></span>
+          <button type="button" class="homebtn" id="hud-home">reset view (h)</button>
+        </div>
+      </div>
+
+      <div class="hud-ladder glass" role="list">
+        <div class="hud-rung" id="hud-rung-1" role="listitem"><div class="n">RUNG 1</div><div class="t">is anything alive</div></div>
+        <div class="hud-rung" id="hud-rung-2" role="listitem"><div class="n">RUNG 2</div><div class="t">is there a path</div></div>
+        <div class="hud-rung" id="hud-rung-3" role="listitem"><div class="n">RUNG 3</div><div class="t">did the tailnet allow it</div></div>
+        <div class="hud-rung" id="hud-rung-4" role="listitem"><div class="n">RUNG 4</div><div class="t">did the firewall allow it</div></div>
+        <div class="hud-rung" id="hud-rung-5" role="listitem"><div class="n">RUNG 5</div><div class="t">was anything listening</div></div>
+      </div>
+      <p class="sr-only" id="hud-live" role="status" aria-live="polite"></p>
+    </div>
+  </div>
+
+  <div class="verdict glass" id="verdict">Open a recording, and it plays here.</div>
+
+  <!-- One rail, on the right, because everything on this page is a readout.
+       The facts about the file come first — what was captured, and whether the
+       server dropped anything while it was being made, which is the one number
+       that says whether to trust the rest — and then the moments: every Result
+       the lab returned, in order, each one a place to jump to. -->
+  <!-- `deck-right` and not a bare `deck`: the deck is `space-between`, which
+       puts its only child on the left. The live page has two rails so it never
+       noticed, and this page's one rail landed against the left edge with
+       every inset measured from the wrong side — the cards, the transport and
+       the verdict all squeezed into a column an inch wide. -->
+  <div class="deck deck-right">
+    <section class="col glass" id="rail-right" aria-label="What is in this recording">
+      <div class="col-head">
+        <div class="ctabs"><span class="ctab on" aria-hidden="true">the recording</span></div>
+        <button type="button" class="railtog" data-rail="rail-right"
+                aria-expanded="true" aria-controls="rail-right"
+                aria-label="Fold the recording rail">&#10095;</button>
+      </div>
+      <div class="col-body">
+        <div class="recfacts" id="recfacts">
+          <p class="note">Nothing is open. Drop a <code>.jsonl</code> recording anywhere on
+          this page, or press the button in the bar.</p>
+          <p class="note">Make one from the live lab with the <b>record</b> button, or from a
+          shell with <code>make -C lab record</code>.</p>
+        </div>
+        <div class="moments" id="moments"></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- The transport. Hidden until there is something to play, because a
+       scrubber with nothing behind it is a control that looks live and is not.
+
+       It is positioned from --rail-* like the docks are, and its own height
+       goes into --pad-b, so the verdict and the gauges move above it without
+       anything in the stylesheet being told that this page has a transport. -->
+  <div class="transport glass" id="transport" role="group" aria-label="Playback" hidden>
+    <button type="button" class="tbtn" id="t-play" aria-label="Play">play</button>
+    <button type="button" class="tbtn" id="t-prev" aria-label="The moment before this one">&#9664;&#9475;</button>
+    <button type="button" class="tbtn" id="t-next" aria-label="The next moment">&#9475;&#9654;</button>
+    <input type="range" class="tscrub" id="t-scrub" min="0" max="1000" value="0" step="1"
+           aria-label="Position in the recording">
+    <span class="ttime mono" id="t-time">0:00 / 0:00</span>
+    <label class="trate" for="t-rate">
+      <span>speed</span>
+      <select id="t-rate">
+        <option value="0.25">0.25&times;</option>
+        <option value="0.5">0.5&times;</option>
+        <option value="1" selected>1&times;</option>
+        <option value="2">2&times;</option>
+        <option value="4">4&times;</option>
+        <option value="10">10&times;</option>
+      </select>
+    </label>
+  </div>
+
+  <!-- Shown while nothing is open, and while a file is being dragged over the
+       page. It covers the board rather than sitting beside it: an empty board
+       with a small note under it reads as a broken page, and this reads as an
+       invitation. -->
+  <div class="dropmat" id="dropmat">
+    <div class="dropcard glass">
+      <b>Drop a recording here</b>
+      <p>One JSON object per line — the frames that went past on
+         <code>/api/stream/hud</code> while somebody was driving the lab. Nothing is
+         uploaded anywhere: the file is read in this tab.</p>
+      <button type="button" class="btn primary" id="pick-btn-2">Choose a file</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- wire.js before replay.js, same as on the live page: the two lists of what
+     the wire carries have one home and both files read it.
+
+     feed.js is deliberately absent. It opens an EventSource on its first line,
+     and this page has no server to open one against — a player retrying a
+     connection for ever in the background is a player burning a reader's
+     battery to no purpose. The player object replay.js hands back has the same
+     three calls, which is what lets the widgets and the set-pieces run here
+     without knowing which kind of feed they were given. -->
+<script src="wire.js"></script>
+<script src="replay.js"></script>
+<script type="module">
+  import { createBoard, refs, GEOM } from "./hud/scene.js";
+  import { SETPIECES, run, missing } from "./hud/setpieces.js";
+  import * as themes from "./hud/themes.js";
+  import * as slots from "./hud/slots.js";
+  window.LabHUD = { createBoard, refs, GEOM, SETPIECES, run, missing, themes, slots };
+  window.dispatchEvent(new Event("labhud-ready"));
+</script>
+<script src="replay-app.js"></script>
+</body>
+</html>

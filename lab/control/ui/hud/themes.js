@@ -71,6 +71,22 @@ export async function load() {
   return list();
 }
 
+/* Hand the store over rather than asking for it.
+ *
+ * The player page has no server to ask. A recording carries the store in its
+ * opening hello — see Page in lab/control/feed.go — precisely so that a
+ * captured attack can be watched with the cards the theme docked, and this is
+ * where that list goes in. Everything after it is identical: the stylesheets
+ * are still fetched by relative path, because the player is served from the
+ * same directory the live page is.
+ *
+ * Returns what was accepted, so a caller can see whether the recording
+ * carried anything at all. */
+export function seed(store) {
+  catalog = Array.isArray(store) ? store.slice() : [];
+  return list();
+}
+
 /* ---------- selecting one -------------------------------------- */
 
 /* Put a theme's stylesheet in the document, and resolve when the browser has
@@ -130,9 +146,16 @@ export async function apply(id, board) {
    which is what happens the first time somebody removes a folder.
 
    Returns the id that ended up applied, so a caller can set its picker from
-   the answer rather than from what it asked for. */
-export async function init(board) {
-  await load();
+   the answer rather than from what it asked for.
+
+   `store` is for the player page: hand it the list a recording carried and
+   nothing is fetched. The rest of this function is the part worth sharing —
+   remembering which theme the reader picked, and noticing when the saved id
+   names a theme that is not in front of it. Both pages want that and neither
+   should own a copy of it. */
+export async function init(board, store) {
+  if (store) seed(store);
+  else await load();
 
   let saved = null;
   try { saved = localStorage.getItem(STORE_KEY); } catch (e) { /* private mode */ }

@@ -93,6 +93,61 @@ const SOCKET_PORTS = [["22", 0.28], ["8080", -0.34]];
 export const GEOM = { POS, GX, ANY, Y_PUB, Y_MACH, Y_NET, Y_DERP, TN_Y, HOME_POS, HOME_AT };
 
 /* ============================================================
+   The overlay the board writes into
+
+   createBoard is handed a canvas and this: the elements floating over it that
+   carry the words. The ids are the board's requirement rather than any one
+   page's decoration, which is why the list lives here — two pages create
+   boards now, the live control surface and the player, and a second copy of
+   eighteen `querySelector` calls is one of them quietly losing a readout the
+   next time an id moves.
+
+   HUD_IDS is the same list as data, for a check that both pages still carry
+   the markup: lab/checks/replay.test.mjs reads it and looks for every id in
+   index.html and in replay.html. Without that, a player page missing
+   `hud-v-why` is a board that draws the whole shot and never says why.
+
+   Every element is optional at the point of use — scene.js guards each one —
+   because a page may legitimately have no ladder, and a missing element must
+   cost a sentence rather than the drawing.
+   ============================================================ */
+export const HUD_IDS = [
+  "hud-chip", "hud-access", "hud-access-note", "hud-dot-laptop", "hud-dot-phone",
+  "hud-exposed", "hud-exposed-n", "hud-exposed-note", "hud-posture",
+  "hud-verdict", "hud-v-rung", "hud-v-rule", "hud-v-why",
+  "hud-nums", "hud-transcript", "hud-live",
+  "hud-rung-1", "hud-rung-2", "hud-rung-3", "hud-rung-4", "hud-rung-5"
+];
+
+/* Find them. `root` is a document or any element, so a test — or a second
+   board in one page — can scope the lookup rather than reaching for ids. */
+export function refs(root) {
+  const r = root || document;
+  const one = (id) => r.getElementById
+    ? r.getElementById(id)
+    : r.querySelector("#" + id);
+  return {
+    chip:        one("hud-chip"),
+    access:      one("hud-access"),
+    accessNote:  one("hud-access-note"),
+    dotLaptop:   one("hud-dot-laptop"),
+    dotPhone:    one("hud-dot-phone"),
+    exposed:     one("hud-exposed"),
+    exposedN:    one("hud-exposed-n"),
+    exposedNote: one("hud-exposed-note"),
+    posture:     one("hud-posture"),
+    verdict:     one("hud-verdict"),
+    vRung:       one("hud-v-rung"),
+    vRule:       one("hud-v-rule"),
+    vWhy:        one("hud-v-why"),
+    nums:        one("hud-nums"),
+    transcript:  one("hud-transcript"),
+    live:        one("hud-live"),
+    rungs: [1, 2, 3, 4, 5].map((n) => one("hud-rung-" + n))
+  };
+}
+
+/* ============================================================
    createBoard
    ============================================================ */
 export function createBoard(canvas, hud) {

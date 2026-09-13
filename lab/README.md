@@ -1119,6 +1119,7 @@ make up         # build and start, then wait for the three machines to join
 make attack     # add evil-box — it never starts on its own
 make status     # tailscale status and netcheck, from the laptop
 make audit      # the eleven checks, scored, from the command line
+make record     # write the wire to lab.jsonl, to watch back in replay.html
 make check      # Go and JavaScript — the one target that runs with the lab down
 make ui         # just the JavaScript half: parse-check ui/, run the board rules
 make hooks      # install the pre-push hook that runs make check for you
@@ -1256,7 +1257,8 @@ lab/
 ├── checks/                the JavaScript half of `make check` — no npm, no packages
 │   ├── syntax.mjs         node --check over every file the browser loads
 │   ├── reading.test.mjs   the board rules, asserted without a browser
-│   └── setpieces.test.mjs that hud/ links, and that no action lost its shot
+│   ├── setpieces.test.mjs that hud/ links, and that no action lost its shot
+│   └── replay.test.mjs    that a recording plays back as the thing recorded
 ├── config/headscale/      coordination server configuration, commented
 ├── images/
 │   ├── node/              a lab machine: tailscaled, tailcat, sshd, ufw, mosh
@@ -1278,8 +1280,12 @@ lab/
     ├── *_test.go          fixtures captured from a live lab; no containers needed
     └── ui/                the same vocabulary as chapter 14
         ├── index.html     the shell: both drawings, the two tab strips, the guide
+        ├── wire.js        what the wire carries — the only copy of that list
         ├── feed.js        one EventSource, shared by everything that reads the lab
         ├── app.js         a classic script, the same shape as assets/sandbox.js
+        ├── replay.html    the player: a recording, with no lab behind it
+        ├── replay.js      both halves — record the wire, and play a file back
+        ├── replay-app.js  the player's page: a frame becomes a drawing here
         └── hud/
             ├── three.module.js  three.js r166, MIT, inside the binary
             ├── scene.js         the board: five gates, three planes, the packet
@@ -1326,7 +1332,7 @@ assume:
 
 | type | carries | when |
 |---|---|---|
-| `hello` | the type list, what was subscribed, the server's clock | once, at open |
+| `hello` | the type list, what was subscribed, the server's clock, and `page` | once, at open |
 | `state` | the whole `State` snapshot | when it changed |
 | `status` | `tailscale status`, as text | when it changed |
 | `netcheck` | `tailscale netcheck`, as text | when it changed |
@@ -1356,13 +1362,16 @@ well as returned. The board still draws from the reply, so the feed is not in
 the drawing path and cannot break it; what the feed adds is that something
 which *did not press the button* can see what the button did. Which is the
 whole reason it exists: a captured attack is a recording of this wire, and
-`data:` lines are `.jsonl` already.
+`data:` lines are `.jsonl` already. [Record and replay](#record-and-replay) is
+what that turned into.
 
-```bash
-# One attack, as a file. Play it back later with no Docker at all.
-curl -sN 'http://127.0.0.1:8099/api/stream/hud?capture=evil-box' \
-  | sed -n 's/^data: //p' > attack.jsonl
-```
+The opening `hello` also carries `page` — the payload `/api/meta` serves, the
+theme store and the widget registry, the three things the page is made of. That
+looks like duplication and is the opposite: it is what makes a recording
+complete. The thing that plays one back has no server to ask, so a file
+carrying only events could not say which machines to cut doorways for, which
+actions have a set-piece, or where the cards go. The first line has to be enough
+on its own.
 
 A reader that stops reading loses events rather than holding the lab up —
 `/api/action` publishes from inside the request, so a send that blocked would be
@@ -1498,6 +1507,90 @@ Each widget's stylesheet is scoped to `.card[data-widget="<id>"]`, and a test
 fails if a selector reaches wider — the same test, and the same reason, as the
 one holding a theme to the nine `--board-*` properties. Below 1000px the cards
 stop floating and stack at the foot of the page, which is what the rails do.
+
+### Record and replay
+
+One wire was worth building for two readers. The first is a widget nobody has
+written yet. The second is a file:
+
+```bash
+make record                          # until you press Ctrl-C
+make record FOR=90                   # ninety seconds, then it stops by itself
+make record FILE=stolen-key.jsonl STREAM='/api/stream/hud?capture=evil-box'
+```
+
+That writes one JSON object per line — the frames from the wire, with the SSE
+framing stripped. To watch one, open **[`/replay.html`](control/ui/replay.html)**
+and drop the file on the page.
+
+```
+http://localhost:8099/replay.html
+```
+
+The live page has a **record** button in the bar, which is the other half of
+the same thing and usually the one you want. It opens no connection and starts
+no process in any container: the frames are already arriving, and it writes
+down the ones that do. So a recording is exactly what the page saw — including
+the capture you had switched on, and not including the one you had not. It
+opens with the board you were looking at rather than with three seconds of an
+empty one, because the snapshots the page is already drawn from go in first.
+Pressing stop hands you the file.
+
+**The player needs an HTTP origin and does not need a lab.** Nothing on that
+page asks the control server anything — the recording carries the machines, the
+attacks, the themes and the widget registry in its first line, which is what
+`page` in the `hello` is for. So this works with every container stopped, and
+with Docker not installed:
+
+```bash
+cd lab/control/ui && python3 -m http.server 8000
+# then http://localhost:8000/replay.html
+```
+
+It cannot be a double-click on the file, and that is the one limit worth
+knowing: `<script type="module">` is blocked on the `file:` scheme and the
+board is a module because three.js is one. This is the same wall
+[`lab/design/five-gates.html`](design/README.md) hit, and it solved it by
+inlining 750 KB of three.js into one page — which is a fine answer for a
+design proposal and the wrong one for a file you serve.
+
+What you get is a viewer and deliberately not a control surface. There are no
+switches, no presets and no attack buttons, because a recording has nothing to
+press them against: what happened, happened. What is there instead is the
+board, the cards the theme docked, and a transport —
+
+- **play**, at 0.25× to 10×, and a scrubber;
+- **the moments**, on the right: every `Result` the lab returned, in order,
+  each one a place to jump to. They are the reason the file exists, so they are
+  a list you press rather than something to find by dragging and watching for
+  the board to move;
+- **what is in the file**: how long, what was being captured, and how many
+  frames the server dropped while it was being made. That last number is the
+  one that says whether to trust the rest — a drawing across a hole is a
+  drawing making things up.
+
+Two things about a scrub are worth saying, because getting either wrong is
+invisible rather than broken.
+
+**A scrub is not a fast replay.** `state`, `status` and `netcheck` are sent
+only when they changed, so the picture at any point is the *last* one of each
+before that point, not the sum of everything since the start. Seeking puts
+those back and plays on, and skips the packets and verdicts in between. Playing
+a minute of `tcpdump` at 60× to arrive at the right board is both slower and
+wrong: every set-piece it passed through would fire.
+
+**The `hello` is a header, not a moment.** On a recording made from a session
+already in progress it is older than everything else in the file, so counting
+it as the first moment would open every such recording with a stretch of dead
+air as long as the session had been going. It is handed out the instant it is
+reached and takes no time at all.
+
+`ui/replay.js` is both halves — the recorder and the player — and the player
+hands back the same three calls `feed.js` does: `on`, `want`, `status`. That
+substitution is the whole seam. `want` cannot mean anything on a file and is
+kept rather than dropped, so a widget written against the live feed runs here
+without knowing which kind it was given, and a set-piece watching for packets
+gets the recorded ones at the times they arrived.
 
 ### If you edit the UI, rebuild
 

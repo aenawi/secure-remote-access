@@ -283,6 +283,12 @@ type Controller struct {
 	// PublishResult is a no-op when it is.
 	feed *Feed
 
+	// What the binary embedded, for the feed's opening hello to carry: the
+	// meta payload, the theme store and the widget registry. Set once by
+	// routes(), read-only afterwards, and nil in a test — see Page in feed.go
+	// for why a recording has to carry all three.
+	page *Page
+
 	stateDir string
 	// Held back until "tailnet lock" is turned off. An attacker with no key
 	// gets no session, which is the property the check is really about.

@@ -493,6 +493,34 @@ func scriptText() string {
 		"set -euo pipefail\n\n" + strings.Join(journal, "\n") + "\n"
 }
 
+// metaPayload is everything the page needs to know about the lab before
+// anything has happened: which machines exist, which configurations and
+// attacks it can offer, which switches to draw, and the steps the two link
+// selects step through.
+//
+// A function rather than a literal inside the /api/meta handler, because it is
+// now wanted in two places: that handler, and the feed's opening hello. Two
+// literals would be two answers, and the one that drifts is the one in the
+// recording — a `.jsonl` describing a lab with a machine the board does not
+// draw, with nothing anywhere to say they disagreed.
+func metaPayload() map[string]any {
+	return map[string]any{
+		"catalog": Catalog,
+		"presets": Presets,
+		"grants":  Grants,
+		"attacks": AttackList,
+		// Everything /api/action will dispatch, which is a longer list than
+		// AttackList: the board reports which of these has no set-piece, and
+		// handing it the nine attacks was how `rotate-key` stayed invisible
+		// to the tool built to notice exactly that.
+		"actions":    ActionIDs(),
+		"panels":     Panels,
+		"groups":     AuditGroups,
+		"lossSteps":  []int{0, 5, 20, 40},
+		"delaySteps": []int{0, 40, 180},
+	}
+}
+
 func routes(c *Controller) http.Handler {
 	mux := http.NewServeMux()
 
@@ -516,6 +544,11 @@ func routes(c *Controller) http.Handler {
 	widgets := loadWidgets(ui)
 	themes := resolvePlacements(loadThemes(ui), widgets)
 
+	// And the same three things handed to the feed, so the opening hello can
+	// carry them. A recording is one file and the player has no server to ask:
+	// see Page in feed.go.
+	c.SetPage(Page{Meta: metaPayload(), Themes: themes, Widgets: widgets})
+
 	writeJSON := func(w http.ResponseWriter, v any) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(v)
@@ -537,21 +570,7 @@ func routes(c *Controller) http.Handler {
 	}
 
 	mux.HandleFunc("/api/meta", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, map[string]any{
-			"catalog": Catalog,
-			"presets": Presets,
-			"grants":  Grants,
-			"attacks": AttackList,
-			// Everything /api/action will dispatch, which is a longer list than
-			// AttackList: the board reports which of these has no set-piece, and
-			// handing it the nine attacks was how `rotate-key` stayed invisible
-			// to the tool built to notice exactly that.
-			"actions":    ActionIDs(),
-			"panels":     Panels,
-			"groups":     AuditGroups,
-			"lossSteps":  []int{0, 5, 20, 40},
-			"delaySteps": []int{0, 40, 180},
-		})
+		writeJSON(w, metaPayload())
 	})
 
 	// The HUD theme store: which palettes were embedded under ui/hud/themes.

@@ -50,6 +50,23 @@
       <span class="viewswitch-note" id="view-note"></span>
     </div>
 
+    <!-- Record the wire, and watch one back.
+
+         Recording is reading. It opens no connection, starts no process in any
+         container and asks the control server for nothing: the frames are
+         already arriving and this writes down the ones that do, which means a
+         recording is exactly what was on this page — including the capture
+         somebody had switched on, and not including the one they had not.
+         Pressing stop hands you a .jsonl file.
+
+         The player is a page, not a lab: replay.html reads one of those files
+         and draws it with no containers running at all. That is the whole
+         point of the wire. -->
+    <div class="recbar" role="group" aria-label="Record the wire">
+      <button type="button" class="recbtn" id="rec-btn" aria-pressed="false">record</button>
+      <a class="recplay" id="rec-play" href="replay.html">watch a recording</a>
+    </div>
+
     <!-- Two axes, deliberately separate. The button is the page's ground,
          light or dark, and it moves the whole control surface. The picker is
          the board's palette and touches nothing but the drawing. A theme that
@@ -465,13 +482,20 @@
      module here would be deferred behind app.js and the readouts would spend
      their first moment with nowhere to listen. One connection, and everything
      below shares it. -->
+<!-- wire.js is the two lists both feed.js and replay.js read — what the wire
+     carries, and which of those are snapshots rather than moments. It has to
+     be above feed.js, which throws without it rather than connecting to a
+     wire it cannot name. replay.js is the recorder here; on replay.html the
+     same file is the player. -->
+<script src="wire.js"></script>
 <script src="feed.js"></script>
+<script src="replay.js"></script>
 <script type="module">
-  import { createBoard, GEOM } from "./hud/scene.js";
+  import { createBoard, refs, GEOM } from "./hud/scene.js";
   import { SETPIECES, run, missing } from "./hud/setpieces.js";
   import * as themes from "./hud/themes.js";
   import * as slots from "./hud/slots.js";
-  window.LabHUD = { createBoard, GEOM, SETPIECES, run, missing, themes, slots };
+  window.LabHUD = { createBoard, refs, GEOM, SETPIECES, run, missing, themes, slots };
   window.dispatchEvent(new Event("labhud-ready"));
 </script>
 <script src="app.js"></script>

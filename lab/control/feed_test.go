@@ -273,3 +273,90 @@ func TestNotesSayWhichSourceTheyCameFrom(t *testing.T) {
 		}
 	}
 }
+
+// ---------------------------------------------------------------------------
+// What the recording has to carry
+//
+// A recording is a `.jsonl` of this wire and the player that reads one has no
+// server to ask anything. So the opening hello carries the three things the
+// page is made of, and these are the properties that make a file playable a
+// year later on a laptop with no Docker on it.
+// ---------------------------------------------------------------------------
+
+// `null` and `[]` are different things to a consumer written in a hurry, and
+// the one that arrives as null is the one that throws in a browser nobody can
+// attach a debugger to.
+func TestSetPageNeverSendsNull(t *testing.T) {
+	c := &Controller{}
+	c.SetPage(Page{}) // every field left empty
+
+	b, err := json.Marshal(c.pageOrEmpty())
+	if err != nil {
+		t.Fatalf("marshalling a Page: %v", err)
+	}
+	if strings.Contains(string(b), "null") {
+		t.Errorf("a Page marshalled to %s, which a player reads without checking", b)
+	}
+}
+
+// A Controller that was never told what the page is made of is what every test
+// in this file builds, and what a `go test` would hit if the hello were served
+// from a nil pointer.
+func TestPageOrEmptyWithNoPage(t *testing.T) {
+	c := &Controller{}
+	p := c.pageOrEmpty()
+	if p.Meta == nil || p.Themes == nil || p.Widgets == nil {
+		t.Fatalf("pageOrEmpty() = %+v, want every field non-nil", p)
+	}
+	if len(p.Themes) != 0 || len(p.Widgets) != 0 {
+		t.Errorf("pageOrEmpty() invented something: %+v", p)
+	}
+}
+
+func TestSetPageKeepsWhatItWasGiven(t *testing.T) {
+	c := &Controller{}
+	c.SetPage(Page{
+		Meta:    map[string]any{"catalog": Catalog},
+		Themes:  []Theme{{ID: "chapter", Name: "Chapter"}},
+		Widgets: []Widget{{ID: "wire", Name: "The wire", Slots: []string{"right"}}},
+	})
+
+	p := c.pageOrEmpty()
+	if len(p.Themes) != 1 || p.Themes[0].ID != "chapter" {
+		t.Errorf("themes came back as %+v", p.Themes)
+	}
+	if len(p.Widgets) != 1 || p.Widgets[0].ID != "wire" {
+		t.Errorf("widgets came back as %+v", p.Widgets)
+	}
+	if p.Meta["catalog"] == nil {
+		t.Error("the meta payload did not survive")
+	}
+}
+
+// The board reads these keys by name, and a recording that carries a payload
+// missing one of them draws a board with no doorways or reports no set-piece
+// gap. Two literals were the alternative — one in the /api/meta handler and
+// one in the hello — and the one that drifts is the one in the recording.
+func TestMetaPayloadCarriesWhatTheBoardReads(t *testing.T) {
+	m := metaPayload()
+	for _, key := range []string{
+		"catalog", "presets", "grants", "attacks", "actions",
+		"panels", "groups", "lossSteps", "delaySteps",
+	} {
+		if m[key] == nil {
+			t.Errorf("metaPayload() has no %q, which the page reads by name", key)
+		}
+	}
+
+	// `actions` is longer than `attacks` on purpose, and that difference is
+	// what reports a dispatchable id with no set-piece. A payload where they
+	// are the same length is the state that let `rotate-key` ship invisible.
+	acts, ok := m["actions"].([]string)
+	if !ok {
+		t.Fatalf("actions is %T, want []string", m["actions"])
+	}
+	if len(acts) <= len(AttackList) {
+		t.Errorf("actions has %d entries and AttackList has %d; the dispatch table is "+
+			"meant to be the longer of the two", len(acts), len(AttackList))
+	}
+}

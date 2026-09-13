@@ -90,6 +90,55 @@ type feedResult struct {
 	Result Result `json:"result"`
 }
 
+// Page is everything about the page that cannot change while the server runs:
+// the payload /api/meta serves, the theme store, and the widget registry.
+//
+// It rides in the opening hello, which looks like three endpoints duplicated
+// onto the wire and is the opposite of that. A recording is a `.jsonl` of this
+// wire and nothing else, and the thing that plays one back is a page with no
+// server behind it to ask — so a recording carrying only events is a recording
+// that cannot say which machines the board should cut cells for, which actions
+// have a set-piece, or where the cards go. The first line has to be enough on
+// its own, because by the time anybody reads it there is nothing else.
+//
+// Written once at startup and then only read, so it needs no lock: the UI is
+// //go:embed-ed and nothing can add a theme to a running binary.
+type Page struct {
+	Meta    map[string]any `json:"meta"`
+	Themes  []Theme        `json:"themes"`
+	Widgets []Widget       `json:"widgets"`
+}
+
+// SetPage records what the binary embedded, for the hello to carry. Called
+// once, from routes(), because that is where the walk of the embedded UI
+// already happens and a second walk would be a second answer.
+//
+// Every field is made non-nil on the way in. `null` and `[]` are different
+// things to a consumer written in a hurry, and the one that arrives as null is
+// the one that throws in a player nobody can attach a debugger to.
+func (c *Controller) SetPage(p Page) {
+	if p.Meta == nil {
+		p.Meta = map[string]any{}
+	}
+	if p.Themes == nil {
+		p.Themes = []Theme{}
+	}
+	if p.Widgets == nil {
+		p.Widgets = []Widget{}
+	}
+	c.page = &p
+}
+
+// pageOrEmpty is what a hello carries. Never nil and never null-valued: a
+// player reads hello.page.meta without checking, and a Controller built
+// directly by a test has never been told what the page is made of.
+func (c *Controller) pageOrEmpty() Page {
+	if c.page == nil {
+		return Page{Meta: map[string]any{}, Themes: []Theme{}, Widgets: []Widget{}}
+	}
+	return *c.page
+}
+
 // ---------------------------------------------------------------------------
 // The hub: events that belong to the lab rather than to one reader
 // ---------------------------------------------------------------------------
@@ -270,10 +319,13 @@ func (c *Controller) StreamHUD(w http.ResponseWriter, r *http.Request) {
 		sources = append(sources, "log")
 	}
 	write(Event{Type: "hello", Data: map[string]any{
-		"types":    FeedTypes,
-		"sources":  sources,
-		"capture":  capture,
-		"logs":     logs,
+		"types":   FeedTypes,
+		"sources": sources,
+		"capture": capture,
+		"logs":    logs,
+		// The three things the page is made of, so a recording of this wire is
+		// a recording somebody can watch with no server to ask. See Page.
+		"page":     c.pageOrEmpty(),
 		"pollMs":   feedPollInterval.Milliseconds(),
 		"dropped":  c.feed.Dropped(),
 		"readers":  c.feed.Subscribers(),
