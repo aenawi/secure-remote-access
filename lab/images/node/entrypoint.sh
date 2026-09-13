@@ -99,15 +99,35 @@ for _ in $(seq 1 180); do
   sleep 1
 done
 
+# --reset is what makes this command survive a machine that has been used.
+# `tailscale up` refuses outright if the preferences already on disk carry a
+# non-default flag the command does not mention, and those preferences live in
+# the ts-* volume, so they outlast the container. One `tailscale set --ssh` from
+# the Tailnet policy panel was therefore enough to make every later join fail —
+# here, and on every path in the control server — with `make reset` the only way
+# back. --reset says this command is the whole statement of intent, so nothing
+# somebody flipped an hour ago can refuse it.
+#
+# It also clears the one setting the lab does mean to keep, so that one is named
+# explicitly from the file the control server keeps beside the key. A machine
+# restarted on its own then comes back the way the switch says it is, rather
+# than however --reset left it.
+SSH_FLAG=--ssh=false
+if [ "$(cat "$STATE_DIR/tailscale-ssh" 2>/dev/null)" = "true" ]; then
+  SSH_FLAG=--ssh
+fi
+
 if [ -s "$STATE_DIR/authkey" ]; then
   AUTHKEY="$(cat "$STATE_DIR/authkey")"
   for attempt in 1 2 3 4 5; do
     if tailscale up \
+        --reset \
         --login-server="$LAB_LOGIN_SERVER" \
         --authkey="$AUTHKEY" \
         --hostname="$LAB_HOSTNAME" \
         --accept-routes=false \
         --accept-dns=false \
+        "$SSH_FLAG" \
         --timeout=30s; then
       log "joined the tailnet as $LAB_HOSTNAME"
       break

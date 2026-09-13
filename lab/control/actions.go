@@ -122,6 +122,61 @@ func (c *Controller) PolicyText() string {
 }
 
 // ---------------------------------------------------------------------------
+// Rejoining the tailnet
+//
+// `tailscale up` refuses to run at all when the preferences already on the
+// machine carry a non-default flag the command does not mention, and those
+// preferences live in the ts-* volume, so they outlive the container. One
+// `tailscale set --ssh` from the Tailnet policy panel was therefore enough to
+// make every later join in this lab fail — at boot, on a configuration, on a
+// reset, on a key rotation — leaving `make reset` as the only way back. Every
+// `up` below carries --reset, which says the command is the whole statement of
+// intent and cannot be refused by something somebody flipped an hour ago.
+//
+// --reset clears the flags it was not told about, Tailscale SSH among them, so
+// the lab has to put that one back itself: setTailscaleSSH is the single place
+// that owns it.
+// ---------------------------------------------------------------------------
+
+// tailnetMachines are the three machines the lab owns. evil-box joins on terms
+// it stole and is deliberately not one of them.
+var tailnetMachines = []string{"lab-vps", "lab-ubuntu", "lab-roam"}
+
+// tailscaleSSHFile records, beside the pre-auth key and in the same shared
+// volume, whether Tailscale SSH is meant to be on. The entrypoint reads it so a
+// machine that is restarted on its own comes back the way the switch says it
+// is, rather than however `--reset` left it.
+const tailscaleSSHFile = "tailscale-ssh"
+
+// setTailscaleSSH puts Tailscale SSH into the state s.ACL.SSH claims it is in,
+// on every machine that is up, and leaves the same fact where a machine that is
+// not up will read it at boot.
+func (c *Controller) setTailscaleSSH(ctx context.Context, on bool) {
+	_ = os.WriteFile(c.StateFile(tailscaleSSHFile),
+		[]byte(strconv.FormatBool(on)+"\n"), 0o644)
+	arg := "--ssh=false"
+	if on {
+		arg = "--ssh"
+	}
+	for _, m := range tailnetMachines {
+		if !c.lab.Running(ctx, m) {
+			continue
+		}
+		_, _ = c.lab.Exec(ctx, m, "tailscale", "set", arg)
+	}
+}
+
+// joinCmd is the join the control server runs on a machine it owns, as a shell
+// line, because the key is read on the machine rather than carried through here.
+// It is a no-op on a machine that already has a session.
+func joinCmd(m string) string {
+	return `tailscale status --json | grep -q '"BackendState": *"Running"' || ` +
+		`tailscale up --reset --login-server=https://headscale:8443 ` +
+		`--authkey="$(cat /lab/state/authkey)" --hostname=` + m +
+		` --accept-routes=false --accept-dns=false --timeout=30s`
+}
+
+// ---------------------------------------------------------------------------
 // Setting one switch
 //
 // The UI sends the same paths the sandbox uses for its own state, so a reader
@@ -217,13 +272,7 @@ func (c *Controller) Set(ctx context.Context, path string, value any) Result {
 		v := boolOf()
 		c.with(func(s *State) { s.ACL.SSH = v })
 		out := c.pushPolicy(ctx, res, "tailscale ssh -> "+strconv.FormatBool(v))
-		for _, id := range []string{"lab-vps", "lab-ubuntu", "lab-roam"} {
-			arg := "--ssh=false"
-			if v {
-				arg = "--ssh"
-			}
-			_, _ = c.lab.Exec(ctx, id, "tailscale", "set", arg)
-		}
+		c.setTailscaleSSH(ctx, v)
 		out.Cmds = append(out.Cmds, "tailscale set --ssh"+map[bool]string{true: "", false: "=false"}[v])
 		return out
 
@@ -423,8 +472,11 @@ func (c *Controller) evilJoin(ctx context.Context, join bool) Result {
 		res.Why = "no spare key was created at boot — try `make reset`"
 		return res
 	}
-	res.Cmds = []string{"tailscale up --login-server=https://headscale:8443 --authkey=tskey-LEAKED   # on evil-box"}
-	r, err := c.lab.Exec(ctx, "evil-box", "tailscale", "up",
+	res.Cmds = []string{"tailscale up --reset --login-server=https://headscale:8443 --authkey=tskey-LEAKED   # on evil-box"}
+	// --reset for the same reason the three machines have it: the exit-node
+	// attack leaves --advertise-exit-node in this machine's preferences, and
+	// without it the next join here is refused rather than run.
+	r, err := c.lab.Exec(ctx, "evil-box", "tailscale", "up", "--reset",
 		"--login-server=https://headscale:8443",
 		"--authkey="+c.untrustedKey,
 		"--hostname=evil-box", "--accept-routes=false", "--accept-dns=false", "--timeout=30s")
@@ -1416,16 +1468,22 @@ func (c *Controller) ApplyPreset(ctx context.Context, id string) Result {
 	}
 	res.Cmds = append(res.Cmds, "headscale policy set -f policy.hujson")
 
-	for _, m := range []string{"lab-vps", "lab-ubuntu", "lab-roam"} {
+	for _, m := range tailnetMachines {
 		if !c.lab.Running(ctx, m) {
 			continue
 		}
 		if p.Tailnet {
-			_, _ = c.lab.Sh(ctx, m, `tailscale status --json | grep -q '"BackendState": *"Running"' || tailscale up --login-server=https://headscale:8443 --authkey="$(cat /lab/state/authkey)" --hostname=`+m+` --accept-routes=false --accept-dns=false --timeout=30s`)
+			_, _ = c.lab.Sh(ctx, m, joinCmd(m))
 		} else {
 			_, _ = c.lab.Exec(ctx, m, "tailscale", "down")
 		}
 	}
+	// After the joins, because a join that ran carried --reset and cleared this,
+	// and because a machine that was already up may still be carrying the last
+	// configuration's answer rather than this one's.
+	c.setTailscaleSSH(ctx, p.ACL.SSH)
+	res.Cmds = append(res.Cmds, "tailscale set --ssh"+
+		map[bool]string{true: "", false: "=false"}[p.ACL.SSH])
 	if !p.Tailnet {
 		res.Cmds = append(res.Cmds, "tailscale down   # day one: the box has never heard of a tailnet")
 	}
@@ -1500,19 +1558,18 @@ func (c *Controller) Reset(ctx context.Context) Result {
 	// takes them off it deliberately, and without this there is no way back to
 	// the boot state except loading another configuration — which is not what a
 	// button called "Reset everything" should mean.
-	for _, m := range []string{"lab-vps", "lab-ubuntu", "lab-roam"} {
+	for _, m := range tailnetMachines {
 		if !c.lab.Running(ctx, m) {
 			continue
 		}
-		_, _ = c.lab.Sh(ctx, m, `tailscale status --json | grep -q '"BackendState": *"Running"' || `+
-			`tailscale up --login-server=https://headscale:8443 --authkey="$(cat /lab/state/authkey)" `+
-			`--hostname=`+m+` --accept-routes=false --accept-dns=false --timeout=30s`)
+		_, _ = c.lab.Sh(ctx, m, joinCmd(m))
 	}
-	res.Cmds = append(res.Cmds, "tailscale up --login-server=…   # on any machine that was taken off")
+	res.Cmds = append(res.Cmds, "tailscale up --reset --login-server=…   # on any machine that was taken off")
 
 	d := defaultState()
 	c.with(func(s *State) { s.ACL = d.ACL; s.Tailcat = d.Tailcat })
 	_ = c.applyPolicy(ctx)
+	c.setTailscaleSSH(ctx, d.ACL.SSH)
 	for _, step := range []struct {
 		path string
 		val  any

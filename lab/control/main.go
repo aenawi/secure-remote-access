@@ -148,6 +148,11 @@ func main() {
 		}); ok {
 			ctl.EnsureNodes(ctx)
 			_ = ctl.applyPolicy(ctx)
+			// The policy is only half of Tailscale SSH: the other half is a
+			// preference on each machine, which a `tailscale up --reset` at
+			// boot has just cleared. Put it back from the switch, and leave the
+			// answer where the next boot will read it for itself.
+			ctl.setTailscaleSSH(ctx, ctl.Snapshot().ACL.SSH)
 			log.Printf("all three machines are registered and tagged")
 		} else {
 			log.Printf("not every machine registered — check `docker compose logs lab-ubuntu`")
