@@ -495,7 +495,8 @@
   import { SETPIECES, run, missing } from "./hud/setpieces.js";
   import * as themes from "./hud/themes.js";
   import * as slots from "./hud/slots.js";
-  window.LabHUD = { createBoard, refs, GEOM, SETPIECES, run, missing, themes, slots };
+  import * as driver from "./hud/driver.js";
+  window.LabHUD = { createBoard, refs, GEOM, SETPIECES, run, missing, themes, slots, driver };
   window.dispatchEvent(new Event("labhud-ready"));
 </script>
 <script src="app.js"></script>

@@ -10,20 +10,17 @@
    post to — the recording already happened, and this file's whole job is to
    turn a file of frames into the board somebody would have been looking at.
 
-   Which means the mapping from a frame to a drawing is the interesting part,
-   and it is deliberately the same mapping app.js makes:
+   The mapping from a frame to a drawing is not here. It was, and it was also
+   in app.js — two copies written against the same wire, which had to stay the
+   same or a recording stopped looking like the session it recorded. It is
+   hud/driver.js now, and both pages hand it a board and something with on()
+   and want() on it: window.LabFeed there, the player replay.js builds out of
+   a file here. That substitution is the same one the widgets rely on.
 
-     state    the configuration, drawn continuously  ->  board.setState
-     verdict  a Result from /api/action              ->  the set-piece for its id
-              a Result from /api/set or /api/preset  ->  the verdict line only
-     flow     a Result from /api/probe               ->  board.probe
-     packet   one line of tcpdump                    ->  whatever asked to watch
-
-   `set` and `preset` draw no shot on purpose, and that is not a simplification.
-   On the live page a switch flip moves the board by changing the lab and
-   letting the next state snapshot redraw it — the board never renders a switch
-   as an event. A player that played a shot for every flip would be a player
-   showing something the reader never saw.
+   What is left of it here is the sentence rather than the shot. A verdict has
+   a line of text in it as well as a picture, and where that line goes is the
+   page's business — the live page has a trace and five tabs, this one has one
+   verdict strip and a rail of moments.
 
    Everything here survives a page with no WebGL, a recording with no page
    payload in it, and a file that is half a recording. What it will not survive
@@ -60,7 +57,18 @@
   /* ---- the board -------------------------------------------------- */
   var board = null, boardBroken = false;
   var player = null, recording = null;
-  var watching = null;      /* the one set-piece watch, same rule as app.js */
+  var driver = null;        /* hud/driver.js, over the board and the player */
+
+  /* The driver needs both, and they arrive in either order: the board when
+     the module lands, the player when a file is opened. So it is built from
+     whichever of the two is second, and rebuilt when a second file replaces
+     the first — a driver still listening to the player before it is a driver
+     drawing the recording somebody has closed. */
+  function syncDriver() {
+    if (driver) { driver.destroy(); driver = null; }
+    if (!board || !player || !window.LabHUD.driver) return;
+    driver = window.LabHUD.driver.create({ board: board, feed: player });
+  }
 
   function startBoard() {
     if (board || boardBroken || !window.LabHUD) return;
@@ -79,6 +87,7 @@
     /* A file may already be open: the picker and ?src= both work before the
        module lands, because reading a file is not the board's business. */
     if (recording) applyPage();
+    syncDriver();
   }
 
   if (window.LabHUD) startBoard();
@@ -271,12 +280,16 @@
       return;
     }
 
-    stopWatch();
+    /* The driver first, then what it was listening to. The other order works
+       — a destroyed player drops its listeners and hands back a no-op want —
+       and it works by accident, which is not a thing to rely on twice. */
+    if (driver) { driver.destroy(); driver = null; }
     if (player) player.destroy();
     recording = rec;
     player = window.LabReplay.createPlayer(rec);
 
     applyPage();
+    syncDriver();
     listen();
     paintFacts(label);
     paintMoments();
@@ -310,64 +323,27 @@
     startThemes();
   }
 
-  /* ---- one watch at a time, same rule as the live page ----------- */
-  function stopWatch() {
-    if (!watching) return;
-    var gone = watching;
-    watching = null;
-    gone.off();
-    gone.release();
-  }
+  /* ---- what the page says about a frame ---------------------------
+     The board's half of this is hud/driver.js', and this page never sees it.
+     What is left is the verdict strip: every Result carries a sentence, and
+     the sentence lands whether or not there is a board to draw the shot on —
+     a reader with no WebGL still gets a readable session out of a recording.
 
-  function ctx() {
-    return {
-      watch: function (sources, type, onEvent) {
-        stopWatch();
-        if (!player) return function () {};
-        /* `want` is a no-op on a recording — whether the packets are in the
-           file was decided when it was made — and it is still called, because
-           a set-piece should not have to know which kind of feed it is
-           watching. If the capture was not running, no packet arrives and the
-           shot draws the empty tray it is written to draw. */
-        var offEvent = player.on(type, onEvent);
-        var release = player.want(sources);
-        var mine = { off: offEvent, release: release };
-        watching = mine;
-        return function () { if (watching === mine) stopWatch(); };
-      }
-    };
-  }
-
-  /* ---- frame to drawing ------------------------------------------- */
+     Which is also why a `set` and a `preset` are not filtered out here the
+     way they are in the driver. They draw nothing, and they still say
+     something: "public :22 closed" is what the reader is watching for even
+     though the board only shows it on the snapshot that follows. */
   function listen() {
-    player.on("state", function (state) {
-      /* A held set-piece frame is the answer to a question somebody asked, so
-         the poll that lands three seconds later waits rather than wiping it.
-         The same guard app.js has, for the same reason. */
-      if (board && !board.holding) board.setState(state);
-    });
-
     player.on("verdict", function (d) {
       if (!d || !d.result) return;
       var res = d.result;
       say(res.danger ? "bad" : res.ok ? "ok" : "warn", res.why || res.rule, res.rung);
-      /* Only an action draws a shot. See the header: on the live page a
-         switch and a configuration move the board through the state snapshot
-         that follows them, and never as an event of their own. */
-      if (d.kind !== "action") return;
-      if (!board) return;
-      stopWatch();
-      if (window.LabHUD.run(board, d.id, res, ctx())) return;
-      if (res.from && res.to) board.probe(res, true);
-      else board.report(res, true);
     });
 
     player.on("flow", function (d) {
-      if (!d || !d.result || !board) return;
+      if (!d || !d.result) return;
       var res = d.result;
       say(res.danger ? "warn" : res.ok ? "ok" : "bad", res.why || res.rule, res.rung);
-      stopWatch();
-      board.probe(res);
     });
 
     player.onChange(paintTransport);
